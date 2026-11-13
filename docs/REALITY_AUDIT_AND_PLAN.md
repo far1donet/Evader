@@ -2,10 +2,10 @@
 
 Status date: 2026-11-13. Written against EVADER 0.4 (Next.js 16, React 19, TypeScript 5.9, Three.js 0.186).
 
-**Read this first.** The playable game in `app/`, `components/` and `lib/snow-game.ts` is still the original v0.4 game.
-What has been added so far is a new, tested **physics core** in `lib/sim/`. It is not yet connected to the game loop, the
-camera, the rider rig, the park or the UI, so playing the game today feels exactly like v0.4. The core is a verified library
-with a test suite, not a finished simulator. Nothing here has been run on a GPU, in a browser, or on your PC.
+**Status (0.5).** The physics core in `lib/sim/` now drives the game when Settings › Riding › Physics model is
+**Reality (beta)** (the default for new profiles). The original v0.4 model remains selectable as **Classic**, and every
+v0.4 mode, course and test still works. What was verified, and how, is in `docs/IMPLEMENTATION_REPORT.md`; what is still
+wrong is in `docs/KNOWN_ISSUES.md`. Nothing has been run on a real GPU; the browser checks used a software renderer.
 
 ## 1. Baseline findings (v0.4)
 
@@ -64,66 +64,91 @@ only reduces air drag. There is no thrust term.
 These tests compare the model to analytic references and to its own conservation properties. They are **not** calibration
 against real snowboarding measurements, so nothing here may be described as scientifically validated.
 
-## 3. Subsystem classification
+## 3. Subsystem classification (after 0.5)
 
-| Subsystem | State | Notes |
+Legend — **Verified**: implemented and covered by automated tests. **Partial**: implemented, works in tests, with
+documented gaps. **Legacy**: v0.4 code reused unchanged. **Not implemented**. **Needs assets/tools**: cannot be done
+well without external assets, a GPU or measurements.
+
+| # | Subsystem | State | Notes |
+| --- | --- | --- | --- |
+| 1 | Physics world, fixed-step scheduler | Verified | 960 Hz sim inside the 120 Hz game tick; deterministic; render-rate independent |
+| 2 | Snowboard rigid body | Verified | `rigid-body.ts`, angular-momentum state |
+| 3 | Rider biomechanics | Partial | Point mass + strength-limited leg + body yaw/pitch inertia; no articulated torso/arms in the physics |
+| 4 | Joint constraints, skeletal posing | Partial | Rig IK with fixed limb lengths; anatomical twist range in the sim; joint limits not exhaustive |
+| 5 | Contact detection and resolution | Verified (snow), Partial (rails) | 26 compliant stations; rails solid but no rider balance strategy; trees/rocks are radius checks |
+| 6 | Snow deformation and material | Partial | 11 materials drive mechanics; no stored deformation; tracks/spray are v0.4 visuals |
+| 7 | Terrain streaming / world | Legacy | v0.4 analytic heightfield and LOD tiles; no streaming or new geography |
+| 8 | Procedural animation | Partial | Rig posed from simulated board orientation, leg load, twist, air state; v0.4 pose code otherwise |
+| 9 | Character rendering | Partial | Real scale (1.72 m) and proportions from v0.4; not a scanned/sculpted human (needs assets) |
+| 10 | Snowboard and equipment rendering | Partial | Real lengths/waists/stance per board; binding angles fixed |
+| 11 | Weather and atmosphere | Partial | Weather sets fresh snow and a steady wind in the physics; visuals are v0.4 |
+| 12 | Audio | Legacy | Synthesised v0.4 audio; not contact-driven |
+| 13 | Player input | Verified | Intent model, gamepad dead zone/curve/sensitivity/inversion, keyboard, touch |
+| 14 | Tricks and scoring | Partial | Spins, grabs, presses, rails, landing classes, crashes; inversions rarely generated |
+| 15 | Cameras and replay | Partial | v0.4 cameras; replays record the simulated orientation (versioned) |
+| 16 | World interaction | Partial | Trees/rocks crash the rider; no branch/snow-fall interaction |
+| 17 | UI and progression | Partial | New settings; progression from v0.4 |
+| 18 | Performance diagnostics | Verified (in software GL) | Overlay with FPS, 1 % lows, graph, draws, triangles, physics cost, hardware report |
+| 19 | Debug visualisation | Partial | Numeric overlay only; no force/contact drawing yet |
+| 20 | Automated validation | Verified | 4 Node suites + headless browser smoke test |
+| — | Board flex / torsion | Not implemented | |
+| — | Ragdoll falls | Not implemented | Point slide + rolled pose |
+| — | WebGPU, TAA, SSAO, volumetrics, new vegetation/geology | Not implemented | Needs a GPU to develop and validate |
+| — | Calibration against real riding data | Needs measurements | All parameters are estimates |
+
+### Frontside / backside convention
+
+Board frame: +x nose, +y deck normal, +z toe edge for a regular rider (toe side is to the right of travel when riding
+nose-first). A rotation is **frontside** when the chest (toe direction) turns toward the direction of travel first:
+with facing f = toe·ẑ and travel t = travel·x̂, (ŷ × f)·t = toe·travel, so frontside ⇔ ω_y · toe · travel > 0.
+`FreestyleTracker.describe()` uses exactly this. Backflip/frontflip: rotation about the travel axis toward the heels / toes.
+Wildcat/tamedog: rotation about the lateral axis, backward / forward.
+
+## 4. Phased plan and status
+
+| Phase | Scope | Status after 0.5 |
 | --- | --- | --- |
-| Rigid-body core | Done, verified | `lib/sim/rigid-body.ts` |
-| Board-to-snow contact, edges, sidecut, skid | Done, verified inside the envelope in `KNOWN_ISSUES.md` | |
-| Rider as mass on a leg, ankle roll, passive twist | Done, simplified | Lean is a stiff constraint, not a free balance |
-| Snow material table | Done, **uncalibrated** | |
-| Aerodynamics | Done, simple | Constant air density 0.95 kg/m^3 |
-| Board flex, torsion | Not implemented | Values exist in `BoardSpec` but are unused |
-| Ollie / pop mechanics | Not implemented | Leg force can load the board; no tail-snap model |
-| Air rotation, grabs, landing in the new core | Not implemented | Rigid-body core supports it; no rider body rotation yet |
-| Articulated rider with IK and ragdoll in the new core | Not implemented | Legacy rig (`rider-rig.ts`) reusable for rendering |
-| Snow deformation and persistent tracks | Legacy only | `board-tracks.ts`, `powder-spray.ts` reusable |
-| Terrain and course generation | Legacy | Reusable; `SimTerrain` adapter still to write |
-| Rendering, forest, sky | Legacy | Needs a real GPU browser to evaluate |
-| Park (kickers, rails) | Legacy, scripted | Rails catch automatically; needs contact rewrite |
-| Camera, replay, audio, UI | Legacy | Not touched |
-| Gamepad-first controls | Not implemented | Keyboard and basic gamepad remain from v0.4 |
-| Hardware detection and diagnostics screen | Not implemented | No specs of your PC are assumed |
-| Integration of `lib/sim` into `snow-game.ts` | Not started | The largest remaining risk |
-
-## 4. Phased plan
-
-| Phase | Directive scope | Status |
-| --- | --- | --- |
-| 1 Audit | Baseline, classification, scripted-behaviour list | Done (this file) |
+| 1 Audit | Baseline, classification | Done |
 | 2 Physics foundation | Rigid body, integrator, tests | Done |
-| 3 Snowboard mechanics | Contact stations, sidecut, edge grip, skid, flex | Contact, sidecut and skid done; flex not done |
-| 4 Rider character | Articulated body, IK, balance | Not started (point mass + leg + twist only) |
-| 5 Animation | Pose from physical state | Not started |
-| 6 Freestyle | Ollie, spins, grabs, landings, rails | Not started |
-| 7 Snow | Deformation, tracks, spray | Legacy only |
-| 8 World | Terrain, weather | Legacy only |
-| 9 Rendering | Materials, lighting, post | Legacy only; never tested on a GPU here |
-| 10 Park | Kickers, rails, halfpipe | Legacy only |
-| 11 Camera, audio, UI | | Legacy only |
-| 12 QA | Soak, determinism, diagnostics | Determinism and the physics suite only |
+| 3 Snowboard mechanics | Contact, sidecut, grip, skid, braking | Done except flex; braking slow (known issue) |
+| 4 Rider character | Real scale, equipment sizes, joint ranges | Partial (scale, boards, stance, grabs; no new mesh) |
+| 5 Animation | Pose from physical state | Partial (orientation, load, twist, air); no motion-matched clips |
+| 6 Freestyle | Ollies, spins, grabs, landings, rails | Partial (see known issues for kickers and inversions) |
+| 7 Snow | Deformation, tracks, spray | Not started beyond materials |
+| 8 World | Terrain, vegetation, geology | Not started |
+| 9 Rendering | Materials, lighting, post | Cinematic preset only; needs a GPU |
+| 10 Park | Kickers, rails | Uses v0.4 geometry; physics on it is partial |
+| 11 Camera, audio, UI | | Settings, controls, diagnostics; camera/audio v0.4 |
+| 12 QA | Tests, profiling | Node suites + headless browser; no GPU profiling |
 
-Recommended next steps, in order:
+Next steps, in priority order (directive § 30):
 
-1. **Integrate the core.** Write a `SimTerrain` adapter over the game's `height()` and snow materials, drive `SnowboardSim` from the input layer
-   (gamepad axes and keys mapped to `RiderCommand`), and feed its state to the existing camera and rider rig. Keep the legacy loop selectable so
-   no mode is removed.
-2. **Fix the remaining spin-out region** (see `KNOWN_ISSUES.md`) by giving the rider a free torso yaw and a trained yaw reflex.
-3. **Ollie and flex**, then air rotation with the rider's inertia changing with posture.
-4. **Real-browser checks on your PC**: frame rate, GPU load, visual quality. These cannot be done in this cloud workspace.
+1. **Articulated rider in the physics** — pelvis/torso yaw joint so the board can rotate ~90° under the body (fixes slow
+   stops), lean independent of edge angle (fixes the pitch/roll momentum leak and makes balance a real control problem).
+2. **Kicker reliability** — study the concave-transition yaw instability (`tools/k4.mjs` measures the snow yaw torque) and
+   runout slides; add a lip pop that counters forward rotation.
+3. **Board flex** — reduced-order bending/torsion from `flexEI` / `torsionGJ`; carve radius from flex instead of `R·cos`.
+4. **Snow memory** — chunk-local deformation heightfield shared by contact and rendering (grooves, compaction, tracks).
+5. **On your PC** — measure each preset with the diagnostics overlay; then decide on WebGPU and post-processing work.
 
-## 5. How to run the checks
+## 5. Engine migration (directive § 3)
+
+Evidence from this pass: the physics runs at ≈0.2 ms per 120 Hz tick in a browser JavaScript engine, so CPU budget is
+not the constraint for the riding simulation. The current gaps (articulated rider, flex, snow memory, kicker stability)
+are modelling problems that a native engine would not solve by itself: neither Unreal's Chaos nor any generic rigid-body
+engine provides snowboard-to-snow contact, and the custom contact model would have to be ported. Rendering fidelity is
+the area where a native engine (Unreal Engine 5: Lumen, Nanite, virtual shadow maps, MetaHuman, motion matching) would
+give a large jump, at the cost of rewriting the game, rebuilding all content and losing the zero-install browser
+workflow. Recommendation: stay on Next.js/Three.js while the simulation matures; revisit after measuring the Extreme and
+Cinematic presets on your GPU. If the rendering targets are then out of reach, port the `lib/sim` model (plain TypeScript
+with no browser dependencies) to C++ inside UE5. No migration was started.
+
+## 6. How to run the checks
 
 ```sh
-npm test            # original tests + tests/sim.mjs
-npx tsc --noEmit    # type check (passes)
+npm test            # v0.4 suites + tests/sim.mjs + tests/reality.mjs
+npm run check       # TypeScript
+npm run build       # production build
+npm run test:browser  # headless Chromium smoke test (needs `npm start` running)
 ```
-
-`next build` and the browser game were not run in this workspace. `node_modules` here lacks Windows binaries and there is no network
-access, so a production build and a visual check have to be done on your PC with `START_LOCAL.bat`.
-
-## 6. Link to your PC and VS Code
-
-You asked me to use your PC and VS Code when needed. In this session the link to your computer did not connect (the connection returned an
-error), so I could not read or change anything there. All work was done in the cloud workspace. When the link is available, the finished
-files can be placed straight into your project folder; until then, use the archive that was delivered with this report.

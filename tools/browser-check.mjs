@@ -1,0 +1,37 @@
+// Drives the production build in headless Chromium. Software WebGL (SwiftShader): this verifies that the game runs,
+// renders and simulates in a real browser. It does NOT measure GPU performance or judge visual quality on real hardware.
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const { chromium } = require('playwright');
+const out = process.argv[2] || 'docs/screenshots';
+const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
+const errors = [];
+page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+page.on('pageerror', e => errors.push(String(e)));
+await page.addInitScript(() => localStorage.setItem('evader-profile-v1', JSON.stringify({ settings: { physics: 'reality', assistLevel: 'balanced', quality: 'balanced', renderScale: 1, diagnostics: true, volume: 0, weather: 'clear', fov: 62, motion: true, assist: false, autoLand: true }, look: null })));
+await page.goto('http://127.0.0.1:3000/?debug=1', { waitUntil: 'load' });
+await page.waitForFunction(() => !!window.evaderDebug, null, { timeout: 60000 });
+await page.waitForSelector('button.drop-button:not([disabled])', { timeout: 60000 });
+await page.screenshot({ path: `${out}/01-menu.png` });
+await page.click('button.drop-button:not([disabled])');
+const state = () => page.evaluate(() => { const g = window.evaderDebug; const r = g.reality; return { state: g.state, physics: r ? 'reality' : 'classic', d: +g.d.toFixed(1), x: +g.x.toFixed(2), kmh: +(g.speed * 3.6).toFixed(1), ground: g.ground, contacts: r?.sim.diag.contacts, edgeDeg: r ? +(r.sim.edgeAngle * 57.3).toFixed(1) : null, crashed: r?.crashed, score: g.score, feedback: g.feedback, trick: g.trick, frames: g.frames.length, board: r?.board, q: g.frames.at(-1)?.q }; });
+const wait = ms => page.waitForTimeout(ms);
+const samples = [];
+await wait(1500); samples.push(['after drop-in', await state()]);
+await page.keyboard.down('KeyD'); await wait(900); samples.push(['carving toe/right', await state()]); await page.keyboard.up('KeyD');
+await page.screenshot({ path: `${out}/02-carve.png` });
+await page.keyboard.down('KeyA'); await wait(900); samples.push(['carving heel/left', await state()]); await page.keyboard.up('KeyA');
+await page.keyboard.down('KeyE'); await page.keyboard.down('Space'); await wait(450); await page.keyboard.up('Space'); await wait(120); await page.keyboard.up('KeyE');
+await page.keyboard.down('ShiftLeft'); await wait(160); samples.push(['pop + spin prep + grab', await state()]);
+await page.screenshot({ path: `${out}/03-air.png` });
+await wait(900); await page.keyboard.up('ShiftLeft'); samples.push(['after landing', await state()]);
+await page.keyboard.down('KeyS'); await wait(1500); samples.push(['speed check held', await state()]); await page.keyboard.up('KeyS');
+await page.screenshot({ path: `${out}/04-brake.png` });
+await wait(3000); samples.push(['free run 3 s', await state()]);
+await page.screenshot({ path: `${out}/05-diagnostics.png` });
+const diag = await page.evaluate(() => document.querySelector('.diagnostics pre')?.textContent ?? '');
+for (const [k, v] of samples) console.log(k.padEnd(24), JSON.stringify(v));
+console.log('--- diagnostics overlay ---\n' + diag);
+console.log('--- console errors ---\n' + (errors.join('\n') || 'none'));
+await browser.close();

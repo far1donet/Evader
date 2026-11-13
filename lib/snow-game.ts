@@ -10,9 +10,26 @@ import { RiderRig, type RiderKit } from './rider-rig.ts';
 import { BOARD_WAIST_M } from './snowboard-gear.ts';
 import { rotationStep, landingWindow, completedRotation, landingTime, airPhase, TAU } from './trick-motion.ts';
 import { springStep, VectorSpring, type Spring } from './motion.ts';
+import { RealityRide, PHYSICS_VERSION } from './reality-ride.ts';
+import { IDLE_INTENT, type AssistLevel, type RiderIntent, type Stance } from './sim/rider-controller.ts';
+import { GRABS, type FreestyleEvent } from './sim/freestyle.ts';
+import { BOARDS, type BoardCategory } from './sim/boards.ts';
+import { readGamepad, type PadConfig } from './input.ts';
+import { Diagnostics } from './diagnostics.ts';
 export type Mode = 'freeride' | 'slopestyle' | 'time-trial' | 'training';
+export type PhysicsModel = 'reality' | 'classic';
 export type Settings = {
     autoLand?: boolean;
+    /** 'reality' = rigid-body snowboard simulation (lib/sim). 'classic' = the original v0.4 model. Undefined = classic. */
+    physics?: PhysicsModel;
+    assistLevel?: AssistLevel;
+    board?: BoardCategory;
+    stance?: Stance;
+    padDeadzone?: number;
+    padCurve?: number;
+    padSensitivity?: number;
+    invertLean?: boolean;
+    diagnostics?: boolean;
     quality: string;
     renderScale?: number;
     volume: number;
@@ -75,8 +92,15 @@ export type Frame = {
     skidAngle?: number;
     landingPitch?: number;
     landingSpin?: number;
+    /** Reality physics: board orientation quaternion (x, y, z, w) of the rendered rig, and rider posture. */
+    q?: [number, number, number, number];
+    crouch?: number;
+    twist?: number;
+    crashed?: boolean;
 };
 export type Run = {
+    /** Physics model that produced the frames; replays never re-simulate, they interpolate recorded state. */
+    physics?: string;
     terrainRevision?: 2 | 3 | 4 | 5;
     course: Course;
     mode: Mode;
@@ -104,6 +128,7 @@ export type HUD = {
     totalGates: number;
 };
 const clamp = T.MathUtils.clamp;
+const GRAB_KEYS = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9', 'Digit0', 'Minus', 'Equal', 'BracketRight'];
 const DAYLIGHT = new T.Vector3(-158, 118, -95);
 const DUSK_LIGHT = new T.Vector3(-158, 48, -95);
 const HARD_LANDING_SPEED = 8.5;
@@ -145,6 +170,16 @@ function supportHeight(x: number, d: number, c: Course, speed: number) {
     const float = T.MathUtils.smoothstep(speed, 3, 21);
     return height(x, d, c) - depth * (.44 - float * .27);
 }
+/** 0 outside a kicker, 1 on its takeoff ramp, 2 on its knuckle / landing. Used to pick park snow for the simulation. */
+export function parkZone(x: number, d: number, c: Course): 0 | 1 | 2 {
+    const k = kickerAt(d, c);
+    if (!k.exists) return 0;
+    const off = Math.abs(x - center(k.base + (c.classicFeatures ? 12 : k.profile.lip), c));
+    if (off > k.profile.shoulder) return 0;
+    const t = d - k.base;
+    return t >= 0 && t <= k.profile.lip ? 1 : t > k.profile.lip && t <= k.profile.runout ? 2 : 0;
+}
+const RIG_FLIP = new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), Math.PI);
 export function pathSlope(x:number,d:number,heading:number,c:Course) {
  const dx=Math.sin(heading)*.05, dd=Math.cos(heading)*.05;
  return (height(x+dx,d+dd,c)-height(x-dx,d-dd,c))/.1;
@@ -274,6 +309,19 @@ export class SnowGame {
     performanceTime = 0;
     performanceFrames = 0;
     performanceLabel?: HTMLDivElement;
+    /** Reality physics ride (undefined in Classic mode, in menus and in the headless legacy tests). */
+    reality?: RealityRide;
+    realityEvents: FreestyleEvent[] = [];
+    /** Rendered board orientation from the simulation, and the one from the previous 120 Hz tick for interpolation. */
+    renderQ = new T.Quaternion(); prevRenderQ = new T.Quaternion(); replayHasQ = false;
+    intent: RiderIntent = { ...IDLE_INTENT };
+    keySteer = 0;
+    /** Selected grab (index into GRABS) for Reality physics. */
+    realityGrab = 0;
+    padLatch = new Set<string>();
+    padId = '';
+    diagnostics?: Diagnostics;
+    crashVisual = 0;
     constructor(host: HTMLElement, settings: Settings, look: Look, onHUD: (h: HUD) => void, onEnd: (r: Run) => void, onPause: () => void) {
         this.host = host;
         this.settings = settings;
@@ -295,6 +343,8 @@ export class SnowGame {
         this.performanceLabel.className='performance-label';
         this.performanceLabel.textContent='Preparing terrain…';
         host.appendChild(this.performanceLabel);
+        this.diagnostics = new Diagnostics(host);
+        this.diagnostics.setVisible(!!settings.diagnostics);
         this.renderer.domElement.setAttribute('aria-label', '3D snowboarding mountain');
         this.scene.add(this.world);
         this.scene.add(new T.HemisphereLight(0xc2ddff, 0xa6b7ca, 1.25));
@@ -352,7 +402,7 @@ export class SnowGame {
         this.tick();
     }
     mesh(g: T.BufferGeometry, m: T.Material, x: number, y: number, z: number, parent: T.Object3D = this.body) { const o = new T.Mesh(g, m); o.position.set(x, y, z); o.castShadow = true; o.receiveShadow = true; parent.add(o); return o; }
-    makeRider() { this.rider.add(this.body); this.rig = new RiderRig(this.body, this.jacket, this.boardMat); }
+    makeRider() { this.rider.add(this.body); this.rig = new RiderRig(this.body, this.jacket, this.boardMat); this.rig.setBoard(BOARDS[this.settings?.board ?? 'all-mountain']); }
     private resizeCanvas() {
         const host = this.garageHost ?? this.host;
         const { clientWidth: width, clientHeight: height } = host;
@@ -586,6 +636,7 @@ export class SnowGame {
     }
     setSettings(s: Settings) {
         const changed=this.settings.quality!==s.quality;
+        if ((this.settings.board ?? 'all-mountain') !== (s.board ?? 'all-mountain')) this.rig.setBoard(BOARDS[s.board ?? 'all-mountain']);
         this.settings=s;
         if (changed) this.powder.setQuality(s.quality);
         const detail=preset(s.quality);
@@ -594,9 +645,34 @@ export class SnowGame {
         const sun=this.scene.getObjectByName('sun') as T.DirectionalLight;
         if(sun.shadow.mapSize.x!==detail.shadow){sun.shadow.map?.dispose();sun.shadow.map=null;sun.shadow.mapSize.set(detail.shadow,detail.shadow);}
         this.camera.fov=s.fov;this.camera.updateProjectionMatrix();this.setAtmosphere();
+        this.diagnostics?.setVisible(!!s.diagnostics);
+        if (this.reality) this.configureReality(this.reality);
         if(changed && (this.state==='menu'||this.state==='garage')) this.buildWorld();
     }
-    start(mode: Mode) { this.powder.clear(); if (this.course.classicFeatures || this.course.originalKickers || this.course.packedSnow) this.setCourse({ ...this.course, classicFeatures: false, originalKickers: false, packedSnow: false }); this.parkFlight = undefined; this.mode = mode; this.state = 'ride'; this.x = center(0, this.course); this.d = 0; this.y = height(this.x, 0, this.course); this.vy = 0; this.speed = 12; this.heading = 0; this.steerFilter = 0; this.edgeAngle = 0; this.skidAngle = 0; this.steerSpring = { value: 0, velocity: 0 }; this.previous = undefined; this.physicsAccumulator = 0; this.landingImpact = 0; this.spin = 0; this.flip = 0; this.spinVelocity = 0; this.flipVelocity = 0; this.load = 0; this.pop = 0; this.extension = 0; this.jumpPending = false; this.jumpReleased = false; this.grabLocked = -1; this.grabKind = 0; this.grabContactTime = 0; this.visualGrab = false; this.visualTuck = false; this.spinInput = 0; this.ground = true; this.score = 0; this.time = 0; this.tricks = 0; this.bails = 0; this.combo = 1; this.bailTimer = 0; this.lastRamp = -1; this.frames = []; this.repeats.clear(); this.railDone.clear(); this.railActive = -1; this.gateCount = 0; this.gateIndex = 0; this.flowTimer = 0; this.toastTimer = 3; this.trick = ''; this.trickScore = 0; this.recordTimer = 0; this.frames.push(this.snapshot()); this.feedback = mode === 'training' ? 'Hold SPACE to load, release to pop · Q / E spin · SHIFT grab' : 'Find your line'; this.photo = false; this.keys.clear(); this.touch.clear(); this.boardTracks.clear(); this.camera.position.set(this.x, this.y + CHASE_HEIGHT, CHASE_DISTANCE); this.cameraFocus.set(this.x, this.y + 1.05, -5.15); this.cameraSpring.reset(this.camera.position); this.focusSpring.reset(this.cameraFocus); this.initAudio(); this.audio?.resume().catch(() => { }); }
+    start(mode: Mode) { this.powder.clear(); if (this.course.classicFeatures || this.course.originalKickers || this.course.packedSnow) this.setCourse({ ...this.course, classicFeatures: false, originalKickers: false, packedSnow: false }); this.parkFlight = undefined; this.mode = mode; this.state = 'ride'; this.x = center(0, this.course); this.d = 0; this.y = height(this.x, 0, this.course); this.vy = 0; this.speed = 12; this.heading = 0; this.steerFilter = 0; this.edgeAngle = 0; this.skidAngle = 0; this.steerSpring = { value: 0, velocity: 0 }; this.previous = undefined; this.physicsAccumulator = 0; this.landingImpact = 0; this.spin = 0; this.flip = 0; this.spinVelocity = 0; this.flipVelocity = 0; this.load = 0; this.pop = 0; this.extension = 0; this.jumpPending = false; this.jumpReleased = false; this.grabLocked = -1; this.grabKind = 0; this.grabContactTime = 0; this.visualGrab = false; this.visualTuck = false; this.spinInput = 0; this.ground = true; this.score = 0; this.time = 0; this.tricks = 0; this.bails = 0; this.combo = 1; this.bailTimer = 0; this.lastRamp = -1; this.frames = []; this.repeats.clear(); this.railDone.clear(); this.railActive = -1; this.gateCount = 0; this.gateIndex = 0; this.flowTimer = 0; this.toastTimer = 3; this.trick = ''; this.trickScore = 0; this.recordTimer = 0; this.frames.push(this.snapshot()); this.feedback = mode === 'training' ? 'Hold SPACE to load, release to pop · Q / E spin · SHIFT grab' : 'Find your line'; this.photo = false; this.keys.clear(); this.touch.clear(); this.boardTracks.clear(); this.reality = undefined; if (this.settings.physics === 'reality') this.startReality(); this.camera.position.set(this.x, this.y + CHASE_HEIGHT, CHASE_DISTANCE); this.cameraFocus.set(this.x, this.y + 1.05, -5.15); this.cameraSpring.reset(this.camera.position); this.focusSpring.reset(this.cameraFocus); this.initAudio(); this.audio?.resume().catch(() => { }); }
+    configureReality(ride: RealityRide) {
+        const w = this.settings.weather;
+        ride.configure({
+            assist: this.settings.assistLevel ?? 'balanced', stance: this.settings.stance ?? 'regular',
+            freshSnow: w === 'snow' ? .6 : 0,
+            // Steady cross-slope breeze; stronger in a snowstorm (m/s).
+            wind: w === 'snow' ? { x: 3.2, z: 1.1 } : w === 'dusk' ? { x: -1.2, z: .4 } : { x: .8, z: 0 },
+        });
+    }
+    startReality() {
+        const c = this.course;
+        const rails = this.rails.map(r => ({ x: r.x, d: r.d, end: r.end, width: r.width, top: r.top, slope: r.slope, round: r.name === 'LONG TUBE' }));
+        const ride = new RealityRide({ height: (x, d) => height(x, d, c), snowDepth: (x, d) => snowDepth(x, d, c), center: d => center(d, c), parkZone: (x, d) => parkZone(x, d, c) }, rails, this.settings.board ?? 'all-mountain');
+        this.configureReality(ride);
+        this.reality = ride;
+        // A rider drops in from a standstill with a short push (about 3 m/s); gravity does the rest.
+        ride.place(center(2, c), 2, 3);
+        this.syncReality(1 / 120);
+        this.prevRenderQ.copy(this.renderQ);
+        this.feedback = this.mode === 'training'
+            ? 'A/D edge · S speed check · hold SPACE to crouch, release to pop · hold Q/E while crouched to wind a spin · SHIFT grab (1–9, 0, -, = choose)'
+            : 'Find your line';
+    }
     initAudio() { if (this.audio)
         return; try {
         this.audio = new AudioContext();
@@ -632,8 +708,10 @@ export class SnowGame {
             this.cameraMode = (this.cameraMode + 1) % 3;
         else if (k === 'Space' && this.state === 'ride')
             this.prepareJump();
-        else if (['Digit1', 'Digit2', 'Digit3'].includes(k))
+        else if (['Digit1', 'Digit2', 'Digit3'].includes(k) && !this.reality)
             this.grabKind = Number(k.slice(-1)) - 1;
+        else if (this.reality && GRAB_KEYS.includes(k))
+            this.realityGrab = GRAB_KEYS.indexOf(k);
     } this.keys.add(k); };
     keyup = (e: KeyboardEvent) => { this.keys.delete(e.code); if (e.code === 'Space')
         this.jumpReleased = true; };
@@ -653,7 +731,7 @@ export class SnowGame {
         if (k === 'Space')
             this.jumpReleased = true;
     } }
-    resetMarker() { this.powder?.clear(); this.boardTracks?.breakTrail(); this.parkFlight = undefined; this.edgeAngle = 0; this.skidAngle = 0; this.x = center(this.d, this.course); this.y = height(this.x, this.d, this.course); this.vy = 0; this.ground = true; this.heading = 0; this.spin = 0; this.flip = 0; this.speed = 10; this.combo = 1; this.railActive = -1; this.bails++; this.jumpPending = false; this.load = 0; this.spinVelocity = 0; this.flipVelocity = 0; this.previous = undefined; this.toast('Line reset'); }
+    resetMarker() { if (this.reality) { this.powder?.clear(); this.boardTracks?.breakTrail(); this.reality.place(center(this.d, this.course), this.d, 3); this.syncReality(1 / 120); this.prevRenderQ.copy(this.renderQ); this.previous = undefined; this.combo = 1; this.bails++; this.toast('Line reset'); return; } this.powder?.clear(); this.boardTracks?.breakTrail(); this.parkFlight = undefined; this.edgeAngle = 0; this.skidAngle = 0; this.x = center(this.d, this.course); this.y = height(this.x, this.d, this.course); this.vy = 0; this.ground = true; this.heading = 0; this.spin = 0; this.flip = 0; this.speed = 10; this.combo = 1; this.railActive = -1; this.bails++; this.jumpPending = false; this.load = 0; this.spinVelocity = 0; this.flipVelocity = 0; this.previous = undefined; this.toast('Line reset'); }
     prepareJump() { if (this.ground && this.state === 'ride' && this.bailTimer <= 0) {
         this.jumpPending = true;
         this.jumpReleased = false;
@@ -781,7 +859,7 @@ export class SnowGame {
         this.landingImpact = Math.min(1, .25 + this.airTime * .32);
         return true;
     }
-    finish() { this.frames.push(this.snapshot()); this.state = 'result'; const run: Run = { terrainRevision: 5, course: this.course, mode: this.mode, score: this.score, time: this.time, distance: this.d, tricks: this.tricks, bails: this.bails, gates: this.gateCount, totalGates: this.features.length, frames: this.frames }; this.run = run; this.onEnd(run); }
+    finish() { this.frames.push(this.snapshot()); this.state = 'result'; const run: Run = { physics: this.reality ? PHYSICS_VERSION : 'classic-0.4', terrainRevision: 5, course: this.course, mode: this.mode, score: this.score, time: this.time, distance: this.d, tricks: this.tricks, bails: this.bails, gates: this.gateCount, totalGates: this.features.length, frames: this.frames }; this.run = run; this.onEnd(run); }
     replay(run: Run) {
         this.powder?.clear();
         const revision = run.terrainRevision ?? 1;
@@ -832,6 +910,13 @@ export class SnowGame {
     }
         if (inspectingGear) this.renderer.render(this.gearPreview.scene, this.gearPreview.camera);
         else this.renderer.render(this.scene, this.camera);
+        if (this.diagnostics?.visible) {
+            const r = this.reality, sim = r?.sim;
+            this.diagnostics.frame(dt, { quality: this.settings.quality, renderer: this.renderer, physicsMs: r?.lastTickMs ?? 0, physics: r ? `Reality 960 Hz · ${BOARDS[r.board].name} · ${r.ctl.assist}` : 'Classic 120 Hz',
+                particles: this.powder.activeCount?.() ?? 0, contacts: sim?.diag.contacts ?? 0, speed: this.speed, slip: r ? r.ctl.slipAngle(sim!) : this.skidAngle, edge: sim?.edgeAngle ?? this.edgeAngle,
+                legForce: sim?.legAxial ?? 0, balance: sim?.balanceLoad ?? 0, terrainEvals: r?.terrain.evaluations ?? 0 });
+            if (r) r.terrain.evaluations = 0;
+        }
         this.performanceTime+=dt;this.performanceFrames++;
         if(this.performanceTime>=1 && this.performanceLabel){
             this.performanceLabel.textContent=`${this.settings.quality.toUpperCase()} · ${Math.round(this.performanceFrames/this.performanceTime)} FPS · ${this.renderer.domElement.width} × ${this.renderer.domElement.height}`;
@@ -839,6 +924,7 @@ export class SnowGame {
         }
     };
     update(dt: number) {
+        if (this.reality) { this.updateReality(dt); return; }
         this.time += dt;
         this.bailTimer = Math.max(0, this.bailTimer - dt);
         this.flowTimer = Math.max(0, this.flowTimer - dt);
@@ -1054,6 +1140,10 @@ export class SnowGame {
                 break;
             }
         }
+        this.bookkeeping(dt);
+    }
+    /** Gates, snow tracks, replay frames, HUD and the finish line: shared by both physics models. */
+    bookkeeping(dt: number) {
         const gi = Math.floor(this.d / 180);
         if (gi > this.gateIndex && gi <= this.features.length) {
             this.gateIndex = gi;
@@ -1087,10 +1177,106 @@ export class SnowGame {
             this.onHUD(this.getHUD());
             this.hudTimer = 0;
         }
-        if (this.d >= this.course.length - 10 || this.time > 240)
+        if (this.d >= this.course.length - 10 || this.time > (this.reality ? 600 : 240))
             this.finish();
     }
-    snapshot(): Frame { return { t: this.time, x: this.x, d: this.d, y: this.y, heading: this.heading, spin: this.spin, flip: this.flip, grab: this.visualGrab, tuck: this.visualTuck, speed: this.speed, vy: this.vy, airTime: this.airTime, ground: this.ground, load: this.load, pop: this.pop, extension: this.extension, landing: this.landingImpact, spinVelocity: this.spinVelocity, flipVelocity: this.flipVelocity, grabKind: this.grabLocked >= 0 ? this.grabLocked : this.grabKind, rail: this.railActive >= 0, spinInput: this.spinInput, edge: this.steerFilter, edgeAngle: this.edgeAngle, skidAngle: this.skidAngle, landingPitch: this.parkFlight?.landingPitch, landingSpin: this.parkFlight?.alignment?.spinTarget }; }
+    /** Rider intent from keyboard, touch and gamepad (Reality physics). Input expresses intent; the simulation decides. */
+    readIntent(dt: number): RiderIntent {
+        const active = (k: string) => this.keys.has(k) || this.touch.has(k);
+        const s = this.settings;
+        const pad = readGamepad({ deadzone: s.padDeadzone ?? .12, curve: s.padCurve ?? 1.5, sensitivity: s.padSensitivity ?? 1, invertLean: !!s.invertLean });
+        const latch = (name: string, on: boolean) => { const was = this.padLatch.has(name); if (on) this.padLatch.add(name); else this.padLatch.delete(name); return on && !was; };
+        const keySteer = (active('KeyD') || active('ArrowRight') ? 1 : 0) - (active('KeyA') || active('ArrowLeft') ? 1 : 0);
+        // Keys ramp over ~0.2 s, the time a rider takes to roll from flat to a committed edge.
+        this.keySteer += clamp(keySteer - this.keySteer, -dt * 5, dt * 5);
+        const i = this.intent;
+        i.steer = pad && pad.lx !== 0 ? pad.lx : this.keySteer;
+        i.lean = pad && pad.ly !== 0 ? -pad.ly : (active('KeyF') ? 1 : 0) - (active('KeyZ') ? 1 : 0);
+        i.wind = pad && pad.rx !== 0 ? pad.rx : (active('KeyE') ? 1 : 0) - (active('KeyQ') ? 1 : 0);
+        i.flip = pad && pad.ry !== 0 ? pad.ry : (active('KeyX') ? 1 : 0) - (active('KeyV') ? 1 : 0);
+        i.crouch = Math.max(pad?.rt ?? 0, pad?.a ? 1 : 0, active('Space') ? 1 : 0);
+        i.brake = Math.max(pad?.lt ?? 0, active('KeyS') || active('ArrowDown') ? 1 : 0);
+        i.tuck = active('KeyW') || active('ArrowUp') || !!pad?.y;
+        i.grab = active('ShiftLeft') || active('ShiftRight') || !!pad?.lb || !!pad?.rb;
+        if (this.bailTimer > 0) Object.assign(i, IDLE_INTENT);
+        if (pad) {
+            this.padId = pad.id;
+            if (latch('left', pad.left)) this.realityGrab = (this.realityGrab + GRABS.length - 1) % GRABS.length;
+            if (latch('right', pad.right)) this.realityGrab = (this.realityGrab + 1) % GRABS.length;
+            if (latch('up', pad.up)) this.cameraMode = (this.cameraMode + 1) % 3;
+            if (latch('select', pad.select)) this.resetMarker();
+            if (latch('start', pad.start)) { this.state = 'pause'; this.keys.clear(); this.onPause(); }
+        } else this.padLatch.clear();
+        return i;
+    }
+    /** Copy the simulation state into the game's shared fields (HUD, camera, tracks, replay recording). */
+    syncReality(dt: number) {
+        const ride = this.reality!, sim = ride.sim;
+        this.x = ride.x; this.d = ride.d; this.y = ride.y; this.speed = ride.speed; this.vy = ride.vy;
+        this.heading = ride.heading; this.ground = ride.ground; this.airTime = ride.tricks.airTime;
+        this.edgeAngle = ride.crashed ? 0 : sim.edgeAngle;
+        this.skidAngle = ride.crashed ? 0 : clamp(ride.ctl.slipAngle(sim), -1.4, 1.4);
+        this.steerFilter = this.intent.steer;
+        this.visualGrab = ride.tricks.grabbing; this.visualTuck = this.intent.tuck;
+        this.grabKind = this.realityGrab; this.grabLocked = this.visualGrab ? this.realityGrab : -1;
+        this.load = clamp(ride.compression, 0, 1);
+        this.pop = ride.ctl.pop === 'extend' ? 1 : Math.max(0, this.pop - dt * 4);
+        this.spinVelocity = ride.crashed ? 0 : sim.board.w.y; this.flipVelocity = 0; this.spinInput = this.intent.wind;
+        this.bailTimer = ride.crashed ? 1 : 0;
+        this.crashVisual = ride.crashed ? ride.crashTime : 0;
+        // Leg force above body weight shows as landing compression in the rig.
+        const legLoad = clamp((sim.legAxial - 1600) / 2600, 0, 1);
+        this.landingImpact = ride.ground ? Math.max(this.landingImpact - dt * 2.6, legLoad) : Math.max(0, this.landingImpact - dt * 2.6);
+        // Air: extension rises as the ground approaches (landing preparation in the rig).
+        const gap = ride.ctl.gapBelow(sim), fall = Math.max(.5, -sim.board.v.y);
+        this.extension = ride.ground ? 0 : 1 - T.MathUtils.smoothstep(gap / fall, .15, .55);
+        // The rig's lead foot: regular riders have their left foot toward the board's +x end in the simulation frame.
+        const regular = (this.settings.stance ?? 'regular') === 'regular';
+        this.spin = (regular ? ride.ctl.travelSign > 0 : ride.ctl.travelSign < 0) ? Math.PI : 0;
+        this.flip = 0;
+        const q = sim.board.q;
+        this.renderQ.set(q.x, q.y, q.z, q.w);
+        if (regular) this.renderQ.multiply(RIG_FLIP);
+        this.railActive = sim.railContacts > 0 ? this.rails.findIndex(r => this.d >= r.d - .5 && this.d <= r.end + .5 && Math.abs(this.x - r.x) < 1.3) : -1;
+    }
+    updateReality(dt: number) {
+        const ride = this.reality!;
+        this.time += dt;
+        this.flowTimer = Math.max(0, this.flowTimer - dt);
+        if (this.flowTimer === 0) this.combo = 1;
+        this.toastTimer = Math.max(0, this.toastTimer - dt);
+        const intent = this.readIntent(dt);
+        if (this.state !== 'ride') return;
+        this.previous = { x: this.x, y: this.y, d: this.d, heading: this.heading, spin: this.spin, flip: this.flip };
+        this.prevRenderQ.copy(this.renderQ);
+        const events = this.realityEvents; events.length = 0;
+        ride.tick(intent, GRABS[this.realityGrab].id, events);
+        // Trees and rocks are solid: hitting one stops the body.
+        if (!ride.crashed) for (const o of this.obstacles) {
+            if (Math.abs(ride.d - o.d) < 1.7 && Math.abs(ride.x - o.x) < o.r && ride.y - height(ride.x, ride.d, this.course) < 3) {
+                const kind = o.r > 2 ? 'ROCK STRIKE' : 'TREE STRIKE';
+                ride.crash(kind, .15);
+                events.push({ type: 'crash', kind });
+                break;
+            }
+        }
+        for (const e of events) this.onRealityEvent(e);
+        this.syncReality(dt);
+        this.bookkeeping(dt);
+    }
+    onRealityEvent(e: FreestyleEvent) {
+        if (e.type === 'takeoff') { if (e.kind === 'ollie' || e.kind === 'nollie') this.sound(e.kind === 'ollie' ? 160 : 190); this.feedback = e.kind === 'nollie' ? 'NOLLIE' : e.kind === 'ollie' ? 'OLLIE' : ''; return; }
+        if (e.type === 'crash') { this.combo = 1; this.bails++; this.toast(e.kind); this.feedback = 'Combo lost'; this.sound(70, .3); return; }
+        const pts = Math.round(e.score * this.combo);
+        if (e.type === 'landed') {
+            this.feedback = `${e.landing} · ${e.air.toFixed(2)} s air`;
+            if (e.air < .3 && e.spinDeg === 0 && !e.grab) return;
+        } else this.feedback = `${e.name} · ${e.time.toFixed(1)} s`;
+        if (this.flowTimer > 0) this.combo = Math.min(5, this.combo + .5);
+        this.score += pts; this.tricks++; this.flowTimer = 8;
+        this.toast(e.name, pts); this.sound(380, .1);
+    }
+    snapshot(): Frame { return { t: this.time, x: this.x, d: this.d, y: this.y, heading: this.heading, spin: this.spin, flip: this.flip, grab: this.visualGrab, tuck: this.visualTuck, speed: this.speed, vy: this.vy, airTime: this.airTime, ground: this.ground, load: this.load, pop: this.pop, extension: this.extension, landing: this.landingImpact, spinVelocity: this.spinVelocity, flipVelocity: this.flipVelocity, grabKind: this.grabLocked >= 0 ? this.grabLocked : this.grabKind, rail: this.railActive >= 0, spinInput: this.spinInput, edge: this.steerFilter, edgeAngle: this.edgeAngle, skidAngle: this.skidAngle, landingPitch: this.parkFlight?.landingPitch, landingSpin: this.parkFlight?.alignment?.spinTarget, ...(this.reality ? { q: [this.renderQ.x, this.renderQ.y, this.renderQ.z, this.renderQ.w] as [number, number, number, number], crouch: this.load, crashed: this.reality.crashed || undefined } : {}) }; }
     updateReplay(dt: number) {
         const frames = this.run?.frames;
         if (!frames?.length)
@@ -1134,6 +1320,13 @@ export class SnowGame {
             this.d >= rail.d - .5 && this.d <= rail.end + .5 && Math.abs(this.x - rail.x) < 1,
         ) : -1;
         this.ground = discrete.ground ?? (Math.abs(this.y - height(this.x, this.d, this.course)) < .3);
+        this.replayHasQ = !!(a.q && b.q);
+        if (a.q && b.q) {
+            this.renderQ.fromArray(a.q).slerp(new T.Quaternion().fromArray(b.q), mix);
+            this.crashVisual = discrete.crashed ? 1 : 0;
+            this.bailTimer = discrete.crashed ? 1 : 0;
+            this.extension = 0;
+        }
     }
     visual(dt: number) {
         const menu = this.state === 'menu' || this.state === 'garage';
@@ -1154,13 +1347,14 @@ export class SnowGame {
             this.rider.position.set(rx, ry, -rd);
             this.rider.rotation.set(0, 0, 0);
             const blendAngle = (a: number, b: number) => T.MathUtils.lerp(a, b, alpha);
-            const rs = prev ? blendAngle(prev.spin, this.spin) : this.spin, rf = prev ? blendAngle(prev.flip, this.flip) : this.flip;
+            const rs = prev && !this.reality ? blendAngle(prev.spin, this.spin) : this.spin, rf = prev ? blendAngle(prev.flip, this.flip) : this.flip;
             const rail = this.rails[this.railActive];
+            const realityView = (this.state === 'ride' && !!this.reality) || (this.state === 'replay' && this.replayHasQ);
             const normal = rail ? new T.Vector3(0, 1, rail.slope).normalize()
                 : new T.Vector3(-(height(rx + .4, rd, this.course) - height(rx - .4, rd, this.course)) / .8, 1, (height(rx, rd + .4, this.course) - height(rx, rd - .4, this.course)) / .8).normalize();
             const worldEdge = rail ? 0 : this.edgeAngle;
             const edgeRoll = worldEdge * Math.cos(rs);
-            if (this.ground) this.rider.position.addScaledVector(normal, Math.abs(Math.sin(edgeRoll)) * BOARD_WAIST_M * .48);
+            if (this.ground && !realityView) this.rider.position.addScaledVector(normal, Math.abs(Math.sin(edgeRoll)) * BOARD_WAIST_M * .48);
             const takeoffPitch = clamp(Math.atan2(this.vy, Math.max(1, this.speed)), -.42, .50);
             const savedPitch = this.state === 'replay' ? this.replayLandingPitch : this.parkFlight?.landingPitch;
             const slopePitch = savedPitch ?? Math.atan(pathSlope(rx, rd, rh, this.course));
@@ -1172,11 +1366,25 @@ export class SnowGame {
                 : new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), -rh - this.skidAngle)
                     .multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), rf + pitch))
                     .multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), Math.PI / 2 + rs));
+            if (realityView) {
+                // The board's orientation IS the simulation's: no smoothing toward a target, only interpolation between
+                // the last two 120 Hz states.
+                const q = this.state === 'ride' ? this.prevRenderQ.clone().slerp(this.renderQ, alpha) : this.renderQ.clone();
+                if (this.bailTimer > 0) {
+                    // Falling: not a ragdoll yet. The body rolls onto its side while it slides (see docs/KNOWN_ISSUES.md).
+                    const roll = Math.min(1, (this.crashVisual || 1) * 2.4) * 1.35;
+                    q.premultiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(Math.cos(rh), 0, Math.sin(rh)), roll));
+                }
+                this.body.quaternion.copy(q);
+                const turnEdge = clamp(this.edgeAngle * (this.reality?.ctl.travelSign ?? 1) / .61, -1, 1);
+                this.rig.pose({ dt, time: this.time, turn: rh, edge: turnEdge, speed: this.speed, air: !this.ground, grab: this.visualGrab, landing: this.landingImpact, menu: false, tuck: this.visualTuck, load: this.load, pop: this.pop, extension: this.extension, spinVelocity: this.spinVelocity, flipVelocity: 0, spin: rs, landingSpin: rs, grabKind: this.grabLocked >= 0 ? this.grabLocked : this.grabKind, rail: this.railActive >= 0, spinInput: this.spinInput });
+            } else {
             if (this.bailTimer > 0)
                 targetRotation.multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 0, 1), 1.4));
             this.body.quaternion.slerp(targetRotation, 1 - Math.exp(-dt * (this.ground ? 20 : 48)));
             const landingSpin = this.state === 'replay' ? this.replayLandingSpin : this.parkFlight?.alignment?.spinTarget;
             this.rig.pose({ dt, time: this.time, turn: rh, edge: worldEdge / .61, speed: this.speed, air: !this.ground, grab: this.visualGrab, landing: this.landingImpact, menu: false, tuck: this.visualTuck, load: this.load, pop: this.pop, extension: this.extension, spinVelocity: this.spinVelocity, flipVelocity: this.flipVelocity, spin: rs, landingSpin, grabKind: this.grabLocked >= 0 ? this.grabLocked : this.grabKind, rail: this.railActive >= 0, spinInput: this.spinInput });
+            }
             const angle = this.photo ? this.photoAngle : this.cameraMode === 2 ? 1.3 : 0;
             const chase = this.cameraMode === 0 && !this.photo;
             const airtimeView = this.ground ? 0 : T.MathUtils.smoothstep(this.airTime, .08, .75) * (1 - this.extension);
@@ -1235,11 +1443,11 @@ export class SnowGame {
     }
     capture() { this.renderer.render(this.scene, this.camera); return this.renderer.domElement.toDataURL('image/png'); }
     resume() { this.jumpPending = false; this.load = 0; this.state = 'ride'; this.keys.clear(); this.touch.clear(); this.clock.getDelta(); }
-    menu() { this.powder.clear(); this.previous = undefined; this.state = 'menu'; this.d = 0; this.cameraMode = 0; this.photo = false; this.keys.clear(); this.touch.clear(); }
+    menu() { this.reality = undefined; this.powder.clear(); this.previous = undefined; this.state = 'menu'; this.d = 0; this.cameraMode = 0; this.photo = false; this.keys.clear(); this.touch.clear(); }
     dispose() { cancelAnimationFrame(this.frameId); window.removeEventListener('keydown', this.keydown); window.removeEventListener('keyup', this.keyup); window.removeEventListener('blur', this.blur); document.removeEventListener('visibilitychange', this.visibility); this.resizeObserver.disconnect(); this.audio?.close().catch(() => { }); this.scene.add(this.rider); this.gearPreview.dispose(); this.powder.dispose(); this.scene.traverse(o => { if (o instanceof T.Mesh || o instanceof T.Points || o instanceof T.LineSegments) {
         if (o instanceof T.InstancedMesh) o.dispose();
         o.geometry.dispose();
         const ms = Array.isArray(o.material) ? o.material : [o.material];
         ms.forEach(m => m.dispose());
-    } }); (this.scene.getObjectByName('sun') as T.DirectionalLight).shadow.dispose(); this.rig.dispose(); this.environmentTarget?.dispose(); this.renderer.dispose(); this.renderer.domElement.remove(); this.performanceLabel?.remove(); }
+    } }); (this.scene.getObjectByName('sun') as T.DirectionalLight).shadow.dispose(); this.rig.dispose(); this.environmentTarget?.dispose(); this.renderer.dispose(); this.renderer.domElement.remove(); this.performanceLabel?.remove(); this.diagnostics?.dispose(); }
 }

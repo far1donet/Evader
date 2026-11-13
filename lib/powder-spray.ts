@@ -85,6 +85,8 @@ export class PowderSpray {
     private previous?: SprayContact;
     private budget = budgets.high;
     private count = 0;
+    /** Live particles, for the diagnostics overlay. */
+    activeCount() { return this.count; }
     private carry = 0;
 
     constructor(quality: string) {

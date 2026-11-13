@@ -6,6 +6,8 @@ export const PRESETS = {
  high: { pixel: 1.75, shadow: 2048, step: 1.5, trees: 1000, ridge: 128 },
  ultra: { pixel: 2, shadow: 4096, step: 1, trees: 1800, ridge: 192 },
  extreme: { pixel: 2.5, shadow: 4096, step: .75, trees: 2600, ridge: 216 },
+ // Image quality first: 8K shadow map (about 256 MB of depth), half-metre terrain rows, the densest forest.
+ cinematic: { pixel: 3, shadow: 8192, step: .5, trees: 3600, ridge: 256 },
 };
 export const preset = (q: string) => PRESETS[q as keyof typeof PRESETS] ?? PRESETS.high;
 export const GRAVITY = 9.81;

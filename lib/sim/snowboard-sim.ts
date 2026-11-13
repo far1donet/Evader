@@ -27,6 +27,9 @@ export type RiderCommand = {
     /** Optional. Hip/shoulder twist torque (N m) between the upper body and the board: + turns the body toward +y yaw and
      *  pushes the board the other way. Internal: it can never change the total angular momentum. Wind-ups use this. */
     upperTorque?: number;
+    /** Optional. Hip/knee torque (N m) pitching the board about its lateral axis relative to the body (+ = nose up when
+     *  riding toward +x); the body pitches the other way. Internal: used to level the board in the air. */
+    boardPitchTorque?: number;
     /** Optional 0..1: how compact the body is (grab, tuck, pulled-in arms). Lowers the body's yaw inertia; momentum is kept. */
     compact?: number;
     /** Target edge angle (rad, + = toe edge down) produced by ankle/knee roll torque. NaN = passive ankles (no roll torque). */
@@ -98,6 +101,10 @@ export class SnowboardSim {
     maxUpperTorque = 210;
     /** Current yaw inertia of the body (kg m^2), lowered by `compact`. */
     riderYawInertia: number;
+    /** Body pitch (about the board's lateral z axis): rate (rad/s, world), angle relative to the board (rad), inertia
+     *  about the body's own centre of mass (kg m^2), leg coupling stiffness/damping, range and strongest hip/knee torque.
+     *  The point-mass rider had no rotational inertia of its own; this gives the legs something to push against in the air. */
+    bodyPitchRate = 0; bodyPitch = 0; bodyPitchInertia = 11; pitchK = 1800; pitchC = 140; maxBodyPitch = .7; maxPitchTorque = 260;
     /** Steady wind at the rider (m/s, world). Drag acts on the air-relative velocity. */
     wind: V3 = v3();
     /** Contacts touching a rail / box this step, and the summed normal force of all contacts (N). */
@@ -114,8 +121,10 @@ export class SnowboardSim {
     grooveHold = 1;
     /** Leg extension speed at which push-off force reaches zero (m/s), Hill force-velocity curve. Estimate. */
     legVmax = 3.6;
+    /** Apply the ankles' moment reaction of the transverse leg hold to the board (angular momentum consistent). */
+    legMomentReaction = true;
     /** Fastest the rider can sweep the board's edge angle (rad/s): a rider cannot snap onto an edge. */
-    maxEdgeRate = 3.5;
+    maxEdgeRate = 2.2;
     private edgeTargetF = 0; private edgeActive = false;
 
     constructor(spec: BoardSpec, terrain: SimTerrain, rider: RiderSpec = DEFAULT_RIDER, lateralAuthority = 1) {
@@ -153,6 +162,7 @@ export class SnowboardSim {
         this.riderP.x = base.x + up.x * this.rider.heightNeutral; this.riderP.y = base.y + up.y * this.rider.heightNeutral; this.riderP.z = base.z + up.z * this.rider.heightNeutral;
         this.riderV.x = b.v.x; this.riderV.y = b.v.y; this.riderV.z = b.v.z;
         this.riderTwist = 0; this.riderYawRate = 0; this.riderYawInertia = this.rider.yawInertia;
+        this.bodyPitch = 0; this.bodyPitchRate = 0;
         this.edgeActive = false; this.haveVPrev = false;
         void pitchToSlope;
     }
@@ -160,6 +170,8 @@ export class SnowboardSim {
         const local = SCRATCH.t; local.x = -this.spec.setback + (cop.x ?? 0); local.y = this.legBaseY; local.z = cop.z ?? 0;
         return this.board.toWorld(local, out);
     }
+    /** Snow surface normal under the board centre (updated every step). */
+    get centerNormal(): V3 { return this.centerN; }
     get speed() { return Math.hypot(this.board.v.x, this.board.v.y, this.board.v.z); }
     /** Rider + board mechanical energy relative to y = 0 (J). */
     energy() {
@@ -239,6 +251,15 @@ export class SnowboardSim {
         // Equal and opposite on the board at the leg base.
         S.f.x = -fx; S.f.y = -fy; S.f.z = -fz;
         b.applyForceAtPoint(S.f, base);
+        // The leg is a massless link: the force pair (rider COM, leg base) is not collinear when the transverse hold acts,
+        // so the ankles also carry the moment l x F. Applying its reaction to the board keeps the total angular momentum of
+        // rider + board exact under internal forces (it used to leak in pitch/roll).
+        if (this.legMomentReaction) {
+            let mx = -(dy * fz - dz * fy), my = -(dz * fx - dx * fz), mz = -(dx * fy - dy * fx);
+            // Roll (about the board's long axis) is handled by the ankle roll actuator and its own reaction couple below.
+            const mr = mx * ex.x + my * ex.y + mz * ex.z; mx -= mr * ex.x; my -= mr * ex.y; mz -= mr * ex.z;
+            S.w.x = mx; S.w.y = my; S.w.z = mz; b.applyTorque(S.w);
+        }
 
         // Ankle/knee roll actuator: PD toward the commanded edge angle, limited by strength. The torque acts on the board;
         // its reaction is a force couple on the rider COM and leg base (net external torque on rider+board is zero).
@@ -281,6 +302,20 @@ export class SnowboardSim {
             S.w.x = -ey.x * tw; S.w.y = -ey.y * tw; S.w.z = -ey.z * tw; b.applyTorque(S.w);
             this.riderYawRate += tw / this.riderYawInertia * dt;
             this.riderTwist += (this.riderYawRate - wb) * dt;
+        }
+
+        // Body pitch: a flywheel about the board's lateral axis, coupled through the legs (spring-damper + end stop) and
+        // driven by an internal hip/knee torque. Board gets +tau about ez, the body -tau.
+        {
+            const wp = dot(b.w, ez);
+            const over = Math.abs(this.bodyPitch) > this.maxBodyPitch ? (Math.abs(this.bodyPitch) - this.maxBodyPitch) * Math.sign(this.bodyPitch) : 0;
+            let tp = -this.pitchK * this.bodyPitch - this.pitchC * (this.bodyPitchRate - wp);
+            if (over !== 0) tp += -8000 * over - 200 * (this.bodyPitchRate - wp);
+            const act = clamp(cmd.boardPitchTorque ?? 0, -this.maxPitchTorque, this.maxPitchTorque);
+            const onBoard = -tp + act;
+            S.w.x = ez.x * onBoard; S.w.y = ez.y * onBoard; S.w.z = ez.z * onBoard; b.applyTorque(S.w);
+            this.bodyPitchRate += (tp - act) / this.bodyPitchInertia * dt;
+            this.bodyPitch += (this.bodyPitchRate - wp) * dt;
         }
 
         // ---- Gravity -----------------------------------------------------------------------------------

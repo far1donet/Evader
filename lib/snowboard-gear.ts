@@ -31,9 +31,9 @@ function deckHeight(t: number) {
     return BOARD_THICKNESS + camber + rocker;
 }
 
-export function boardEdgeAt(x: number, side: -1 | 1) {
-    const t = T.MathUtils.clamp(2 * x / LENGTH, -1, 1);
-    return new T.Vector3(t * LENGTH * .5, deckHeight(t), side * halfWidth(t, BOARD_WAIST_M));
+export function boardEdgeAt(x: number, side: -1 | 1, length = LENGTH, width = BOARD_WAIST_M) {
+    const t = T.MathUtils.clamp(2 * x / length, -1, 1);
+    return new T.Vector3(t * length * .5, deckHeight(t), side * halfWidth(t, width));
 }
 
 export function boardOutline(length = LENGTH, width = BOARD_WAIST_M) {

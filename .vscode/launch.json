@@ -1,0 +1,8 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    { "name": "Launch EVADER in Edge", "type": "msedge", "request": "launch", "url": "http://localhost:3000/?debug=1", "webRoot": "${workspaceFolder}" },
+    { "name": "Launch EVADER in Chrome", "type": "chrome", "request": "launch", "url": "http://localhost:3000/?debug=1", "webRoot": "${workspaceFolder}" },
+    { "name": "Debug physics tests", "type": "node", "request": "launch", "program": "${workspaceFolder}/tests/reality.mjs", "runtimeArgs": ["--experimental-strip-types"], "cwd": "${workspaceFolder}" }
+  ]
+}

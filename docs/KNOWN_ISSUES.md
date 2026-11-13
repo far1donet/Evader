@@ -1,48 +1,50 @@
-# Known issues and limitations
+# Known issues, limitations and bugs (0.5)
 
-## Simulation envelope
+Everything below was observed in this workspace with the automated tests and the scripts in `tools/`. Nothing has been
+measured on a real GPU or on your PC.
 
-Sweep on a 12 degree groomed plane, all-mountain board, 2 s, worst angle between the board's long axis and its direction of travel
-(measured after 0.5 s). The edge value is the commanded edge angle in radians.
+## Reality physics — riding
 
-| Start speed | edge 0.3 | edge 0.5 | edge 0.7 | edge 0.9 |
-| --- | --- | --- | --- | --- |
-| 6 m/s | < 1 deg | < 1 deg | < 1 deg | ~1 deg |
-| 8 m/s | ~11 deg | < 1 deg | **spins out (~180 deg)** | ~5 deg |
-| 10 m/s | **spins out (~130 deg)** | ~3 deg | ~4 deg | ~6 deg |
-| 12 m/s | **spins out (~145 deg)** | ~3 deg | ~5 deg | **spins out (~140 deg)** |
+| Issue | Detail | Where to look |
+| --- | --- | --- |
+| **Stops are slow and wide** | Holding S from 12 m/s on an 8° slope stops after about 7–10 s, having turned 20–40 m across the hill. A real hockey stop takes 2–3 s. The rider's body and board share one yaw degree of freedom, so the board can only rotate about half the hip/shoulder twist range under the body; the rest must come from the snow. A real rider rotates the board ~90° under a counter-rotated torso. Needs an articulated hip/torso joint. | `tools/brake.mjs`, `RiderController` braking block |
+| **Full-lock carves at ≥ 16 m/s wash out** | Steering fully at ~58 km/h spins the board out within 2.5 s. Partly intended (the directive asks for instability when turning too hard at speed), but the threshold is a model artefact, not calibrated. | `tools/bench.mjs` |
+| **Partial edges at speed** | A partly engaged edge (≈0.1–0.28 rad) above ~11 m/s spins out in the core model; the controller passes through that band at speed (flat glide or a committed edge). | `edgeForSteer`, `tools/edgemap3.mjs` |
+| **High-speed kicker approaches** | On Northline's medium kicker, straight approaches above about 16 m/s can still wash out in the concave transition, and landings on the runout at 10–18 m/s frequently end in a slide that is declared SPUN OUT. Lower-speed straight airs land on the table and are classified HEAVY / HAND DRAG (undershooting, physically consistent). Clean, repeatable kicker lines are not yet reliable. | `tools/kicker.mjs` |
+| **Spins on steep pitches** | Prepared flat-ground spins reach about 130° on a gentle (3°) slope. On the 15° course pitches the shoulders' wind-up can make the board slide before the pop; takeoffs then rotate less and often land under-rotated (edge catch). A flat 180 lands slightly short, as in real riding, but a clean flat 360 is not achievable. | `tests/reality.mjs`, `tools/keyseq.mjs` |
+| **Inversions** | Flips and corks are recognised and named from measured rotation, but generating inverted rotation at takeoff (rodeo/cork set-ups) is not modelled beyond a fore-aft COM throw, so they practically do not occur. | `lib/sim/freestyle.ts` |
+| **Angular momentum in pitch/roll** | Yaw momentum is conserved in flight (0.03 % drift in the test). In pitch/roll there is still a leak of a few N·m·s per second of flight, mostly from the ankle roll actuator: the rider's leg axis is fixed to the board in roll, so rolling the board drags the centre of mass. Fix: let the rider's lean (angulation) be independent of the board's edge angle. | `tools/angmom.mjs`, `tools/angmom2.mjs` |
+| **Landing peak forces** | With the ankle-moment reaction enabled, a 1 m flat drop reaches the leg end stop (≈9.6 kN peak in `tests/sim.mjs`). Landing classification uses leg force and leg bottoming, so flat drops tend to read HEAVY. | `legMomentReaction` in `snowboard-sim.ts` |
+| **Crashes are not a ragdoll** | A crash freezes the simulation and slides the body as a single point with Coulomb friction (μ 0.45), rolled onto its side visually; then the rider stands up pointing down the fall line. | `lib/reality-ride.ts` |
+| **Board flex and torsion** | Still not modelled (values exist in `BoardSpec`). Sidecut uses `R·cos(edge)`. | |
+| **Snow deformation** | Contact does not deform or remember the snow surface. Groove following is a per-step rule (trailing half of the edge gets extra hold while the board tracks), not a stored groove. Tracks and spray still come from the v0.4 visual systems. | |
+| **Rail balance** | Rails and boxes are solid low-friction surfaces, but the rider has no balance strategy on them, so long slides tend to slip off. Rail tricks are recognised (50-50 vs boardslide) only from board orientation. | `lib/sim/course-terrain.ts` |
+| **Calibration** | All snow, rider and board parameters are estimates (marked in the code). `yawInertia` was lowered from 4 to 2.6 kg·m² and `maxUpperTorque` set to 210 N·m in this pass to match typical human ranges; neither is measured. | `lib/sim/boards.ts`, `lib/sim/snow.ts` |
 
-Only the 6 m/s row and the 10 m/s edge 0.5-0.9 cells are guarded by tests. The other cells are known failures and the result is sensitive to
-small parameter changes, so treat the whole high-speed region as unreliable until the rider's yaw control is modelled properly.
+## Rider and equipment
 
-Why it happens: when the commanded edge angle is too small for the speed, the board's sidecut turns it faster than the rider can turn
-the centre of mass, the tail washes out, and nothing in the model holds the board's yaw. Rider yaw inertia and a passive twist spring were added
-and removed most of it; a real rider also steers actively with the hips and shoulders, which is not modelled.
+- Crail grab reaches within 7.7 cm and seatbelt within 12 cm of the board; the arm IK refuses to stretch, so the hand stops
+  short. The other 11 grabs reach within 5 cm.
+- The rig is the v0.4 procedural rider scaled by 0.9 (1.72 m to the helmet top, about 1.75 m in boots). It is not a
+  scanned or sculpted human; face, hands and clothing are procedural. Cloth secondary motion is the v0.4 approximation.
+- Binding angles are fixed (+9° / −17°), not taken from the board spec.
+- In Classic mode the board is drawn at the selected real size, but Classic physics still uses its own v0.4 model.
 
-## Not modelled yet
+## Rendering, audio and platform
 
-- **Rider balance.** The rider's lean is held by a stiff constraint on the board-normal axis. `balanceLoad` reports when a real rider's
-  ankles could not hold that lean (values above 1) but nothing falls over because of it. An experimental balance reflex exists behind
-  `cmd.balance` and is unstable; it is off by default.
-- **Board flex and torsion.** Not modelled. The tilted-edge contact uses the imposed radius `sidecutRadius * cos(edge angle)` instead of a
-  flex-derived curve.
-- **Roll-in hop.** At the default maximum edge sweep rate of 3.5 rad/s, rolling from flat to edge 0.9 at 6 m/s on groomed snow makes the board
-  leave the snow for about 77 ms and then land on its edge. At 2 rad/s and slower it stays on the snow (measured: 0 ms airborne).
-- **Articulated rider.** The rider is a point mass on a telescoping leg; there is no torso, arms, head, IK or ragdoll in the new core.
-- **Ollie, pop, grabs, air rotation control, rails and park features** in the new core.
-- **Normal-damper budget.** `damperCap = 2` and `damperShareExp = 1` in `snowboard-sim.ts` are numerical-stability settings, not physical
-  constants. Measured before the rider yaw coupling was added: with the cap at 0.5 the board bounced after the edge catch and spun out at 6 m/s, edge 0.9; a cap of 1 still did; caps of 2 and 4 carved
-  cleanly. Rest stays exactly stable with sharing on (any cap tried); with sharing off, rest chatters at 480 Hz.
-- **Peak landing force** hits the 4,200 N leg limit on a 1 m drop, so landings from that height end on the leg end-stop.
+- Never run on a real GPU here. The only browser runs used SwiftShader in a container (13–22 FPS at 1280×720 Balanced),
+  which says nothing about performance on your PC. Use the diagnostics overlay (Settings › Graphics) on your machine.
+- The Cinematic preset uses an 8192² shadow map (~256 MB) and very dense terrain; it may be slow on any hardware.
+- No WebGPU renderer, no ray tracing, no TAA/SSAO/volumetrics beyond v0.4 (MSAA, tone mapping, fog, shadow maps).
+- Audio is still the v0.4 synthesised noise and tones; it does not follow contact forces yet.
+- Diagnostics report CPU-side frame time; GPU time is not measured (no timer queries).
 
-## Calibration and testing
+## Replays
 
-- Snow friction, bearing, yield, damping, edge bite and plow values are estimates from typical ranges, **not** fitted to measurements.
-- Board and rider values (stiffness, strength, yaw inertia, twist stiffness 400 N m/rad) are estimates.
-- Nothing was run on a GPU or in a browser here. Rendering, frame rate and visual quality are untested.
-- Nothing was measured on your PC; no specifications of your hardware are assumed anywhere in the code.
-- `next build` was not run in this workspace.
+- Reality replays interpolate recorded state; they do not re-simulate, so changing physics never corrupts them. Replays
+  record `physics: 'reality-1'` or `'classic-0.4'`. Classic replays recorded on v0.4 still play.
 
-## Legacy game
+## Classic mode
 
-- The playable game still uses the v0.4 scalar-heading model, assisted landings and rail catches. Integration with `lib/sim` has not been done.
+Unchanged from v0.4 apart from the real-size board drawing: scalar heading model, assisted landings and automatic rail
+catches as documented in `docs/REALITY_AUDIT_AND_PLAN.md`.

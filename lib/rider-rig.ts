@@ -30,6 +30,33 @@ export type RiderPose = {
 export type RiderKit = 'ochre' | 'shadow' | 'alpine';
 const UP = new T.Vector3(0, 1, 0);
 const GRAB_CONTACTS = [boardEdgeAt(.31, -1), boardEdgeAt(-.18, -1), boardEdgeAt(-.31, 1)];
+/**
+ * The rig was authored about 11 % larger than an average adult (1.92 m to the helmet top on a 1.90 m board). Real-scale
+ * mode (`setBoard`) scales the whole rig by RIG_SCALE so the rider stands about 1.75 m tall in boots, and rebuilds the
+ * board at the selected equipment's real length, waist and stance width.
+ */
+export const RIG_SCALE = .9;
+/**
+ * Anatomical grab targets (real-scale mode). `hand`: which hand reaches; `x`: position along the board as a fraction of
+ * the half-length, + toward the leading (front-foot) end; `side`: toe or heel edge (the rider faces the toe edge, -z in the
+ * rig); `pitch`: torso pitch needed to get there. Order matches GRABS in lib/sim/freestyle.ts.
+ */
+export const GRAB_TARGETS: { hand: 'front' | 'rear' | 'both'; x: number; side: 'toe' | 'heel'; pitch: number; tilt: number }[] = [
+    { hand: 'rear', x: -.1, side: 'toe', pitch: -.8, tilt: .15 },   // indy
+    { hand: 'front', x: .1, side: 'toe', pitch: -.8, tilt: -.15 },  // mute
+    { hand: 'front', x: .05, side: 'heel', pitch: .7, tilt: .2 },   // melon
+    { hand: 'rear', x: -.08, side: 'heel', pitch: .72, tilt: -.2 }, // stalefish
+    { hand: 'front', x: .9, side: 'toe', pitch: -.7, tilt: -.45 },  // nose
+    { hand: 'rear', x: -.9, side: 'toe', pitch: -.7, tilt: .45 },   // tail
+    { hand: 'front', x: .05, side: 'heel', pitch: .85, tilt: .3 },  // method (melon grab, body arched)
+    { hand: 'front', x: .12, side: 'toe', pitch: -.9, tilt: -.3 },  // japan (mute grab, knee tucked)
+    { hand: 'rear', x: .42, side: 'toe', pitch: -1.05, tilt: -.75 }, // crail (body folds toward the nose)
+    { hand: 'rear', x: 0, side: 'heel', pitch: .75, tilt: 0 },      // roast beef (between the legs)
+    { hand: 'front', x: -.02, side: 'heel', pitch: .75, tilt: 0 },  // chicken salad (between the legs)
+    { hand: 'front', x: -.55, side: 'toe', pitch: -1.05, tilt: .8 },  // seatbelt (across the body toward the tail)
+    { hand: 'both', x: .1, side: 'toe', pitch: -.85, tilt: 0 },     // truck driver (both hands, mute + indy)
+];
+export type RigBoard = { length: number; waist: number; stanceWidth: number };
 function weaveTexture() { const c = document.createElement('canvas'); c.width = c.height = 128; const ctx = c.getContext('2d')!; ctx.fillStyle = '#929292'; ctx.fillRect(0, 0, 128, 128); for (let y = 0; y < 128; y += 4)
     for (let x = 0; x < 128; x += 4) {
         ctx.fillStyle = (x / 4 + y / 4) % 2 ? '#9b9b9b' : '#888888';
@@ -260,6 +287,10 @@ export class RiderRig {
     grabWeight = 0;
     wristSprings = [new VectorSpring(), new VectorSpring()];
     activeGrabKind = 0;
+    /** Real-scale mode: board dimensions in rig units, half stance width (rig units), set by setBoard. */
+    realBoard?: { length: number; width: number; stanceHalf: number };
+    private boardMesh?: T.Mesh;
+    private boardMaterials?: T.Material[];
     twistSpring: Spring = { value: 0, velocity: 0 };
     spotSpring: Spring = { value: 0, velocity: 0 };
     crouchSpring: Spring = { value: .12, velocity: 0 };
@@ -319,7 +350,8 @@ export class RiderRig {
         this.baseMaterial = new T.MeshStandardMaterial({ map: this.baseMap, roughness: .52 });
         const sidewall = new T.MeshStandardMaterial({ color: 0x242628, roughness: .7 });
         const edge = new T.MeshStandardMaterial({ color: 0x818a90, metalness: .85, roughness: .32 });
-        add(makeBoardGeometry(), [deck, this.baseMaterial, sidewall, edge], this.board);
+        this.boardMaterials = [deck, this.baseMaterial, sidewall, edge];
+        this.boardMesh = add(makeBoardGeometry(), this.boardMaterials, this.board);
         for (const side of [-1, 1]) {
             const boot = new T.Group();
             boot.position.set(side * .39, .12, 0);
@@ -596,6 +628,35 @@ export class RiderRig {
         }
     }
     segment(mesh: T.Mesh, a: T.Vector3, b: T.Vector3) { const delta = b.clone().sub(a); mesh.position.copy(a).add(b).multiplyScalar(.5); mesh.quaternion.setFromUnitVectors(UP, delta.clone().normalize()); mesh.scale.y = delta.length(); }
+    /** Switch to real scale and rebuild the board for a real equipment spec (metres). */
+    setBoard(spec: RigBoard) {
+        this.root.scale.setScalar(RIG_SCALE);
+        const length = spec.length / RIG_SCALE, width = spec.waist / RIG_SCALE, stanceHalf = spec.stanceWidth / 2 / RIG_SCALE;
+        this.realBoard = { length, width, stanceHalf };
+        if (this.boardMesh) {
+            this.boardMesh.geometry.dispose();
+            this.boardMesh.geometry = makeBoardGeometry(length, width);
+        }
+        this.boots.forEach((boot, i) => { boot.position.x = (i === 0 ? -1 : 1) * stanceHalf; });
+    }
+    /** Grab contact on the board for the active grab kind and hand, in rig units. */
+    grabContact(kind: number, lead: number, hand: number) {
+        const rb = this.realBoard;
+        if (!rb) return GRAB_CONTACTS[Math.min(kind, 2)];
+        const g = GRAB_TARGETS[kind] ?? GRAB_TARGETS[0];
+        // Two-handed grabs: the rear hand takes the indy side of the same edge.
+        const x = g.hand === 'both' && hand !== (lead > 0 ? 1 : 0) ? -g.x : g.x;
+        return boardEdgeAt(lead * x * rb.length / 2, g.side === 'toe' ? -1 : 1, rb.length, rb.width);
+    }
+    /** Which hand(s) grab: returns weights for hand 0 (-x shoulder) and hand 1 (+x shoulder). */
+    grabHands(kind: number, lead: number): [number, number] {
+        if (!this.realBoard) return kind === 0 ? [0, 1] : [1, 0];
+        const g = GRAB_TARGETS[kind] ?? GRAB_TARGETS[0];
+        if (g.hand === 'both') return [1, 1];
+        const front = lead > 0 ? 1 : 0;
+        const idx = g.hand === 'front' ? front : 1 - front;
+        return idx === 1 ? [0, 1] : [1, 0];
+    }
     pose(p: RiderPose) {
         const load = p.load ?? 0, pop = p.pop ?? 0, extension = p.extension ?? 0, spinVelocity = p.spinVelocity ?? 0, flipVelocity = p.flipVelocity ?? 0;
         const breathing = p.menu ? Math.sin(p.time * 1.45) * .006 : 0;
@@ -651,9 +712,12 @@ export class RiderRig {
         this.torso.position.copy(this.pelvis.position);
         const torsoPitch = (p.air ? -.045 : -.12) - flex * .63 - tuck * .17 - this.lean * .37
             - T.MathUtils.clamp(flipVelocity * .018, -.11, .11);
-        const contact = GRAB_CONTACTS[this.activeGrabKind];
-        const grabTilt = this.activeGrabKind === 0 ? -.24 : .24;
-        const grabPitch = this.activeGrabKind === 2 ? .76 : -.81;
+        const contact = this.grabContact(this.activeGrabKind, lead, 1);
+        const target = this.realBoard ? GRAB_TARGETS[this.activeGrabKind] ?? GRAB_TARGETS[0] : undefined;
+        const grabTilt = target ? target.tilt * lead : this.activeGrabKind === 0 ? -.24 : .24;
+        const grabPitch = target ? target.pitch : this.activeGrabKind === 2 ? .76 : -.81;
+        const handWeights = this.grabHands(this.activeGrabKind, lead);
+        const stanceHalf = this.realBoard?.stanceHalf ?? .39;
         this.torso.rotation.set(T.MathUtils.lerp(torsoPitch, grabPitch, this.grabWeight), twist,
             this.lean * .22 + lead * (p.air ? .025 + pop * .045 : -.065) + rail + grabTilt * this.grabWeight);
         this.torso.updateMatrix();
@@ -664,7 +728,7 @@ export class RiderRig {
         for (let i = 0; i < 2; i++) {
             const side = i === 0 ? -1 : 1;
             const leading = side * lead;
-            const ankle = new T.Vector3(side * .39, .305, 0), hip = new T.Vector3(side * .17, -.015, 0).applyMatrix4(this.pelvis.matrix);
+            const ankle = new T.Vector3(side * stanceHalf, .305, 0), hip = new T.Vector3(side * .17, -.015, 0).applyMatrix4(this.pelvis.matrix);
             const kneePole = new T.Vector3(side * ((p.air ? .41 : .34) + .035 * leading),
                 .57 - (!p.air ? .045 * leading : 0), -.65 + .08 * leading - this.lean * .07);
             const knee = this.legs[i].pose(hip, ankle, kneePole).joint;
@@ -692,11 +756,12 @@ export class RiderRig {
                 const reach = .577 + Math.abs(bank) * .011;
                 wrist.sub(shoulder).clampLength(0, reach).add(shoulder);
             }
-            const kind = this.activeGrabKind, grabSide = kind === 0 ? 1 : 0, grab = i === grabSide ? this.grabWeight : 0;
-            const target = new T.Vector3(contact.x, contact.y + .103, contact.z * 1.12);
-            wrist.lerp(target, grab);
+            const kind = this.activeGrabKind, grabSide = handWeights[1] > 0 && handWeights[0] === 0 ? 1 : 0, grab = handWeights[i] * this.grabWeight;
+            const handContact = handWeights[0] && handWeights[1] ? this.grabContact(kind, lead, i) : contact;
+            const handTarget = new T.Vector3(handContact.x, handContact.y + .103, handContact.z * 1.12);
+            wrist.lerp(handTarget, grab);
             // Non-grabbing arm reaches away to balance, not through the torso.
-            if (i !== grabSide && this.grabWeight > .01) {
+            if (i !== grabSide && handWeights[i] === 0 && this.grabWeight > .01) {
                 wrist.x += side * this.grabWeight * .06;
                 wrist.y += this.grabWeight * .08;
             }
@@ -708,7 +773,7 @@ export class RiderRig {
             this.cuffs[i].position.copy(ik.end);
             this.hands[i].position.copy(ik.end);
             const forearm = ik.end.clone().sub(ik.joint).normalize();
-            const handDirection = grab > 0 ? forearm.clone().lerp(contact.clone().sub(ik.end).normalize(), grab).normalize() : forearm;
+            const handDirection = grab > 0 ? forearm.clone().lerp(handContact.clone().sub(ik.end).normalize(), grab).normalize() : forearm;
             this.hands[i].quaternion.setFromUnitVectors(new T.Vector3(0, -1, 0), handDirection);
             this.cuffs[i].quaternion.setFromUnitVectors(new T.Vector3(0, -1, 0), forearm);
         }

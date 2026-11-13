@@ -36,9 +36,11 @@ export type Stance = 'regular' | 'goofy';
 const ASSIST = {
     // yaw reflex gains (N m/rad, N m s/rad), max leg/hip pivot torque (N m), max commanded edge (rad), and whether the
     // rider is prevented from tipping onto the leading edge while sliding.
-    authentic: { kp: 150, kd: 14, pivot: 60, edge: 1.0, guardLeading: false, landingPivot: 60 },
-    balanced: { kp: 230, kd: 20, pivot: 90, edge: .95, guardLeading: false, landingPivot: 150 },
-    beginner: { kp: 320, kd: 26, pivot: 120, edge: .8, guardLeading: true, landingPivot: 220 },
+    // `level`: gain (N m/rad) of the landing-preparation assist that pitches the board toward the snow below while
+    // airborne. Authentic leaves board pitch entirely to the player's lean input.
+    authentic: { kp: 150, kd: 14, pivot: 60, edge: 1.0, guardLeading: false, landingPivot: 60, level: 0 },
+    balanced: { kp: 230, kd: 20, pivot: 90, edge: .95, guardLeading: false, landingPivot: 150, level: 500 },
+    beginner: { kp: 320, kd: 26, pivot: 120, edge: .8, guardLeading: true, landingPivot: 220, level: 900 },
 };
 
 const smooth = (x: number, a: number, b: number) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -68,7 +70,7 @@ export class RiderController {
     popLoad = 0;
     /** Pop variant decided by where the pressure was when loading: tail (ollie) or nose (nollie). */
     popEnd: 'tail' | 'nose' = 'tail';
-    braking = 0;
+    braking = 0; brakeTime = 0; brakeUnweight = false; brakeDug = false;
     /** Spin direction prepared during the load (-1..1) and time since the unwind started (s). */
     windPrep = 0; unwindTimer = 9;
     /** Gain of the fore/aft pressure reflex (m of centre-of-pressure shift per rad of slip error). */
@@ -93,7 +95,7 @@ export class RiderController {
         const a = ASSIST[this.assist], c = this.cmd, b = sim.board;
         b.dirToWorld({ x: 1, y: 0, z: 0 }, this.ex); b.dirToWorld({ x: 0, y: 1, z: 0 }, this.ey); b.dirToWorld({ x: 0, y: 0, z: 1 }, this.ez);
         const vx = dot(b.v, this.ex), vz = dot(b.v, this.ez), planar = Math.hypot(vx, vz);
-        if (grounded && planar > .6) { if (vx > .25 * planar) this.travelSign = 1; else if (vx < -.25 * planar) this.travelSign = -1; }
+        if (grounded && planar > .6 && this.braking <= .05) { if (vx > .25 * planar) this.travelSign = 1; else if (vx < -.25 * planar) this.travelSign = -1; }
         const fwd = this.travelSign;
         this.sinceLanding += dt;
 
@@ -109,8 +111,16 @@ export class RiderController {
         // Upper body: during the load a held spin direction counter-winds the shoulders; the pop unwinds them hard toward
         // that direction. Otherwise the stick twists the body directly. Always an internal, strength-limited torque.
         const unwinding = this.unwindTimer < .42 && this.windPrep !== 0;
-        const upper = this.pop === 'load' && this.windPrep !== 0 ? this.windPrep * sim.maxUpperTorque
-            : unwinding ? -this.windPrep * sim.maxUpperTorque : -intent.wind * sim.maxUpperTorque;
+        // The unwind starts a few hundredths into the extension and, while the board is still on the snow, the muscles
+        // stop driving near the far end of the hip/shoulder range instead of slamming into it (which would hand the
+        // rotation to the board while the snow can still stop it).
+        const nearStop = grounded && this.windPrep !== 0 && -sim.riderTwist * Math.sign(this.windPrep) > sim.maxTwist * .7;
+        const unwindDrive = this.unwindTimer < .05 ? 0 : nearStop ? 0 : 1;
+        // Wind-up: drive toward the end of the range, then only hold against the hips' passive spring there.
+        const wound = this.windPrep !== 0 && sim.riderTwist * Math.sign(this.windPrep) > sim.maxTwist * .8;
+        const windTorque = wound ? Math.min(sim.maxTwistTorque, sim.twistK * Math.abs(sim.riderTwist)) * Math.sign(this.windPrep) : this.windPrep * sim.maxUpperTorque * .55;
+        const upper = this.pop === 'load' && this.windPrep !== 0 ? windTorque
+            : unwinding ? -this.windPrep * sim.maxUpperTorque * unwindDrive : -intent.wind * sim.maxUpperTorque;
         if (!unwinding && this.pop !== 'load' && this.unwindTimer >= .42) this.windPrep = 0;
 
         const popX = (this.popEnd === 'tail' ? -1 : 1) * fwd;
@@ -126,15 +136,48 @@ export class RiderController {
 
             // ---- edging and braking ----
             const speed = planar;
-            const slip = Math.atan2(vz, Math.abs(vx) + 1e-6);
+            // Signed against the travel direction, so a board swung past 90 degrees reads > 90 instead of wrapping.
+            const slip = Math.atan2(vz, fwd * vx + 1e-6);
+            if (intent.brake <= .05) { this.brakeTime = 0; this.brakeDug = false; }
+            this.brakeUnweight = false;
             if (intent.brake > .05 && this.braking <= .05) this.brakeSign = (intent.lean > .3 ? -1 : 1) * (this.stance === 'regular' ? 1 : -1); // heelside: slide toward the toes
             this.braking = intent.brake;
             let edge = edgeForSteer(intent.steer, speed, a.edge) * fwd;
-            let slipTarget = 0;
-            if (this.braking > .05 && speed > 1) {
-                slipTarget = this.brakeSign * (.35 + .95 * this.braking);
-                // Dig the trailing edge: velocity is toward sign(slipTarget) in board z, so the opposite edge goes down.
-                edge = -Math.sign(slipTarget) * (.2 + .5 * this.braking) + .25 * edge;
+            const slipTarget = 0;
+            let brakeFront = 0, brakePivot = NaN, relaxed = false;
+            if (this.braking > .05 && speed > .4) {
+                // Speed check / stop: turn the board across the FALL LINE (heelside: toes downhill; toeside: toes uphill)
+                // and sideslip on the uphill edge. Phases: (1) set an edge briefly, because the carve is the only way to
+                // give the whole rider a yaw rate (the snow is the only external torque); (2) unweight and flatten so the
+                // board keeps rotating; (3) dig the trailing edge to scrub speed.
+                const n = sim.centerNormal, fh = Math.hypot(n.x, n.z);
+                const fx = fh > 1e-3 ? n.x / fh : 0, fz = fh > 1e-3 ? n.z / fh : -1;      // downhill, horizontal
+                const toe = this.stance === 'regular' ? 1 : -1;
+                const tx = this.ez.x * toe, tz = this.ez.z * toe, th = Math.hypot(tx, tz) || 1;
+                const side = this.brakeSign * toe;                                     // +1 toes downhill (heelside)
+                const dx = fx * side, dz = fz * side;
+                const yawErr = Math.atan2((tz * dx - tx * dz) / th, (tx * dx + tz * dz) / th);
+                this.brakeTime += dt;
+                const sideV = vz;                                                      // sideways velocity in board z
+                const uphillEdge = -Math.sign(this.ez.x * fx + this.ez.z * fz) || -1;
+                const trail = Math.abs(sideV) > .3 ? -Math.sign(sideV) : uphillEdge;
+                const r = Math.sign(yawErr) || 1;
+                const big = Math.abs(yawErr);
+                // Pivot the board under the hips with the base nearly flat and the legs relaxed (lower twist stiffness),
+                // then dig the trailing edge and stay dug (latched) until the brake is released.
+                if (!this.brakeDug && (big < .75 || this.brakeTime > .7)) this.brakeDug = true;
+                const dig = this.brakeDug ? 1 : 0;
+                edge = !this.brakeDug ? trail * .04 : trail * (.1 + .5 * this.braking) + edge * .15;
+                this.brakeUnweight = !this.brakeDug && speed > 2;
+                brakeFront = (1 - dig) * .06 * fwd;
+                relaxed = true;
+                const wy = dot(b.w, this.ey);
+                brakePivot = 260 * yawErr - 30 * wy;
+            }
+            // Recovering a big sideways slide: only the snow can give the rider the yaw needed to straighten out, so the
+            // trailing edge is set and the path carves back under the board. Small slips are left to the hip reflex.
+            if (this.braking <= .05 && this.pop === 'none' && speed > 3 && Math.abs(slip) > .45 && Math.abs(slip) < 1.4) {
+                edge = -Math.sign(slip) * Math.min(.45, .2 + (Math.abs(slip) - .45) * .6) + edge * .2;
             }
             if (a.guardLeading && Math.abs(slip) > .2 && Math.sign(edge) === Math.sign(slip)) edge = 0;
             // Spin set-up: the takeoff is made from an engaged edge so the snow can take the reaction of the shoulders'
@@ -151,7 +194,9 @@ export class RiderController {
             const dSlip = this.havePrev ? (slip - this.prevSlip) / dt : 0;
             this.prevSlip = slip; this.havePrev = true;
             let pivot = 0;
-            if (unwinding || this.pop === 'extend' || (this.pop === 'load' && this.windPrep !== 0)) {
+            if (!Number.isNaN(brakePivot)) {
+                pivot = brakePivot;
+            } else if (unwinding || this.pop === 'extend' || (this.pop === 'load' && this.windPrep !== 0)) {
                 pivot = 0; // the legs do not fight the wind-up or unwind; the engaged edge and the snow hold the board
             } else if (speed > 1.2) {
                 // Rotating the board about +y swings its x axis toward -z, which RAISES the slip angle when riding +x
@@ -164,12 +209,18 @@ export class RiderController {
             // Fore/aft pressure reflex: when the board is skidding, the friction yaw moment is mu * N * (centre-of-pressure
             // offset), so moving pressure toward one end is how a rider stops the tail (or nose) washing out.
             if (speed > 1.2 && this.pop === 'none' && this.copGain) press += clamp(this.copGain * ((slip - slipTarget) * 1.0 + .08 * dSlip), -.1, .1);
+            press += brakeFront;
+            // Unweighting: a quick extension lightens the board so it pivots against less friction.
+            if (this.brakeUnweight) c.crouch = Math.min(c.crouch, -.25);
             c.copX = clamp(press, -.12, .12); c.comX = c.copX * .9; c.copZ = 0;
-            const max = this.sinceLanding < .4 ? a.landingPivot : a.pivot;
+            // Leg/hip coupling stiffness is set by the rider (co-contraction): relaxed while pivoting into a stop.
+            sim.twistK = relaxed ? 130 : 400; sim.twistC = relaxed ? 8 : 26;
+            const max = relaxed ? Math.max(a.pivot, 150) : this.sinceLanding < .4 ? a.landingPivot : a.pivot;
             sim.maxPivotTorque = max;
             c.pivotTorque = clamp(pivot, -max, max);
             c.upperTorque = upper;
             c.compact = 0;
+            c.boardPitchTorque = 0;
         } else {
             this.havePrev = false;
             // Airborne: no external torque is available. Wind input only twists the body against the board.
@@ -186,6 +237,14 @@ export class RiderController {
             c.comX = clamp(-intent.flip, -1, 1) * fwd * .22;
             c.comZ = 0;
             c.edge = 0; // ankles hold the base parallel to the snow below
+            // Board pitch in the air: hips and knees rotate the board against the body's own inertia. The player's lean
+            // tips the leading end down (+) or up (-); the assist (if enabled) aims the base at the snow below.
+            const n = sim.centerNormal;
+            const err = Math.asin(clamp(this.ex.x * n.x + this.ex.y * n.y + this.ex.z * n.z, -1, 1)); // + = +x end above the surface plane
+            const wp = dot(b.w, this.ez);
+            const want = -clamp(intent.lean, -1, 1) * fwd * .45;
+            const player = -clamp(intent.lean, -1, 1) * fwd * sim.maxPitchTorque * .7;
+            c.boardPitchTorque = a.level > 0 ? -a.level * (err - want) - .12 * a.level * wp : player;
         }
         return c;
     }

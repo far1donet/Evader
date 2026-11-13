@@ -1,0 +1,10 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    { "label": "EVADER: dev server", "type": "npm", "script": "dev", "isBackground": true, "problemMatcher": [], "detail": "Hot-reload server on http://127.0.0.1:3000" },
+    { "label": "EVADER: production build", "type": "npm", "script": "build", "group": "build", "problemMatcher": ["$tsc"] },
+    { "label": "EVADER: start (production)", "type": "npm", "script": "start", "isBackground": true, "problemMatcher": [] },
+    { "label": "EVADER: tests", "type": "npm", "script": "test", "group": { "kind": "test", "isDefault": true }, "problemMatcher": [] },
+    { "label": "EVADER: typecheck", "type": "npm", "script": "check", "problemMatcher": ["$tsc"] }
+  ]
+}

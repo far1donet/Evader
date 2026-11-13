@@ -60,3 +60,6 @@
   .gear-editor { grid-template-columns:1fr; }
   .gear-preview { min-height:365px; }
 }
+.diagnostics{position:absolute;left:12px;top:280px;z-index:6;pointer-events:none;padding:10px 12px;border-radius:10px;background:rgba(8,16,22,.72);color:#e8f3f4;font:11px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;max-width:min(560px,calc(100vw - 24px));backdrop-filter:blur(6px)}
+.diagnostics canvas{display:block;width:240px;height:56px;margin-bottom:6px;border-radius:4px}
+.diagnostics pre{margin:0;white-space:pre-wrap}
