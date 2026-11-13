@@ -1,7 +1,7 @@
 import { RigidBody } from './rigid-body.ts';
 import { type V3, clamp, cross, dot, lerp, normalize, qFromAxisAngle, qMul, smoothstep, v3 } from './math3.ts';
 import { type BoardSpec, type RiderSpec, type Station, DEFAULT_RIDER, makeStations } from './boards.ts';
-import { type SimTerrain, terrainNormal } from './terrain.ts';
+import { type SimTerrain, terrainNormal, sampleContact, makeContactSample } from './terrain.ts';
 import type { SnowMaterial } from './snow.ts';
 
 export const G = 9.81;
@@ -18,12 +18,17 @@ export type RiderCommand = {
     copZ: number; copX: number;
     /** Rider centre-of-mass target relative to the leg base in the board frame (m): lateral lean, fore/aft. */
     comZ: number; comX: number;
-    /** 0 upright .. 1 deepest crouch. */
+    /** 0 neutral .. 1 deepest crouch; negative values extend the legs toward full extension (-1), used for pops. */
     crouch: number;
     tuck: boolean;
     /** Pivot torque about the board's up axis (N m): rider twists hips/legs against the snow. The reaction torque on the
      *  upper body is not modelled in this single-point-mass rider, so this is limited by `maxPivotTorque`. */
     pivotTorque: number;
+    /** Optional. Hip/shoulder twist torque (N m) between the upper body and the board: + turns the body toward +y yaw and
+     *  pushes the board the other way. Internal: it can never change the total angular momentum. Wind-ups use this. */
+    upperTorque?: number;
+    /** Optional 0..1: how compact the body is (grab, tuck, pulled-in arms). Lowers the body's yaw inertia; momentum is kept. */
+    compact?: number;
     /** Target edge angle (rad, + = toe edge down) produced by ankle/knee roll torque. NaN = passive ankles (no roll torque). */
     edge: number;
     /** EXPERIMENTAL, off by default: the rider aligns the leg axis with the ground-reaction direction they feel (filtered
@@ -87,10 +92,28 @@ export class SnowboardSim {
     /** Rider yaw about the board normal relative to the board (rad), its yaw rate (rad/s), and the passive twist coupling. */
     riderTwist = 0; riderYawRate = 0;
     twistK = 400; twistC = 26; maxTwistTorque = 200;
+    /** Anatomical hip/shoulder twist range relative to the board (rad), enforced by a stiff passive end stop. */
+    maxTwist = 1.25;
+    /** Strongest hip/shoulder twist the rider can produce (N m). Uncalibrated estimate. */
+    maxUpperTorque = 210;
+    /** Current yaw inertia of the body (kg m^2), lowered by `compact`. */
+    riderYawInertia: number;
+    /** Steady wind at the rider (m/s, world). Drag acts on the air-relative velocity. */
+    wind: V3 = v3();
+    /** Contacts touching a rail / box this step, and the summed normal force of all contacts (N). */
+    railContacts = 0; totalNormal = 0;
+    private cs = makeContactSample(); private centerN = v3();
     private vSysPrev = v3(); private aFilt = v3(); private haveVPrev = false;
     /** Time constant of the rider's acceleration sense (s): vestibular + proprioceptive delay. */
     senseTau = .05;
     maxRollTorque = 300;
+    /** Lateral resistance an engaged edge keeps once it slides, as a fraction of its peak hold, and the slip speed (m/s)
+     *  over which the hold falls to it. A sliding edge still scrapes and plows a wall of snow. Uncalibrated estimates. */
+    slideRetention = .45; stribeckV = .35;
+    /** Extra lateral hold of the trailing edge half running in the leading half's groove (fraction). Uncalibrated. */
+    grooveHold = 1;
+    /** Leg extension speed at which push-off force reaches zero (m/s), Hill force-velocity curve. Estimate. */
+    legVmax = 3.6;
     /** Fastest the rider can sweep the board's edge angle (rad/s): a rider cannot snap onto an edge. */
     maxEdgeRate = 3.5;
     private edgeTargetF = 0; private edgeActive = false;
@@ -106,6 +129,7 @@ export class SnowboardSim {
         this.stations = makeStations(spec);
         this.state = this.stations.map(() => ({ contact: false, depth: 0, normalForce: 0, slip: 0, lateralForce: 0, engagement: 0 }));
         this.legBaseY = rider.footHeight - this.comY;
+        this.riderYawInertia = rider.yawInertia;
     }
 
     /** Place the board flat on the terrain at (x,z) heading `yaw` (rotation about +y; 0 = nose toward +x), rider settled at neutral posture. */
@@ -128,7 +152,8 @@ export class SnowboardSim {
         const up = b.dirToWorld(v3(0, 1, 0), v3());
         this.riderP.x = base.x + up.x * this.rider.heightNeutral; this.riderP.y = base.y + up.y * this.rider.heightNeutral; this.riderP.z = base.z + up.z * this.rider.heightNeutral;
         this.riderV.x = b.v.x; this.riderV.y = b.v.y; this.riderV.z = b.v.z;
-        this.riderTwist = 0; this.riderYawRate = 0;
+        this.riderTwist = 0; this.riderYawRate = 0; this.riderYawInertia = this.rider.yawInertia;
+        this.edgeActive = false; this.haveVPrev = false;
         void pitchToSlope;
     }
     legBasePoint(cop: { x?: number; z?: number } | V3, out: V3) {
@@ -151,10 +176,11 @@ export class SnowboardSim {
         // ---- Rider leg (telescoping spring-damper + muscle) and ankle/hip lateral hold -------------------
         const base = this.legBasePoint({ x: clamp(cmd.copX, -.12, .12), z: clamp(cmd.copZ, -.125, .125) }, S.pw);
         const vBase = b.velocityAt(base, S.vp);
-        const crouch = clamp(cmd.crouch, 0, 1);
-        const lRef = lerp(rd.heightNeutral, rd.heightMin, crouch);
-        // Edge angle relative to the snow (from the surface normal at the board centre).
-        terrainNormal(this.terrain, b.p.x, b.p.z, S.n);
+        const crouch = clamp(cmd.crouch, -1, 1);
+        const lRef = crouch >= 0 ? lerp(rd.heightNeutral, rd.heightMin, crouch) : lerp(rd.heightNeutral, rd.heightMax * .985, -crouch);
+        // Edge angle relative to the snow (from the surface normal at the board centre). Computed once per step.
+        terrainNormal(this.terrain, b.p.x, b.p.z, this.centerN);
+        S.n.x = this.centerN.x; S.n.y = this.centerN.y; S.n.z = this.centerN.z;
         this.edgeAngle = Math.atan2(-dot(S.n, ez), dot(S.n, ey));
         // Rider's sense of the ground reaction: filtered system acceleration + g.
         const M = b.mass + rd.mass;
@@ -187,6 +213,12 @@ export class SnowboardSim {
         // Axial: spring to the reference length, damper, and muscle feed-forward carrying body weight along the axis.
         const ff = rd.mass * G * a.y;
         let fAx = rd.legK * (refLen - len) - rd.legC * lenRate + ff;
+        if (crouch < 0 && len < refLen) {
+            // Active push-off (pop): muscle force limited by the Hill force-velocity relation instead of the passive
+            // damper, so the push weakens as the legs extend faster. Ends at the commanded extension.
+            const vMax = this.legVmax;
+            fAx = Math.max(fAx, -crouch * rd.maxLegForce * clamp(1 - lenRate / vMax, 0, 1));
+        }
         fAx = clamp(fAx, -rd.maxLegPull, rd.maxLegForce);
         // Mechanical end stops (passive).
         const lMin = rd.heightMin * .92, lMax = rd.heightMax;
@@ -229,18 +261,25 @@ export class SnowboardSim {
             S.f.x = -kx; S.f.y = -ky; S.f.z = -kz; b.applyForceAtPoint(S.f, base);
         } else { this.edgeActive = false; this.riderReaction.x = this.riderReaction.y = this.riderReaction.z = 0; }
 
-        // Pivot torque (hips/legs twisting the board against the snow).
-        const pt = clamp(cmd.pivotTorque, -this.maxPivotTorque, this.maxPivotTorque);
-        if (pt !== 0) { S.w.x = ey.x * pt; S.w.y = ey.y * pt; S.w.z = ey.z * pt; b.applyTorque(S.w); }
+        // Posture changes the body's yaw inertia; its angular momentum is kept, so pulling in spins faster.
+        const iNew = rd.yawInertia * (1 - .45 * clamp(cmd.compact ?? 0, 0, 1));
+        if (iNew !== this.riderYawInertia) { this.riderYawRate *= this.riderYawInertia / iNew; this.riderYawInertia = iNew; }
+        // Pivot (legs twisting the board) and upper-body twist are both internal torques between the body and the board:
+        // the board gets +tau about its normal and the body gets -tau. Net rotation can only come from the snow resisting
+        // the board (on the ground) or from momentum already present (in the air).
+        const pt = clamp(cmd.pivotTorque, -this.maxPivotTorque, this.maxPivotTorque)
+            - clamp(cmd.upperTorque ?? 0, -this.maxUpperTorque, this.maxUpperTorque);
+        if (pt !== 0) { S.w.x = ey.x * pt; S.w.y = ey.y * pt; S.w.z = ey.z * pt; b.applyTorque(S.w); this.riderYawRate -= pt / this.riderYawInertia * dt; }
 
         // Rider yaw: the body has real yaw inertia and is coupled to the board through boots, legs and hips by a passive
-        // torsional spring-damper that saturates at what the rider can hold. Without it the board's yaw would be free to
-        // spin up against only the plank's own small inertia.
+        // torsional spring-damper that saturates at what the rider can hold, plus a stiff anatomical end stop.
         if (this.twistK > 0) {
             const wb = dot(b.w, ey);
-            const tw = clamp(-this.twistK * this.riderTwist - this.twistC * (this.riderYawRate - wb), -this.maxTwistTorque, this.maxTwistTorque);
+            const over = Math.abs(this.riderTwist) > this.maxTwist ? (Math.abs(this.riderTwist) - this.maxTwist) * Math.sign(this.riderTwist) : 0;
+            let tw = clamp(-this.twistK * this.riderTwist - this.twistC * (this.riderYawRate - wb), -this.maxTwistTorque, this.maxTwistTorque);
+            if (over !== 0) tw += -6000 * over - 120 * (this.riderYawRate - wb);
             S.w.x = -ey.x * tw; S.w.y = -ey.y * tw; S.w.z = -ey.z * tw; b.applyTorque(S.w);
-            this.riderYawRate += tw / rd.yawInertia * dt;
+            this.riderYawRate += tw / this.riderYawInertia * dt;
             this.riderTwist += (this.riderYawRate - wb) * dt;
         }
 
@@ -250,11 +289,12 @@ export class SnowboardSim {
 
         // ---- Aerodynamic drag on the rider+board (tucking reduces drag area, it adds no thrust) -------------
         const cda = cmd.tuck ? rd.cdaTuck : rd.cdaUpright;
-        const vr = Math.hypot(this.riderV.x, this.riderV.y, this.riderV.z);
+        const ux = this.riderV.x - this.wind.x, uy = this.riderV.y - this.wind.y, uz = this.riderV.z - this.wind.z;
+        const vr = Math.hypot(ux, uy, uz);
         if (vr > 1e-6) {
             const k = .5 * rd.airDensity * cda * vr / rd.mass;
-            rax -= k * this.riderV.x; ray -= k * this.riderV.y; raz -= k * this.riderV.z;
-            this.diag.dragWork -= .5 * rd.airDensity * cda * vr * vr * vr * dt;
+            rax -= k * ux; ray -= k * uy; raz -= k * uz;
+            this.diag.dragWork -= k * rd.mass * (ux * this.riderV.x + uy * this.riderV.y + uz * this.riderV.z) * dt;
         }
 
         // ---- Snow contact ---------------------------------------------------------------------------------
@@ -269,12 +309,12 @@ export class SnowboardSim {
 
     private contact(dt: number, ex: V3, ey: V3, ez: V3, cmd: RiderCommand) {
         const b = this.board, S = SCRATCH, sp = this.spec, d = this.diag;
-        d.contacts = 0;
+        d.contacts = 0; this.railContacts = 0; this.totalNormal = 0;
         // Stability budget: stations act in parallel on one body, so each may only use its share of the stable impulse.
         const share = Math.max(1, this.prevContacts) ** this.damperShareExp;
         // Board edge angle relative to the snow (positive: toe edge down), from the surface normal at the centre.
-        terrainNormal(this.terrain, b.p.x, b.p.z, S.n);
-        const nyB = dot(S.n, ey), nzB = dot(S.n, ez);
+        const cn = this.centerN;
+        const nyB = dot(cn, ey), nzB = dot(cn, ez);
         const alpha = Math.atan2(-nzB, nyB);
         for (let i = 0; i < this.stations.length; i++) {
             const st = this.stations[i], ss = this.state[i];
@@ -282,13 +322,12 @@ export class SnowboardSim {
             // Station world position on the base plane.
             const loc = S.t; loc.x = st.x; loc.y = st.lift - this.comY; loc.z = st.z;
             const pw = b.toWorld(loc, S.pw);
-            const h = this.terrain.height(pw.x, pw.z);
-            const vert = h - pw.y;
+            const c = sampleContact(this.terrain, pw.x, pw.z, pw.y, this.cs);
+            const vert = c.h - pw.y;
             if (vert <= 0) continue;
-            terrainNormal(this.terrain, pw.x, pw.z, S.n);
-            const n = S.n;
+            const n = S.n; n.x = c.nx; n.y = c.ny; n.z = c.nz;
             const pen = vert * n.y;                       // penetration along the surface normal
-            const mat: SnowMaterial = this.terrain.material(pw.x, pw.z);
+            const mat: SnowMaterial = c.mat;
             // Velocity of the station point.
             b.velocityAt(pw, S.vp);
             const vn = dot(S.vp, n);
@@ -308,7 +347,7 @@ export class SnowboardSim {
             fDamp = clamp(fDamp, -fDampMax, fDampMax);
             const fn = Math.max(0, fEl + fDamp);
             if (fn <= 0) continue;
-            ss.contact = true; ss.depth = pen; ss.normalForce = fn;
+            ss.contact = true; ss.depth = pen; ss.normalForce = fn; this.totalNormal += fn; if (c.rail) this.railContacts++;
             d.contacts++; d.maxPenetration = Math.max(d.maxPenetration, pen); d.maxNormalForce = Math.max(d.maxNormalForce, fn);
 
             // ---- contact-plane axes ----
@@ -338,9 +377,15 @@ export class SnowboardSim {
             let fu = -mat.muLong * fn * Math.tanh(u / vReg);
             // Across the edge: grip limited by the friction cone. Static capacity falls toward a lower sliding level with slip speed.
             const muEdge = Math.tan(mat.phiDeg * Math.PI / 180);
-            const muCap = lerp(mat.muLatFlat, muEdge, engage);
-            const muSlide = lerp(mat.muLatFlat, .45 * muEdge, engage);
-            const mu = muSlide + (muCap - muSlide) * Math.exp(-((s / .35) ** 2));
+            // Groove following: while the board tracks along its length, the trailing half of the edge runs in the groove
+            // the leading half has just cut, so its lateral hold is backed by the groove wall. Not when skidding sideways.
+            const vAlong = dot(b.v, ex), vAcross = dot(b.v, ez);
+            const tracking = Math.abs(vAlong) > 1 ? Math.exp(-((vAcross / (.3 * Math.abs(vAlong))) ** 2)) : 0;
+            const trailing = st.x * vAlong < 0 ? Math.min(1, Math.abs(st.x) / (sp.effectiveEdge * .25)) : 0;
+            const groove = 1 + this.grooveHold * engage * tracking * trailing;
+            const muCap = lerp(mat.muLatFlat, muEdge * groove, engage);
+            const muSlide = lerp(mat.muLatFlat, this.slideRetention * muEdge * groove, engage);
+            const mu = muSlide + (muCap - muSlide) * Math.exp(-((s / this.stribeckV) ** 2));
             let fs = -mu * fn * Math.tanh(s / vReg);
             // Plowing: displaced snow takes momentum from the board (frontal along the board and side area when sliding).
             // Only depth beyond the support compression displaces snow ahead of/beside the board: the few mm a firm surface

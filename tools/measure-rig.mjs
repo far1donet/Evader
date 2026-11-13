@@ -1,0 +1,12 @@
+import * as T from 'three';
+const gradient=()=>({addColorStop(){}});
+const context={createLinearGradient:gradient,createRadialGradient:gradient,fillRect(){},beginPath(){},moveTo(){},lineTo(){},closePath(){},stroke(){},fill(){},fillText(){},save(){},restore(){},translate(){},rotate(){},scale(){}};
+globalThis.document={createElement:()=>({width:0,height:0,getContext:()=>context})};
+const {RiderRig}=await import('/home/user/evader/lib/rider-rig.ts');
+const root=new T.Group();const rig=new RiderRig(root,new T.MeshStandardMaterial(),new T.MeshStandardMaterial());
+rig.pose({dt:1,time:0,turn:0,speed:0,air:false,grab:false,landing:0,menu:true});
+root.updateMatrixWorld(true);
+const box=new T.Box3().setFromObject(root);console.log('bbox',box.min,box.max);
+const hb=new T.Box3().setFromObject(rig.head);console.log('head',hb.min.y,hb.max.y);
+const bb=new T.Box3().setFromObject(rig.board);console.log('board',bb.min,bb.max);
+console.log('hip y',rig.pelvis.position.y);

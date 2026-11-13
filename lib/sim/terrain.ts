@@ -6,6 +6,21 @@ export interface SimTerrain {
     height(x: number, z: number): number;
     /** Snow material at a point; may return a shared scratch object (copy if you keep it). */
     material(x: number, z: number): SnowMaterial;
+    /** Optional fused query (height + normal + material) for a contact point at height y. Lets a terrain expose solid
+     *  features such as rails whose top only counts when the point is above it. */
+    contact?(x: number, z: number, y: number, out: ContactSample): ContactSample;
+}
+export type ContactSample = { h: number; nx: number; ny: number; nz: number; mat: SnowMaterial; rail: boolean };
+export const makeContactSample = (): ContactSample => ({ h: 0, nx: 0, ny: 1, nz: 0, mat: SNOW.groomed, rail: false });
+/** Contact query for any terrain: the fused one when available, otherwise height + central-difference normal + material. */
+export function sampleContact(t: SimTerrain, x: number, z: number, y: number, out: ContactSample): ContactSample {
+    if (t.contact) return t.contact(x, z, y, out);
+    out.h = t.height(x, z);
+    const dx = (t.height(x + EPS, z) - t.height(x - EPS, z)) / (2 * EPS);
+    const dz = (t.height(x, z + EPS) - t.height(x, z - EPS)) / (2 * EPS);
+    const l = Math.hypot(dx, 1, dz);
+    out.nx = -dx / l; out.ny = 1 / l; out.nz = -dz / l; out.mat = t.material(x, z); out.rail = false;
+    return out;
 }
 const EPS = .08;
 export function terrainNormal(t: SimTerrain, x: number, z: number, out: V3): V3 {

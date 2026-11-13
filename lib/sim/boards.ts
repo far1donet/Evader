@@ -64,7 +64,7 @@ export type RiderSpec = {
 export const DEFAULT_RIDER: RiderSpec = {
     mass: 75, gearMass: 8.5, heightNeutral: .74, heightMin: .48, heightMax: .90, footHeight: .06,
     legK: 1.4e4, legC: 1800, maxLegForce: 4200, maxLegPull: 500, maxAnkleTorque: 190,
-    cdaUpright: .55, cdaTuck: .26, airDensity: .95, yawInertia: 4,
+    cdaUpright: .55, cdaTuck: .26, airDensity: .95, yawInertia: 2.6,
 };
 /** Half-width of the board outline at distance x from centre. Sidecut arc inside the effective edge, tip rounding beyond. */
 export function halfWidth(spec: BoardSpec, x: number) {
