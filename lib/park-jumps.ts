@@ -13,9 +13,33 @@ const originalProfiles = new Map([
     [large, { ...large, lipTangent: 2 }],
 ]);
 
-type JumpCourse = { id: number; spacing: number; length: number; classicFeatures?: boolean; originalKickers?: boolean };
+type JumpCourse = { id: number; spacing: number; length: number; classicFeatures?: boolean; originalKickers?: boolean; dem?: string };
+
+/**
+ * Verbier Snowpark, La Chaux (published: 5 table-top / whoop features in the small line; 3 kickers of 9-13 m in the
+ * medium/large lines). Exact positions are not published; here they run as one progression line down the park:
+ * five small table-tops, then kickers whose tables (knuckle minus lip) are 9, 11 and 13 m.
+ */
+const tableTop = { lip: 8, knuckle: 12, runout: 26, rise: 1.6, width: 4, shoulder: 7, lipTangent: 1.4 };
+const kicker9 = { lip: 14, knuckle: 23, runout: 52, rise: 3.2, width: 6, shoulder: 11, lipTangent: 1.45 };
+const kicker11 = { lip: 16, knuckle: 27, runout: 60, rise: 4.0, width: 7, shoulder: 12.5, lipTangent: 1.45 };
+const kicker13 = { lip: 18, knuckle: 31, runout: 68, rise: 4.8, width: 8, shoulder: 14, lipTangent: 1.45 };
+export const LA_CHAUX_FEATURES = [
+    ...[60, 92, 124, 156, 188].map(base => ({ base, profile: tableTop, line: 'S' as const })),
+    { base: 250, profile: kicker9, line: 'M' as const },
+    { base: 350, profile: kicker11, line: 'M' as const },
+    { base: 460, profile: kicker13, line: 'L' as const },
+];
+const NONE = { base: -1e9, profile: tableTop, exists: false };
 
 export function kickerAt(d: number, course: JumpCourse) {
+    if (course.dem) {
+        if (course.dem !== 'la-chaux-park') return NONE;
+        for (const f of LA_CHAUX_FEATURES) if (d >= f.base && d <= f.base + f.profile.runout) return { base: f.base, profile: f.profile, exists: true };
+        // Between features report the next one ahead (approach logic looks forward), but not as existing ground.
+        const next = LA_CHAUX_FEATURES.find(f => f.base > d);
+        return next ? { base: next.base, profile: next.profile, exists: d >= next.base - 40 } : NONE;
+    }
     const index = Math.floor((d - FIRST_KICKER) / course.spacing);
     const base = FIRST_KICKER + index * course.spacing;
     const line = lines[course.id] ?? lines[0];

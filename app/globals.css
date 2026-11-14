@@ -109,3 +109,7 @@
 .gesture-help{position:absolute;z-index:4;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 18px;background:#0b2433d9;border:1px solid #d7fa6566;color:#e8f2f4;font-size:12px;letter-spacing:.4px;text-align:center;pointer-events:none;animation:gestureHelp 6.5s forwards;max-width:calc(100vw - 32px)}
 .gesture-help strong{color:#d7fa65;font-size:14px;letter-spacing:1.5px;text-transform:uppercase}
 @keyframes gestureHelp{0%,80%{opacity:1}100%{opacity:0}}
+.hud-altitude{color:#d7fa65!important;margin-top:6px}
+/* ---- Course list with real-terrain Verbier runs (8 courses) ---- */
+.evader.screen-menu{overflow-y:auto;height:100svh}
+@media(min-width:761px){.destination-strip{display:grid;grid-template-columns:150px repeat(4,minmax(0,1fr));gap:10px}.destination-strip .strip-label{grid-row:span 2}.destination{padding:16px 14px 20px}}

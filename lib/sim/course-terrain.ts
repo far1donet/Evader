@@ -19,6 +19,8 @@ export type CourseFunctions = {
     center(d: number): number;
     /** 0 outside a kicker, 1 on the takeoff ramp, 2 on the landing / knuckle. */
     parkZone(x: number, d: number): 0 | 1 | 2;
+    /** Optional surface override (real terrain: aspect, altitude, steepness). Undefined = choose from snow depth. */
+    surface?(x: number, d: number): SnowMaterial | undefined;
 };
 export type SimRail = { x: number; d: number; end: number; width: number; top: number; slope: number; round: boolean };
 
@@ -49,6 +51,8 @@ export class CourseTerrain implements SimTerrain {
         const zone = f.parkZone(x, d);
         if (zone === 1) return SNOW.parkTakeoff;
         if (zone === 2) return SNOW.parkLanding;
+        const special = f.surface?.(x, d);
+        if (special) return special;
         const depth = f.snowDepth(x, d) + this.freshSnow * .12;
         // Wind-scoured bands on the open piste are firmer (hardpack), deterministic so replays agree.
         const off = Math.abs(x - f.center(d));

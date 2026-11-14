@@ -1,0 +1,1388 @@
+REAL-WORLD TERRAIN REFERENCE
+
+VERBIER
+
+4 VALLÉES
+
+COMPLETE SKI & SNOWBOARD
+GAME DEVELOPMENT GUIDE
+
+Terrain • resorts • pistes • lifts • freeride • snowpark • simulation •
+data acquisition
+
+[Panoramic user-provided piste illustration of Verbier and the 4
+Vallées, with mountains and ski connections.]
+
+Panoramic piste illustration supplied by the user. Useful as a visual
+reference, not a georeferenced terrain dataset.
+
+  -----------------------------------------------------------------------
+  DOMAIN                  PUBLISHED LIFTS         TOP ELEVATION
+  ~410 km                 82                      3,330 m
+  ----------------------- ----------------------- -----------------------
+
+  -----------------------------------------------------------------------
+
+Compiled from the previous Verbier guide and the accompanying 2026
+reference registry.
+
+REFERENCE DATE 14 NOVEMBER 2026
+
+Reader’s guide
+
+This document consolidates the complete Verbier–4 Vallées game-world
+research guide. It combines operator-published resort attributes, a
+named feature inventory, the user-provided panoramic map, and practical
+recommendations for building a geographically faithful snowboard game.
+
+  -----------------------------------------------------------------------
+  Read before implementation. The piste artwork is not scale-accurate.
+  Real lift alignments, piste centre-lines, cable heights, building
+  footprints, snow depth and tree coordinates must be acquired from GIS
+  data or survey; they are not silently invented here.
+  -----------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+
+Contents
+
+01 Scale, scope and accuracy rules
+
+02 Geography and terrain sectors
+
+03 Lifts, cable cars and the 2026/27 change
+
+04 Pistes and difficulty classifications
+
+05 Freeride itineraries and iconic faces
+
+06 Snowpark, fun zones and race facilities
+
+07 Snow, weather, vegetation and villages
+
+08 GIS sources and terrain import workflow
+
+09 Realistic snowboard-game systems
+
+10 Implementation roadmap and quality gates
+
+11 Sources and usage rights
+
+Appendix A Complete named piste/connection inventory
+
+Appendix B Complete named lift inventory
+
+Appendix C Elevation anchor registry
+
+Evidence and precision labels
+
+  -----------------------------------------------------------------------
+  Label                               Meaning
+  ----------------------------------- -----------------------------------
+  Published / operator                Names, route figures, lift types
+                                      and features transcribed from
+                                      operator information as of the
+                                      research date.
+
+  Approximate / map label             Mountains and resort elevations:
+                                      useful starting anchors, not exact
+                                      station geolocation.
+
+  Game design recommendation          Simulation mechanics and
+                                      development architecture proposed
+                                      for a believable game, not
+                                      real-life measured infrastructure.
+
+  Not supplied                        Route geometry, coordinates,
+                                      terminal/cable engineering data,
+                                      and exact snowpark feature
+                                      dimensions absent from the
+                                      registry.
+  -----------------------------------------------------------------------
+
+01 Scale, scope and accuracy rules
+
+The 4 Vallées encompasses Verbier, La Tzoumaz, Bruson, Nendaz, Veysonnaz
+and Thyon. The published domain total is approximately 410 km of runs
+and itineraries and 82 ski lifts, with the highest served point at Mont
+Fort, about 3,330 m. Counts vary with what an operator includes and with
+infrastructure changes. The named inventories in this report are
+deliberately partial extracts rather than a full 82-lift survey.
+
+  -----------------------------------------------------------------------
+  Published measure       Reference value         How to use it
+  ----------------------- ----------------------- -----------------------
+  Extent                  ~410 km                 Marketing measure for
+                                                  overall network; not a
+                                                  sum of all GIS feature
+                                                  lengths.
+
+  Lift count              82                      Broad domain reference;
+                                                  do not infer that
+                                                  Appendix B includes all
+                                                  82.
+
+  Top lift elevation      3,330 m                 Mont Fort summit area,
+                                                  use real DEM/terminal
+                                                  survey for precise
+                                                  positions.
+
+  Overall altitude band   Approx. 1,400–3,330 m   Varies by village,
+                                                  trail and definition of
+                                                  skiable domain.
+  -----------------------------------------------------------------------
+
+Primary build objectives
+
+-   Preserve the relationships between actual valleys, ridges, lift
+    endpoints and mountains instead of arranging disconnected slope
+    props.
+
+-   Build a 1:1 metre-based world wherever accurate GIS is available;
+    distinguish visual backdrops from connected playable terrain.
+
+-   Keep a dated, source-identified asset registry. Changes to lift
+    infrastructure must be versioned, especially the new Savoleyres
+    Télémixte.
+
+-   Implement piste status, difficulty and ungroomed itinerary behaviour
+    as data, not just texture colours.
+
+02 Geography and terrain sectors
+
+Verbier sits above the Val de Bagnes, with Le Châble in the valley
+below. Bruson faces Verbier across the valley. Savoleyres is the ridge
+link to La Tzoumaz, while the higher Mont Fort / Tortin corridor
+connects toward Siviez and the wider Nendaz–Veysonnaz–Thyon network.
+Mont Blanc and Grand Combin are iconic visual backdrops but are not
+automatically piste-connected gameplay terrain.
+
+Sector personalities
+
+  -----------------------------------------------------------------------
+  Sector                  Terrain and visual      Gameplay purpose
+                          character               
+  ----------------------- ----------------------- -----------------------
+  Verbier / Médran        Busy resort access;     Spawn area, lifts,
+                          broad pistes, steep     carving and
+                          alpine routes,          mixed-ability riding.
+                          buildings and           
+                          restaurants.            
+
+  Mont Fort / Gentianes / Exposed high terrain,   Expert descents and
+  Tortin                  big faces, harsh        signature freeride.
+                          weather, moguls and     
+                          cable cars.             
+
+  Savoleyres / La Tzoumaz A ridge crest, long     Long traverses,
+                          runs, open areas and    technical turns and
+                          shadowed forests.       natural jumps.
+
+  Bruson                  Tree-lined pistes,      Tree riding and powder.
+                          varied forests, quieter 
+                          local character.        
+
+  Siviez / Nendaz         Interconnection of      Travel and network
+                          valley hubs, ski pistes navigation.
+                          and higher ridges.      
+
+  Veysonnaz / Thyon       Groomed race runs, long Racing, high-speed
+                          faces and broad         riding and exploration.
+                          viewpoints.             
+  -----------------------------------------------------------------------
+
+Selected reference elevations
+
+  -----------------------------------------------------------------------
+  Landmark or station area            Approximate altitude
+  ----------------------------------- -----------------------------------
+  Mont Fort                           3,330 m
+
+  Bec des Rosses                      3,223 m
+
+  Mont Gelé                           3,023 m
+
+  Col des Gentianes lift area         2,950 m
+
+  Col de Chassoure                    2,743 m
+
+  Les Attelas                         2,734 m
+
+  Lac des Vaux                        2,550 m
+
+  Fontanet                            2,484 m
+
+  Savoleyres                          2,344 m
+
+  La Chaux                            2,260 m
+
+  Les Ruinettes                       2,200 m
+
+  Tortin                              2,045 m
+
+  Siviez                              1,730 m
+
+  Médran                              1,530 m
+
+  Verbier                             1,500 m
+
+  La Tzoumaz                          1,500 m
+
+  Le Châble                           821 m
+  -----------------------------------------------------------------------
+
+Elevations come from reference labels and selected resort data. The DEM
+and station survey should determine actual geometry, especially where an
+area name and a lift terminal have different elevations.
+
+03 Lifts, cable cars and the 2026/27 change
+
+The real network mixes gondolas, detachable chairlifts, aerial
+cableways, surface lifts, conveyor carpets and hybrid lifts. Each
+requires a different interaction model in a game: vehicle type,
+queueing, doors, loading and unloading, slope clearance, grip/haul
+movement, station geometry and sensible route connectivity. Appendix B
+lists 35 operator-inventory lift records, not the whole 4 Vallées
+network.
+
+Main named lift groups
+
+Verbier
+
+Le Châble–Verbier, Barnes Line and Médran 2 gondolas; Funispace; Mont
+Gelé cableway; Chassoure; chairlifts Mayentzet, Attelas, Chaux 2 and Lac
+des Vaux; Chaux-Express Télémixte; beginner surface lifts and carpets.
+
+Savoleyres / La Tzoumaz
+
+La Tzoumaz–Savoleyres gondola; Etablons, Taillay, Nord and Tournelle
+chairlifts; Taillay and beginner connections; modern Piguet Galland
+Télémixte.
+
+Bruson
+
+Le Châble–Mayens de Bruson gondola, Pasay chairlift and Moay /
+Grand-Tsai surface lifts.
+
+Mont Fort / 4 Vallées core
+
+Jumbo, Tortin–Gentianes and Mont-Fort aerial cableways; Gentianes
+surface lift; Tortin chairlift, Siviez–Plan du Fou gondola and Les
+Chottes chairlift.
+
+Esserts–Planards–Savoleyres Télémixte
+
+The new hybrid link replaces the historical Verbier–Savoleyres system.
+The upper Planards–Savoleyres section began operating in December 2025.
+The lower Les Esserts–Planards section was scheduled for December 2026
+at the research snapshot date; its completed operating status is not
+independently confirmed in this document.
+
+  -----------------------------------------------------------------------
+  Feature                             Published specification
+  ----------------------------------- -----------------------------------
+  Lower capacity                      1,675 passengers/hour
+
+  Upper capacity                      2,650 passengers/hour
+
+  Lower trip duration                 6.48 minutes
+
+  Upper trip duration                 5.29 minutes
+
+  Gondola cabins                      59 cabins, 10 people each
+
+  Upper chairs                        30 chairs, 6 people each
+
+  New ski connection                  Carrefour toward Les Esserts,
+                                      including a tunnel under the Le
+                                      Rouge surface lift and forest
+                                      section.
+  -----------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+  Versioning rule. Represent the older lift and the modern Télémixte as
+  separate dated infrastructure objects. Never place both in the same
+  “current-day” game scene without a historical-mode reason.
+  -----------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+
+Recommended lift simulation
+
+-   Define each line by surveyed bottom/middle/top station coordinates
+    and cable profile; never approximate terminals from the panoramic
+    illustration alone.
+
+-   Use lift-specific vehicle geometry, loading cadence, speed and
+    capacity attributes; do not assume that all gondolas travel at
+    identical speeds.
+
+-   Calculate catenary and tower clearance from engineering / survey
+    sources or explicitly mark estimated clearances as placeholders.
+
+-   Animate terminal arrival, deceleration, doors, boarding, chair
+    pickup, dismount, queues, safety gates and weather shutdowns.
+
+04 Pistes and difficulty classifications
+
+Swiss piste colours are difficulty indications, not a reliable
+substitute for measured slope angle. Width, grooming, shade, curvature,
+traffic and snow condition affect the experienced difficulty. Yellow
+itineraries are marked but normally ungroomed and must not be treated as
+groomed pistes.
+
+  -----------------------------------------------------------------------
+  Map category            Operational character   Recommended game
+                                                  behaviour
+  ----------------------- ----------------------- -----------------------
+  Blue                    Easier groomed skiing   Stable carving with
+                          terrain.                moderate gradients and
+                                                  manageable turns.
+
+  Red                     More demanding piste    Sharper turns,
+                          terrain.                sustained steeper
+                                                  sections, realistic
+                                                  skidding risk.
+
+  Black                   Difficult technical     Steep sections,
+                          piste.                  possible moguls and
+                                                  more punishing
+                                                  mistakes.
+
+  Yellow itinerary        Marked, ungroomed       Dynamic bumps,
+                          natural terrain.        unpredictable snow,
+                                                  exposure and route
+                                                  restrictions.
+
+  Connection              Transfer/connector      Navigation logic,
+                          line, sometimes bus.    traversal and separate
+                                                  travel modes.
+  -----------------------------------------------------------------------
+
+Representative named runs
+
+  -----------------------------------------------------------------------------
+  Area                    Named pistes                  Classification
+  ----------------------- ----------------------------- -----------------------
+  Verbier                 Attelas, Combe, Fontanet,     Red
+                          Hattey, Tsarbonné             
+
+  Verbier                 Chaux, Lacs, Grand Creux,     Blue variants
+                          Etiértses                     
+
+  Verbier                 FIS                           Black
+                          (upper/intermediate/lower),   
+                          Piste des Profs               
+
+  La Tzoumaz              Cœur supérieur / inférieur,   Red
+                          Etablons, Tournelle           
+
+  La Tzoumaz              Taillay; Planards–Carrefour   Blue
+
+  Bruson                  Pasay                         Black
+
+  Bruson                  Moay, Grand-Tsai, Pissevache  Red
+
+  High mountain           Mont-Fort                     Black
+
+  Siviez / Nendaz         Tortin–Siviez / Plan du       Blue / red
+                          Fou–Siviez                    
+
+  Veysonnaz / Thyon       Piste de l’Ours / Ethérolla   Red / black
+  -----------------------------------------------------------------------------
+
+Signature slope characteristics
+
+Attelas
+
+An alpine descent around 2,700 m heading toward Mayentzet, incorporating
+steeper transitions and a stated roughly 500 m vertical section.
+
+Mont Fort
+
+Steep black descent. The first roughly 250 m is reported near 35° and
+can have major moguls; below this the terrain opens into broader groomed
+skiing toward Col des Gentianes.
+
+Pasay
+
+A demanding Bruson black option; a very steep start is described around
+35°, with a more gradual alternative around the hill and around 600 m
+total vertical in the area.
+
+Cœur / La Tzoumaz
+
+Northern-aspect red terrain beginning near Savoleyres, with an easier
+blue alternative; forest shadow and colder snow are characteristic
+visual cues.
+
+Individual feature dimensions, piste widths and precise gradient
+profiles must be verified through digital terrain and linework, not
+extrapolated from an overall piste colour.
+
+05 Freeride itineraries and iconic faces
+
+Verbier’s freeride identity relies on marked ungroomed routes as well as
+more serious exposed mountain terrain. The official material groups the
+major marked offerings into seven itinerary groups, including two Mont
+Gelé descents. The eight descents below preserve the published distances
+and “vertical” figures even where those figures are inconsistent with
+listed endpoint elevations.
+
+  ------------------------------------------------------------------------
+  Marked route       Published length  Published         Max slope
+                                       vertical          
+  ------------------ ----------------- ----------------- -----------------
+  Mont-Gelé–Chaux    2,000 m           600 m             34°
+
+  Mont-Gelé–Tortin   4,300 m           950 m             34°
+  (Grande Journée)                                       
+
+  Col des Mines      3,300 m           900 m             Not listed
+
+  Chassoure–Tortin   4,300 m           950 m             33°
+
+  Clambin            1,600 m           300 m             Not listed
+
+  Vallon d'Arbi      5,500 m           900 m             Not listed
+
+  Les Otanes         2,200 m           500 m             Not listed
+
+  Gentianes–Tortin   3,300 m           775 m             Not listed
+  ------------------------------------------------------------------------
+
+Individual route profiles
+
+Mont-Gelé–Chaux
+
+Start: Mont Gelé summit (3,003 m stated); finish: La Chaux / Cabane
+Mont-Fort (2,430 m stated).
+
+Terrain: ungroomed open alpine south face. Published distance: 2,000 m;
+reported vertical: 600 m; stated maximum slope: 34°.
+
+Mont-Gelé–Tortin (Grande Journée)
+
+Start: Mont Gelé summit (3,003 m stated); finish: Tortin (2,045 m
+stated).
+
+Terrain: ungroomed east-facing alpine descent. Published distance: 4,300
+m; reported vertical: 950 m; stated maximum slope: 34°.
+
+Col des Mines
+
+Start: Lac des Vaux (2,550 m stated); finish: Etiértses blue slope near
+Mayentzet (1,950 m stated).
+
+Terrain: ungroomed descent towards Verbier. Published distance: 3,300 m;
+reported vertical: 900 m.
+
+Chassoure–Tortin
+
+Start: Chassoure below the cable car (2,743 m stated); finish: Tortin
+(2,045 m stated).
+
+Terrain: north-facing ungroomed steep moguls/powder. Published distance:
+4,300 m; reported vertical: 950 m; stated maximum slope: 33°.
+
+Clambin
+
+Start: Hattey red slope under Les Ruinettes (1,850 m stated); finish:
+Médran, Verbier (1,650 m stated).
+
+Terrain: forest and hamlet. Published distance: 1,600 m; reported
+vertical: 300 m.
+
+Vallon d'Arbi
+
+Start: Lac des Vaux (2,550 m stated); finish: Rue du Marteau / La
+Tzoumaz lift area (1,720 m stated).
+
+Terrain: remote valley and forest. Published distance: 5,500 m; reported
+vertical: 900 m.
+
+Les Otanes
+
+Start: La Pasay summit (2,100 m stated); finish: Bruson gondola upper
+station (1,690 m stated).
+
+Terrain: fir and larch forest. Published distance: 2,200 m; reported
+vertical: 500 m.
+
+Gentianes–Tortin
+
+Start: Col des Gentianes (2,820 m stated); finish: Tortin (2,045 m
+stated).
+
+Terrain: long ungroomed mogul descent. Published distance: 3,300 m;
+reported vertical: 775 m.
+
+Bec des Rosses — iconic competition terrain
+
+Bec des Rosses (~3,222 m) is internationally associated with the Xtreme
+Verbier Freeride World Tour competition. It contains exposure, cliffs,
+steep couloirs and competition-class terrain; it is not an ordinary
+marked piste. In a game, treat this as a specialist expert challenge
+zone, separate from resort wayfinding and maintained runs. Exact cliff
+geometry and competition lines need survey/photogrammetry rather than a
+broad 60° headline figure.
+
+Critical freeride modelling rules
+
+-   Treat natural moguls as irregular results of terrain and snow use,
+    not repeated identical semicircles.
+
+-   Localize exposure, slope direction, shade, rock outcrops, gullies,
+    forest density and terrain traps.
+
+-   Differentiate marked itinerary boundaries from unrestricted
+    off-piste; include barriers and closures without claiming simulated
+    conditions are a real-world avalanche forecast.
+
+-   Keep route statistics as published metadata and derive actual
+    elevation loss and horizontal distance from georeferenced geometry.
+
+  -----------------------------------------------------------------------
+  Consistency caveat. Some published start/end altitudes do not
+  numerically reconcile with the operator’s stated vertical drops. The
+  registry intentionally preserves the source values; the game’s
+  elevation profile must be computed independently from the DEM.
+  -----------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+
+06 Snowpark, fun zones and race facilities
+
+Verbier Snowpark — La Chaux
+
+The principal snowpark sits around 2,250 m at La Chaux and is reached
+via the Chaux-Express / Chaux 2 lift area. The published setup describes
+two park entries and small (S), medium (M) and large (L) lines. The
+small line includes five table-top/whoop features; medium/large layouts
+include three kickers in the 9–13 m published range, together with
+rails, tubes, boxes and other jib features. Shapes and precise obstacle
+placements can change during the season.
+
+  -----------------------------------------------------------------------
+  Park component                      Published feature / gameplay
+                                      meaning
+  ----------------------------------- -----------------------------------
+  Entrances                           2 entries; actual entry geometry
+                                      must be surveyed.
+
+  Difficulty lines                    S / M / L, with line separation and
+                                      progression.
+
+  Small features                      5 table-top/whoops.
+
+  Medium/large jump features          3 reported kickers; published range
+                                      9–13 m.
+
+  Jibs                                Rails, tubes and boxes; exact sizes
+                                      and placement not specified.
+
+  Simulation                          Speed-sensitive approach, pop,
+                                      rotation, board flex, lip
+                                      interaction, knuckles and landings.
+  -----------------------------------------------------------------------
+
+Other published fun zones and race areas
+
+La Chaux Skicross
+
+Location: La Chaux. Length: 700 m. Features: start gate, banked turns,
+whoops, jumps, netting.
+
+La Chaux Mini KL
+
+Location: La Chaux. Published top speed: 70 km/h.
+
+Savoleyres Funslope
+
+Location: Taillay. Length: 400 m. Approximate altitude: 2226 m.
+Features: twister m: 10; curved wall m: 15; additional elements count
+reported: 23; examples: tunnel, banked turns, jumps.
+
+Raiffeisen Sud stadium
+
+Location: Savoleyres. Length: 700 m. Vertical: 200 m. Start altitude:
+2350 m.
+
+Raiffeisen Casino stadium
+
+Location: La Tzoumaz. Length: 1183 m. Vertical: 309 m. Start altitude:
+2356 m.
+
+Raiffeisen La Pasay stadium
+
+Location: Bruson. Length: 1090 m. Vertical: 420 m. Start altitude: 2110
+m.
+
+Raiffeisen Grand-Tsai stadium
+
+Location: Bruson. Length: 210 m.
+
+Verbier Race Experience
+
+Location: Savoleyres / La Tzoumaz. Indicative run duration: 60 s.
+Approximate gates: 15 gates.
+
+Meïno's playground
+
+Location: La Pasay, Bruson. Features: snow tunnels, slides.
+
+Park geometry and safety in the simulation
+
+-   Build every lip, tabletop, knuckle, landing transition, berm and
+    obstacle as real collision geometry; no decorative-only kickers.
+
+-   Calculate jump outcome from real board speed, takeoff geometry, body
+    position, angular momentum and landing normal.
+
+-   Maintain distinct park configurations by season/date because
+    features are moved and rebuilt.
+
+-   Add gates, fences, signs, maintenance vehicles and realistic human
+    traffic to make the freestyle zone feel operational.
+
+07 Snow, weather, vegetation and villages
+
+Altitude-based biome design
+
+  -----------------------------------------------------------------------
+  Biome                               Expected scene characteristics
+  ----------------------------------- -----------------------------------
+  High alpine: Mont Fort / Mont Gelé  Bare ridges, rocky exposures, wind
+  / Gentianes                         scouring, snow cornices, ice and
+                                      minimal vegetation.
+
+  Mid mountain: Attelas / Ruinettes / Open piste corridors, dispersed
+  Savoleyres                          trees, lift towers, terraces,
+                                      mountain restaurants and changing
+                                      sunshine.
+
+  Forested: Bruson / La Tzoumaz       Spruce and larch woodland, trunks,
+                                      branches, snow pillows, roots and
+                                      irregular clearings.
+
+  Settlements: Verbier / Le Châble /  Chalets, roads, parking, shuttle
+  La Tzoumaz                          routes, rooftops, stations and
+                                      patchier low-elevation snow.
+  -----------------------------------------------------------------------
+
+Snow states and behaviour — simulation recommendations
+
+  -----------------------------------------------------------------------
+  Snow state                          Physics / visual outcome
+  ----------------------------------- -----------------------------------
+  Fresh dry powder                    Depth resistance, sink, slow turns,
+                                      powder plumes and track
+                                      accumulation.
+
+  Wind-packed snow                    Firm drifts, uneven support, wind
+                                      ridges and changing surface drag.
+
+  Breakable crust                     Surface failure below load,
+                                      unexpected edge resistance and
+                                      balance effects.
+
+  Hardpack                            Fast glide, less surface
+                                      deformation, edge-dependent grip.
+
+  Refrozen irregular snow             Sharp vibration, variable traction
+                                      and hard localized bumps.
+
+  Wet spring snow                     Higher drag, heavy spray and sticky
+                                      transitions.
+
+  Moguls                              Repeated impacts, variable body
+                                      compression and slope-changing
+                                      momentum.
+
+  Variable depth                      Asymmetric left/right board
+                                      resistance and realistic tipping
+                                      moments.
+  -----------------------------------------------------------------------
+
+Weather implementation
+
+-   Use altitude-dependent precipitation, ambient temperature and wind;
+    conditions can differ substantially between Verbier village and Mont
+    Fort.
+
+-   Calculate accurate solar direction, slope aspect, mountain
+    shadowing, fog and cloud layers. North-facing La Tzoumaz/Tortin
+    terrain can hold a different surface from sunny south-facing slopes.
+
+-   Add piste-grooming resets, snowmaking where applicable, snow drift
+    around buildings, boot/ski/snowboard tracks and temporal wear on
+    high-traffic pistes.
+
+-   Render distant silhouettes such as Grand Combin and Mont Blanc
+    without incorrectly connecting them to the 4 Vallées lift network.
+
+08 GIS sources and terrain import workflow
+
+The user-provided panorama illustrates mountain relationships and marked
+pistes, but it is not a planimetric map. A precise 3D recreation should
+be constructed from Swiss mapping products, ski-feature linework and
+field verification. Coordinates should be internally consistent (Swiss
+LV95 / EPSG:2056 is an appropriate primary GIS space) before conversion
+to engine-world metres.
+
+  -----------------------------------------------------------------------
+  Dataset                 Practical use           Important caution
+  ----------------------- ----------------------- -----------------------
+  swissALTI3D             High-resolution terrain Use documented
+                          elevation model (2 m    horizontal and vertical
+                          domain, 0.5 m selected  reference systems; do
+                          play zones).            not infer snow surface
+                                                  from bare-earth DEM.
+
+  SWISSIMAGE              Orthoimagery for        Image capture
+                          buildings, roads, tree  year/resolution vary by
+                          edges and land-cover    area.
+                          alignment.              
+
+  swissTLM3D              Structured landscape    Check type semantics
+                          and transport feature   and coverage.
+                          vectors.                
+
+  OpenSkiData / OSM       Pistes and aerialway    Community-derived
+                          paths in GIS-compatible geometry requires
+                          formats.                current official-map
+                                                  validation.
+
+  Official operator map   Named routes, sector    Illustrated map is not
+                          connectivity and        precise GIS geometry
+                          statuses.               and commercial artwork
+                                                  has separate rights.
+  -----------------------------------------------------------------------
+
+Import pipeline
+
+1.  Download the real elevation tiles and orthoimagery covering the core
+    Verbier–4 Vallées mountain footprint.
+
+2.  Convert to a consistent coordinate system; create an origin strategy
+    and store real-world feature coordinates separately from
+    floating-origin game transforms.
+
+3.  Clip and tile elevation; create gameplay heightfields/meshes,
+    physics collision and lower-detail distant render meshes.
+
+4.  Import piste polygons/centre-lines and lift routes; validate each
+    junction and station-to-slope transition.
+
+5.  Fit buildings, mountain paths, vegetation coverage and snow masks to
+    the surveyed aerial/vector layers.
+
+6.  Author feature metadata (surface, difficulty, lift type, maintenance
+    status, opening dates and source revision).
+
+7.  Run slope/width/clearance tests, visual side-by-side comparisons and
+    playable end-to-end navigation tests.
+
+Precision and runtime
+
+For a powerful local machine, prioritize full-resolution terrain in the
+active rider vicinity, streamed 2 m domain tiles, and selective 0.5 m
+detail around cliffs, snowparks and technical descents. Physics should
+use localized, high-resolution colliders; a floating origin limits
+numerical precision problems when traversing the domain. LOD/culling,
+vegetation instancing and memory budgets still matter even with high-end
+hardware.
+
+09 Realistic snowboard-game systems
+
+  -----------------------------------------------------------------------
+  System                              Implementation target
+  ----------------------------------- -----------------------------------
+  Terrain / geometry                  Real ridges, valleys, steepness,
+                                      runoff lines, cliffs, rock faces
+                                      and optimized LOD.
+
+  Pistes and route classification     Measured corridor geometry,
+                                      branching, difficulty, grooming,
+                                      crossings and safety barriers.
+
+  Lifts                               Machine-specific animation, queues,
+                                      capacity, travel, boarding /
+                                      dismount and interconnections.
+
+  Snow materials                      Layer thickness, compaction,
+                                      sinking, tracks, grooming,
+                                      temperature and weather history.
+
+  Snowboard physics                   Edge grip, carve radius, torsion,
+                                      longitudinal flex, skidding, rider
+                                      weight shift and ground impact.
+
+  Freeride                            Natural uneven snow, variable
+                                      snowpack, forests, rocks and expert
+                                      exposure.
+
+  Freestyle                           Takeoff lip and landing collision,
+                                      rotation inertia, grabs, rail
+                                      sliding and consequences of
+                                      mistimed landings.
+
+  Climate                             Sun, clouds, wind, flurries,
+                                      altitude thermal lapse and
+                                      visibility.
+
+  Living mountain                     AI skier traffic, lift passengers,
+                                      resort services, snow groomers,
+                                      signs and plausible schedules.
+
+  World state                         Snow tracks, piste grooming cycles,
+                                      closures, weather transitions and
+                                      infrastructure revisions.
+  -----------------------------------------------------------------------
+
+Data structure recommendations
+
+Every gameplay-relevant mountain feature should have a stable
+identifier; a feature type; sector; canonical name; source and effective
+date; geometry; numeric altitude and difficulty properties where
+measured; current state; and uncertainty/status flags. Geometry gaps
+should remain null, not be filled with false coordinates.
+
+Suggested test criteria
+
+-   Player can travel from Le Châble to key Verbier sectors through the
+    correct lift sequence.
+
+-   Every lift station connects plausibly to surrounding pistes,
+    including correct uphill/downhill directions.
+
+-   A trip from Mont Fort to Tortin follows the actual high mountain and
+    valley corridor.
+
+-   Freeride itineraries remain visibly separate from groomed pistes and
+    respect their terrain character.
+
+-   Snowpark air/landing physics respond to speed and launch angle
+    rather than scripted animation alone.
+
+-   All displayed map heights match the chosen DEM height reference
+    within defined tolerances.
+
+10 Implementation roadmap and quality gates
+
+  -----------------------------------------------------------------------
+  Phase                   Areas                   Definition of done
+  ----------------------- ----------------------- -----------------------
+  1                       Médran → Les Ruinettes  Accurate terrain, key
+                          → Attelas → La Chaux    lifts, piste
+                                                  intersections and spawn
+                                                  access.
+
+  2                       La Chaux Snowpark       Correct lines, feature
+                                                  collision, park
+                                                  gameplay, skicross and
+                                                  freestyle progression.
+
+  3                       Mont Gelé / Chassoure / High-alpine cableways,
+                          Tortin / Gentianes /    exposed terrain,
+                          Mont Fort               signature mogul and
+                                                  freeride itineraries.
+
+  4                       Savoleyres / La Tzoumaz Current dated Télémixte
+                                                  state, ridge/forest
+                                                  slopes and Funslope.
+
+  5                       Le Châble / Bruson      Opposite valley forest
+                                                  terrain, gondola, Pasay
+                                                  and associated lift
+                                                  links.
+
+  6                       Siviez / Nendaz /       Complete inter-resort
+                          Veysonnaz / Thyon       navigation, extended
+                                                  streaming and long race
+                                                  pistes.
+  -----------------------------------------------------------------------
+
+Definition of accurate
+
+A release should only be labelled “geographically accurate” when key
+piste and lift geometry is validated against georeferenced reference
+data, the date of the lift network is explicit, and ambiguous or
+approximate measurements remain identified as such. Photorealistic
+textures alone do not make a map geographically correct.
+
+11 Sources and usage rights
+
+The research database snapshot was compiled on 14 November 2026. The
+following are the primary project reference links. The separate
+software/data licences must be checked before incorporating imagery,
+maps, logos or compiled derivatives into a public or commercial game.
+
+Operator interactive piste map —
+https://verbier4vallees.ch/en/useful-information/interactive-map
+
+Piste names, visual connectivity and current-map checks.
+
+Operator live winter inventory —
+https://verbier4vallees.ch/en/useful-information/live-information-winter
+
+Lift and piste name/classification snapshots.
+
+Freeride itinerary collection —
+https://verbier4vallees.ch/en/experiences-in-verbier/freeriding
+
+Published route information, terrain descriptions and difficulty.
+
+Fun zones —
+https://verbier4vallees.ch/en/experiences-in-verbier/fun-zones
+
+Snowpark, skicross, Funslope, training stadium and playground features.
+
+New Savoleyres project — https://tmx-savoleyres.ch/en
+
+Project specifications and staged opening dates.
+
+swissALTI3D — https://www.swisstopo.admin.ch/en/height-model-swissalti3d
+
+Official elevation dataset.
+
+SWISSIMAGE — https://www.swisstopo.admin.ch/en/orthoimage-swissimage-10
+
+Orthoimage source.
+
+swissTLM3D —
+https://www.swisstopo.admin.ch/en/landscape-model-swisstlm3d
+
+Official landscape / topographic model.
+
+OpenSkiData — https://openskidata.org/
+
+Open ski lift and run geometry data.
+
+swisstopo open-data terms —
+https://www.swisstopo.admin.ch/en/terms-of-use-free-geodata-and-geoservices
+
+Use conditions, including © swisstopo attribution requirements.
+
+  -----------------------------------------------------------------------
+  Rights and attribution. swisstopo free-use geodata carries attribution
+  requirements (© swisstopo). OSM-derived data may be covered by ODbL.
+  The resort’s visual piste illustration, branding and logos are separate
+  assets: do not assume that their reproduction is licensed by the
+  availability of mapping data.
+  -----------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+
+Appendix A Named piste and connection inventory
+
+This appendix reproduces all 107 named records from the accompanying
+reference registry. “Connection” rows are not necessarily separate
+downhill pistes. Duplicate names across difficulty classes can refer to
+variants or separately designated sections. Classifications should be
+checked against the official map before constructing the trail graph.
+
+Verbier — 28 entries
+
+  -----------------------------------------------------------------------
+  ID                      Published name          Class
+  ----------------------- ----------------------- -----------------------
+  001                     Attelas                 Red
+
+  002                     Bleue à Fernand         Blue
+
+  003                     Chassoure-Tortin        Yellow itinerary
+
+  004                     Chaux                   Blue
+
+  005                     Chaux                   Red
+
+  006                     Clambin                 Yellow itinerary
+
+  007                     Col des Mines           Yellow itinerary
+
+  008                     Combe                   Red
+
+  009                     Esserts                 Blue
+
+  010                     Etiértses               Blue
+
+  011                     FIS - inférieure        Black
+
+  012                     FIS - intermédiaire     Black
+
+  013                     FIS - supérieure        Black
+
+  014                     Fontanet                Red
+
+  015                     Grand Creux             Blue
+
+  016                     Hattey                  Red
+
+  017                     Lacs                    Blue
+
+  018                     Lacs                    Red
+
+  019                     Lacs                    Black
+
+  020                     Lacs II                 Red
+
+  021                     Mont-Gelé-Chaux         Yellow itinerary
+
+  022                     Mont-Gelé-Tortin        Yellow itinerary
+                          (Grande Journée)        
+
+  023                     Moulins                 Blue
+
+  024                     Piste des Profs         Black
+
+  025                     Rouge                   Blue
+
+  026                     Route de Médran         Blue
+
+  027                     Tsarbonné               Red
+
+  028                     Vallon d'Arbi           Yellow itinerary
+  -----------------------------------------------------------------------
+
+La Tzoumaz — 13 entries
+
+  -----------------------------------------------------------------------
+  ID                      Published name          Class
+  ----------------------- ----------------------- -----------------------
+  029                     Combe du Nord           Red
+
+  030                     Croix de coeur -        Blue
+                          Planards                
+
+  031                     Cœur inférieur          Red
+
+  032                     Cœur supérieur          Red
+
+  033                     Etablons                Red
+
+  034                     Planards                Red
+
+  035                     Planards-Carrefour      Blue
+
+  036                     Planards-Esserts        Red
+
+  037                     Route du Marteau        Blue
+
+  038                     Saxon                   Red
+
+  039                     Sud                     Red
+
+  040                     Taillay                 Blue
+
+  041                     Tournelle               Red
+  -----------------------------------------------------------------------
+
+Bruson — 9 entries
+
+  -----------------------------------------------------------------------
+  ID                      Published name          Class
+  ----------------------- ----------------------- -----------------------
+  042                     Grand-Tsai              Red
+
+  043                     La Côt-Bruson           Yellow itinerary
+
+  044                     La Côt-Le Châble        Yellow itinerary
+
+  045                     Les Otanes              Yellow itinerary
+
+  046                     Moay                    Red
+
+  047                     Monneyeux               Blue
+
+  048                     Pasay                   Black
+
+  049                     Pissevache              Red
+
+  050                     Sur le Six              Red
+  -----------------------------------------------------------------------
+
+4 Vallées — 57 entries
+
+  ------------------------------------------------------------------------
+  ID                      Published name           Class
+  ----------------------- ------------------------ -----------------------
+  051                     Baby-lift Siviez         Blue
+
+  052                     Bambino                  Blue
+
+  053                     Cabane                   Red
+
+  054                     Cheminée                 Red
+
+  055                     Combatseline             Red
+
+  056                     Ethérolla                Black
+
+  057                     Fontaines - Prarion      Black
+
+  058                     Gentianes                Red
+
+  059                     Gentianes téléski        Red
+
+  060                     Gentianes-Tortin         Yellow itinerary
+
+  061                     Greppon Blanc piste de   Red
+                          liaison                  
+
+  062                     Greppon Blanc piste de   Red
+                          téléskis, partie         
+                          inférieure (III)         
+
+  063                     Greppon Blanc, piste des Black
+                          téléskis, partie         
+                          supérieure (I et II)     
+
+  064                     Greppon Blanc, piste du  Black
+                          télésiège (III)          
+
+  065                     Inalpe                   Blue
+
+  066                     Jean-Pierre-rouge        Red
+
+  067                     JOC                      Blue
+
+  068                     L'Alpage                 Blue
+
+  069                     L'Eteygeon               Yellow itinerary
+
+  070                     La Dent                  Blue
+
+  071                     La Jean-Pierre           Blue
+
+  072                     La Meina                 Red
+
+  073                     La Nationale             Red
+
+  074                     La petite Combe          Yellow itinerary
+
+  075                     Les Chottes              Red
+
+  076                     Les Crêtes               Black
+
+  077                     Les Drus                 Blue
+
+  078                     Les Masses               Red
+
+  079                     Les Mayens               Red
+
+  080                     Matze                    Red
+
+  081                     Mont-Fort                Black
+
+  082                     Muraz                    Red
+
+  083                     Nendaz-Siviez (par bus   Bus connection
+                          navette)                 
+
+  084                     Nendaz-Siviez par plan   Connection
+                          du fou                   
+
+  085                     Novelly                  Red
+
+  086                     Patiefray                Red
+
+  087                     Petit Vallon             Blue
+
+  088                     Piccolo                  Blue
+
+  089                     Piste de l'Ours          Red
+
+  090                     Plan du Fou - Les        Yellow itinerary
+                          Fontaines                
+
+  091                     Plan du Fou - Siviez     Red
+
+  092                     Plan du Fou – Fontaines  Black
+
+  093                     Siviez                   Red
+
+  094                     Siviez - Verbier (Via    Connection
+                          Chassoure)               
+
+  095                     Siviez - Verbier (via    Connection
+                          Mont-Fort)               
+
+  096                     Siviez-Veysonnaz/Thyon   Connection
+                          (via Greppon blanc)      
+
+  097                     Tapis roulant Tracouet   Blue
+
+  098                     Theytaz 1 ( Slow zone)   Blue
+
+  099                     Theytaz 2                Red
+
+  100                     Thyon 2000 - Siviez      Connection
+
+  101                     Tortin-Siviez            Blue
+
+  102                     Trabanta                 Blue
+
+  103                     Tracouet - bas de piste  Red
+
+  104                     Tracouet - Hte Nendaz    Red
+                          par Alpage               
+
+  105                     Tracouet - Prarion       Red
+
+  106                     Tsa                      Red
+
+  107                     Variante Pracondu        Blue
+  ------------------------------------------------------------------------
+
+Appendix B Named lift inventory
+
+This appendix reproduces 35 lift records from the accessible operator
+site inventory. It is NOT all 82 domain lifts. “Funispace”, “Télémixte”
+and aerial tramways are retained as distinct types to preserve machine
+behaviour in the game.
+
+Verbier — 17 entries
+
+  -----------------------------------------------------------------------
+  ID                      Lift name               Type
+  ----------------------- ----------------------- -----------------------
+  001                     Le Châble-Verbier       Gondola
+
+  002                     Barnes Line             Gondola
+
+  003                     Médran 2                Gondola
+
+  004                     Funispace               Funispace cable lift
+
+  005                     Mont-Gelé               Aerial cableway
+
+  006                     Mayentzet               6-seat chair
+
+  007                     Attelas                 6-seat chair
+
+  008                     Chaux-Express           Hybrid Télémixte
+
+  009                     Chaux 2                 6-seat chair
+
+  010                     Lac des Vaux 1          4-seat chair
+
+  011                     Lac des Vaux 2          6-seat chair
+
+  012                     Chassoure               Gondola
+
+  013                     Moulins                 Surface lift
+
+  014                     Rouge                   Surface lift
+
+  015                     Esserts                 Surface lift
+
+  016                     Tapis Esserts           Magic carpet
+
+  017                     Tapis Rouge             Magic carpet
+  -----------------------------------------------------------------------
+
+La Tzoumaz — 7 entries
+
+  -----------------------------------------------------------------------
+  ID                      Lift name               Type
+  ----------------------- ----------------------- -----------------------
+  018                     Tapis Tzoumaz           Magic carpet
+
+  019                     La Tzoumaz-Savoleyres   Gondola
+
+  020                     Etablons                2-seat chair
+
+  021                     Taillay                 4-seat chair
+
+  022                     Nord                    6-seat chair
+
+  023                     Tournelle               2-seat chair
+
+  024                     Piguet Galland          Hybrid: 6-chair /
+                          (Télémixte              10-cabin
+                          Planards-Savoleyres)    
+  -----------------------------------------------------------------------
+
+Bruson — 4 entries
+
+  -----------------------------------------------------------------------
+  ID                      Lift name               Type
+  ----------------------- ----------------------- -----------------------
+  025                     Châble-Mayens de Bruson Gondola
+
+  026                     Moay                    Surface lift
+
+  027                     Pasay                   6-seat chair
+
+  028                     Grand-Tsai              Surface lift
+  -----------------------------------------------------------------------
+
+4 Vallées — 7 entries
+
+  -----------------------------------------------------------------------
+  ID                      Lift name               Type
+  ----------------------- ----------------------- -----------------------
+  029                     Les Chottes             6-seat chair
+
+  030                     Siviez - Plan du fou    Gondola
+
+  031                     Tortin                  4-seat chair
+
+  032                     Tortin-Gentianes        Aerial cableway
+
+  033                     Mont-Fort               Aerial cableway
+
+  034                     Jumbo                   Aerial cableway
+
+  035                     Gentianes               Surface lift
+  -----------------------------------------------------------------------
+
+Appendix C Elevation anchor registry
+
+The following 17 reference labels are intended as quick visual anchors.
+They are not coordinates, verified lift-terminal survey measurements or
+replacements for a DEM.
+
+  -----------------------------------------------------------------------
+  Landmark                Approx. elevation       Geographic coordinates
+  ----------------------- ----------------------- -----------------------
+  Mont Fort               3330 m                  Not supplied
+
+  Bec des Rosses          3223 m                  Not supplied
+
+  Mont Gelé               3023 m                  Not supplied
+
+  Col des Gentianes lift  2950 m                  Not supplied
+  area                                            
+
+  Col de Chassoure        2743 m                  Not supplied
+
+  Les Attelas             2734 m                  Not supplied
+
+  Lac des Vaux            2550 m                  Not supplied
+
+  Fontanet                2484 m                  Not supplied
+
+  Savoleyres              2344 m                  Not supplied
+
+  La Chaux                2260 m                  Not supplied
+
+  Les Ruinettes           2200 m                  Not supplied
+
+  Tortin                  2045 m                  Not supplied
+
+  Siviez                  1730 m                  Not supplied
+
+  Médran                  1530 m                  Not supplied
+
+  Verbier                 1500 m                  Not supplied
+
+  La Tzoumaz              1500 m                  Not supplied
+
+  Le Châble               821 m                   Not supplied
+  -----------------------------------------------------------------------
+
+End of reference guide. The companion dataset provides machine-readable
+JSON and CSV inventories to begin implementing the mountain feature
+registry.

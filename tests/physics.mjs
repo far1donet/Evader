@@ -5,7 +5,8 @@ import {kickerAt} from '../lib/park-jumps.ts';
 import {makeParkRails, railRideHeight, railTop} from '../lib/park-rails.ts';
 import {SnowGame,COURSES,center,height,landingScore,pathSlope,snowDepth} from '../lib/snow-game.ts';
 function makeGame(course,mode){const g=Object.create(SnowGame.prototype);Object.assign(g,{course,mode,state:'ride',x:center(0,course),d:0,y:height(center(0,course),0,course),vy:0,speed:12,heading:0,spin:0,flip:0,airTime:0,grabTime:0,ground:true,settings:{assist:true},spinInput:0,spinOrigin:0,flipOrigin:0,spinVelocity:0,flipVelocity:0,load:0,pop:0,extension:0,landingImpact:0,grabContactTime:0,grabKind:0,grabLocked:-1,lastGrabKind:0,jumpPending:false,jumpReleased:false,time:0,bailTimer:0,flowTimer:0,toastTimer:0,score:0,tricks:0,bails:0,combo:1,keys:new Set(),touch:new Set(),repeats:new Map(),rails:[],railDone:new Set(),railActive:-1,railTime:0,obstacles:[],gateCount:0,gateIndex:0,features:Array.from({length:Math.floor(course.length/180)-1},()=>({})),recordTimer:0,frames:[],hudTimer:0,onHUD:()=>{},onEnd:r=>{g.result=r;},sound:()=>{}});return g;}
-for(const course of COURSES){
+// The legacy procedural courses (real-terrain Verbier runs are covered by tests/verbier.mjs).
+for(const course of COURSES.filter(c=>!c.dem)){
  const g=makeGame(course,'slopestyle');let count=0;
  while(g.state==='ride'&&count++<30000){const offset=center(g.d+20,course)-g.x;g.keys.clear();if(offset>1)g.keys.add('KeyD');if(offset< -1)g.keys.add('KeyA');if(!g.ground){g.keys.add('ShiftLeft');}g.update(1/120);assert(Number.isFinite(g.x)&&Number.isFinite(g.y)&&Number.isFinite(g.speed));}
  assert.equal(g.state,'result');assert(g.result.distance>=course.length-10);assert(g.result.score>0);assert(g.result.tricks>0);assert(g.frames.length>500);assert(g.frames.length<14410);assert(g.result.gates<=g.result.totalGates);console.log(course.name,JSON.stringify({score:g.score,tricks:g.tricks,time:g.time.toFixed(1),frames:g.frames.length}));
@@ -149,7 +150,7 @@ assert(looseSnow.ground && snowDepth(looseSnow.x, looseSnow.d, looseSnow.course)
 assert(snowDepth(center(looseSnow.d, looseSnow.course), looseSnow.d, looseSnow.course) < .04);
 assert(height(looseSnow.x, looseSnow.d, looseSnow.course) - looseSnow.y > .05, 'The board rides below the surface in deep powder');
 
-for (const course of COURSES) {
+for (const course of COURSES.filter(c => !c.dem)) {
  for (let feature = 0; feature < 3; feature++) {
   const {base, profile} = kickerAt(100 + feature * course.spacing, course);
   for (const [speed, offset, heading] of [[12, 0, 0], [17, -3, -.15], [19, 3, .1], [20, 0, 0]]) {

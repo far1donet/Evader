@@ -1,6 +1,6 @@
 import { preset, GRAVITY, groundAcceleration, snowMaterial, ridgeHeight, makeAlpineSky } from './alpine.ts';
 import { GearPreview, type GearView } from './gear-preview.ts';
-import { FIRST_KICKER, approach, kickerAt, kickerRise, parkFlightX, parkFlightSideSpeed, type ParkFlight } from './park-jumps.ts';
+import { LA_CHAUX_FEATURES, FIRST_KICKER, approach, kickerAt, kickerRise, parkFlightX, parkFlightSideSpeed, type ParkFlight } from './park-jumps.ts';
 import { makeAlpineForest } from './alpine-forest.ts';
 import { BoardTracks } from './board-tracks.ts';
 import { PowderSpray } from './powder-spray.ts';
@@ -16,6 +16,34 @@ import { GRABS, type FreestyleEvent } from './sim/freestyle.ts';
 import { BOARDS, type BoardCategory } from './sim/boards.ts';
 import { readGamepad, type PadConfig } from './input.ts';
 import { Diagnostics } from './diagnostics.ts';
+import { verbierRun, lapseTemperature, treeline, type RunClass } from './verbier/terrain.ts';
+import { SNOW, type SnowMaterial } from './sim/snow.ts';
+
+/** Snow depth on a real-terrain run: groomed inside the piste width, deeper and varied off-piste, deepest on cold,
+ *  north-facing, high slopes; an itinerary is ungroomed everywhere. Depths are game estimates, not measurements. */
+/** Snow surface on a real-terrain run (guide section 07): groomed piste, hardpack in mogul fields, ice on very steep
+ *  faces, sun crust on south-facing slopes, wind-packed snow on high exposed ground. Otherwise chosen from depth. */
+export function demSurface(x: number, d: number, c: Course, weather: string): SnowMaterial | undefined {
+    const run = verbierRun(c.dem!);
+    if (run.mogulAmplitude(x, d) > .2) return SNOW.hardpack;
+    if (Math.abs(x) < run.pisteHalfWidth) return undefined;
+    const s = run.slopeAt(x, d);
+    if (s.deg > 40) return SNOW.icy;
+    if (weather !== 'snow' && s.downN < -.35 && s.elevation < 2700) return SNOW.crust;
+    if (s.elevation > 2700 && s.deg < 28 && weather !== 'snow') return SNOW.windPacked;
+    return undefined;
+}
+function demSnowDepth(x: number, d: number, c: Course) {
+    const run = verbierRun(c.dem!);
+    const off = Math.abs(x) - run.pisteHalfWidth;
+    if (off < 0) return .025;
+    const s = run.slopeAt(x, d);
+    const north = Math.max(0, s.downN);                     // 1 = faces north (shaded, keeps powder)
+    const alt = Math.min(1, Math.max(0, (s.elevation - 1700) / 1200));
+    const steep = Math.max(0, 1 - Math.max(0, s.deg - 30) / 15); // very steep faces hold little loose snow
+    const ramp = run.pisteHalfWidth === 0 ? 1 : Math.min(1, off / 8); // itineraries are ungroomed right on the line
+    return .025 + ramp * steep * (.08 + .22 * alt + .14 * north);
+}
 export type Mode = 'freeride' | 'slopestyle' | 'time-trial' | 'training';
 export type PhysicsModel = 'reality' | 'classic';
 export type Settings = {
@@ -63,11 +91,29 @@ export type Course = {
     spacing: number;
     rails: number;
     seed: number;
+    /** Real-terrain course: id of a Verbier run (lib/verbier). Its height comes from the DEM; no procedural banks. */
+    dem?: string;
+    /** Published piste class of a real-terrain run. */
+    runClass?: RunClass;
 };
+/** Real-terrain runs in Verbier – 4 Vallées (lib/verbier). Lengths and drops are measured on the DEM line. */
+const VERBIER_COURSES: Course[] = [
+    ['attelas-ruinettes', 'ATTELAS → RUINETTES', 'Red piste. Alpine start, steep transitions, real DEM terrain.', 'RED', 0],
+    ['ruinettes-medran', 'RUINETTES → MÉDRAN', 'Red into the forest, down to the village.', 'RED', 0],
+    ['la-chaux-park', 'LA CHAUX SNOWPARK', 'Five table-tops, then kickers of 9, 11 and 13 m, plus jibs.', 'PARK', 4],
+    ['mont-fort', 'MONT FORT → GENTIANES', 'Black from 3,300 m. Moguls on the first 250 m near 35°.', 'BLACK', 0],
+    ['chassoure-tortin', 'CHASSOURE → TORTIN', 'Yellow itinerary: ungroomed, north-facing, moguls and powder.', 'ITINERARY', 0],
+].map(([dem, name, subtitle, difficulty, rails], i) => {
+    const run = verbierRun(dem as string);
+    return { id: 10 + i, name: name as string, region: 'VERBIER · 4 VALLÉES', subtitle: subtitle as string, length: run.length,
+        drop: Math.round(run.startElevation - run.endElevation), difficulty: difficulty as string, spacing: 1e9, rails: rails as number,
+        seed: 300 + i, dem: dem as string, runClass: run.klass };
+});
 export const COURSES: Course[] = [
     { id: 0, name: 'AIGUILLE NOIRE', region: 'THE ALPINE RANGE', subtitle: 'Big lines. Bigger possibilities.', length: 1600, drop: 416, difficulty: 'INTERMEDIATE', spacing: 190, rails: 5, seed: 27 },
     { id: 1, name: 'NORTHLINE PARK', region: 'THE NORTHERN RIDGE', subtitle: 'A perfectly imperfect playground.', length: 1200, drop: 300, difficulty: 'BEGINNER', spacing: 125, rails: 8, seed: 56 },
-    { id: 2, name: 'WHITEOUT PASS', region: 'THE HIGH BACKCOUNTRY', subtitle: 'Find your way through the wild.', length: 1900, drop: 494, difficulty: 'ADVANCED', spacing: 260, rails: 2, seed: 91 }
+    { id: 2, name: 'WHITEOUT PASS', region: 'THE HIGH BACKCOUNTRY', subtitle: 'Find your way through the wild.', length: 1900, drop: 494, difficulty: 'ADVANCED', spacing: 260, rails: 2, seed: 91 },
+    ...VERBIER_COURSES,
 ];
 export type Frame = {
     t: number;
@@ -131,15 +177,20 @@ export type HUD = {
     air: boolean;
     gates: number;
     totalGates: number;
+    /** Real-terrain runs: rider altitude (m, from the DEM) and air temperature from the altitude lapse rate (deg C). */
+    altitude?: number;
+    temperature?: number;
 };
 const clamp = T.MathUtils.clamp;
+/** Air temperature at Verbier village (1,500 m) per weather setting: game assumptions for a winter day. */
+const VILLAGE_TEMP: Record<string, number> = { clear: -4, dusk: -7, snow: -6 };
 const GRAB_KEYS = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9', 'Digit0', 'Minus', 'Equal', 'BracketRight'];
 const DAYLIGHT = new T.Vector3(-158, 118, -95);
 const DUSK_LIGHT = new T.Vector3(-158, 48, -95);
 const HARD_LANDING_SPEED = 8.5;
 const CHASE_HEIGHT = 2.22;
 const CHASE_DISTANCE = 5.4;
-export function center(d: number, c: Course) { return Math.sin(d / (c.id === 2 ? 125 : 220)) * (c.id === 1 ? 6 : 16); }
+export function center(d: number, c: Course) { if (c.dem) return 0; return Math.sin(d / (c.id === 2 ? 125 : 220)) * (c.id === 1 ? 6 : 16); }
 export function rampAt(d: number, x: number, c: Course) {
     const { base, profile, exists } = kickerAt(d, c);
     if (!exists) return 0;
@@ -155,6 +206,7 @@ function bankRise(x: number, d: number, c: Course, legacy = false) {
  return shoulder + T.MathUtils.smoothstep(edge, 0, 22) * drifts;
 }
 export function snowDepth(x: number, d: number, c: Course) {
+    if (c.dem) return demSnowDepth(x, d, c);
     if (c.packedSnow) return .025;
     const offset = Math.abs(x - center(d, c));
     const groomedEdge = c.id === 2 ? 8 : c.id === 1 ? 13 : 11;
@@ -165,6 +217,7 @@ export function snowDepth(x: number, d: number, c: Course) {
     return .025 + shoulder * (.07 + .09 * wind) + backcountry * (.10 + .32 * wind);
 }
 export function height(x: number, d: number, c: Course) {
+ if (c.dem) return verbierRun(c.dem).height(x, d) + rampAt(d, x, c);
  const buildup = Math.max(0, snowDepth(x, d, c) - .04);
  return 180 - d * (c.drop / c.length) + Math.sin(d * .024) * .9
     + Math.sin(x * .15 + d * .012) * .25 + bankRise(x, d, c) + rampAt(d, x, c)
@@ -487,11 +540,16 @@ export class SnowGame {
                 colors[i * 3] = snow * (.93 - .035 * powder);
                 colors[i * 3 + 1] = snow * (.97 - .02 * powder);
                 colors[i * 3 + 2] = snow;
+                if (c.dem) {
+                    // Real terrain: faces steeper than ~40 degrees shed snow and show rock.
+                    const rock = 1 - T.MathUtils.smoothstep(scale, .74, .84);
+                    if (rock > 0) { colors[i * 3] = T.MathUtils.lerp(colors[i * 3], .36, rock); colors[i * 3 + 1] = T.MathUtils.lerp(colors[i * 3 + 1], .38, rock); colors[i * 3 + 2] = T.MathUtils.lerp(colors[i * 3 + 2], .42, rock); }
+                }
                 depths[i] = depth;
                 centers[i * 2] = line;
                 const { base, profile, exists } = kickerAt(d, c);
                 centers[i * 2 + 1] = center(base + (c.classicFeatures ? 12 : profile.lip), c);
-                paint[i * 3] = exists ? profile.lip : -100;
+                paint[i * 3] = exists && !c.dem ? profile.lip : -100; // the lip dye assumes evenly spaced legacy kickers
                 paint[i * 3 + 1] = profile.width;
                 paint[i * 3 + 2] = profile.knuckle;
             }
@@ -534,7 +592,8 @@ export class SnowGame {
                 const gullies = ridgeHeight(x + side * 346, d + c.seed * 15);
                 const crest = 90 + 440 * massif ** 1.45 + 255 * gullies;
                 const valley = height(side * 150, d, c) - 1;
-                const h = valley + ridge * (crest - Math.max(0, dist - 1120) * .38);
+                // Real-terrain courses: the surrounding mountains are the DEM itself.
+                const h = c.dem ? height(x, d, c) - (dist < 160 ? 1 : 0) : valley + ridge * (crest - Math.max(0, dist - 1120) * .38);
                 heights[i] = h;
                 mp.setY(i, h);
             }
@@ -544,8 +603,11 @@ export class SnowGame {
             for (let i = 0; i < mp.count; i++) {
                 const x = mp.getX(i), d = -mp.getZ(i);
                 const strata = Math.sin(heights[i] * .077 + x * .044 + d * .032) * .13;
-                const cliff = 1 - T.MathUtils.smoothstep(n.getY(i) + strata, .39, .83);
-                const exposed = cliff * T.MathUtils.smoothstep(Math.abs(x), 172, 390);
+                // Real terrain (30 m DEM) rarely exceeds 45 degrees, so rock starts showing from ~33 degrees, and wind-scoured
+                // high ground (above ~2,900 m) shows more rock, as in the guide's high-alpine biome.
+                const demRock = c.dem ? (1 - T.MathUtils.smoothstep(n.getY(i) + strata * .5, .72, .86)) * (.75 + .25 * T.MathUtils.smoothstep(heights[i], 2600, 3000)) : 0;
+                const cliff = c.dem ? demRock : 1 - T.MathUtils.smoothstep(n.getY(i) + strata, .39, .83);
+                const exposed = cliff * (c.dem ? T.MathUtils.smoothstep(Math.abs(x), 150, 260) : T.MathUtils.smoothstep(Math.abs(x), 172, 390));
                 color.copy(snow).lerp(stone, exposed * .91).toArray(cs, i * 3);
             }
             mg.setAttribute('color', new T.BufferAttribute(cs, 3));
@@ -564,9 +626,14 @@ export class SnowGame {
             const x = canReach ? middle + side * (26 + offset * 100)
                 : middle + side * T.MathUtils.lerp(glade, 145 - side * middle, offset);
             const treeHeight = 7 + rand() * 11;
+            if (c.dem) {
+                // Larch / spruce only below the treeline and off cliff faces; none on the groomed piste.
+                const run = verbierRun(c.dem), sl = run.slopeAt(x, d), loc = run.toLocal(x, d);
+                if (sl.elevation > treeline(loc.e, loc.n) || sl.deg > 38 || Math.abs(x) < run.pisteHalfWidth + 4) return null;
+            }
             if (canReach) this.obstacles.push({ x, d, r: 1.25 });
             return { x, y: height(x, d, c), d, height: treeHeight, index };
-        });
+        }).filter((t): t is NonNullable<typeof t> => t !== null);
         this.world.add(makeAlpineForest(trees));
         const obj = new T.Object3D();
         seed=c.seed+981; // Stable obstacle layout across all graphics presets.
@@ -574,7 +641,12 @@ export class SnowGame {
         const rocks = new T.InstancedMesh(rockG, new T.MeshStandardMaterial({ color: 0x73828a, roughness: 1 }), 100);
         rocks.castShadow = true;
         for (let i = 0; i < 100; i++) {
-            const d = rand() * c.length, x = center(d, c) + (rand() > .5 ? 1 : -1) * (33 + rand() * 55);
+            let d = rand() * c.length, x = center(d, c) + (rand() > .5 ? 1 : -1) * (33 + rand() * 55);
+            if (c.dem) {
+                // Boulders and outcrops where the real terrain is steep or high (a few tries, then accept).
+                const run = verbierRun(c.dem);
+                for (let k = 0; k < 6; k++) { const sl = run.slopeAt(x, d); if (sl.deg > 30 || sl.elevation > 2500) break; d = rand() * c.length; x = (rand() > .5 ? 1 : -1) * (run.pisteHalfWidth + 12 + rand() * 70); }
+            }
             this.obstacles.push({x,d,r:3});
             obj.position.set(x, height(x, d, c), -d);
             obj.scale.set(2 + rand() * 4, 2 + rand() * 3, 2 + rand() * 3);
@@ -585,7 +657,10 @@ export class SnowGame {
         this.world.add(rocks);
         const poleMat = new T.MeshStandardMaterial({ color: 0x18343d, roughness: .54 });
         const flagMat = new T.MeshStandardMaterial({ color: 0x56d2ca, side: T.DoubleSide, roughness: .8 });
-        for (let d = FIRST_KICKER; d < c.length - 50; d += c.spacing) {
+        const kickerBases: number[] = [];
+        if (c.dem === 'la-chaux-park') kickerBases.push(...LA_CHAUX_FEATURES.map(f => f.base));
+        else if (!c.dem) for (let d = FIRST_KICKER; d < c.length - 50; d += c.spacing) kickerBases.push(d);
+        for (const d of kickerBases) {
             const { profile, exists } = kickerAt(d, c);
             if (!exists) continue;
             const lip = d + profile.lip, line = center(c.classicFeatures ? d + 12 : lip, c);
@@ -624,7 +699,9 @@ export class SnowGame {
         const weather = this.settings.weather;
         const dusk = weather === 'dusk', snowing = weather === 'snow';
         const horizon = dusk ? 0xd6a9a8 : snowing ? 0xb5c9d6 : 0xd5e5f5;
-        this.scene.fog = new T.FogExp2(horizon, snowing ? .0045 : dusk ? .0011 : .00066);
+        // High-altitude real terrain: clearer air (guide section 13.4), so distant ridges keep their contrast.
+        const clarity = this.course?.dem ? .45 : 1;
+        this.scene.fog = new T.FogExp2(horizon, (snowing ? .0045 : dusk ? .0011 : .00066) * (snowing ? 1 : clarity));
         this.snow.visible = snowing;
         this.scene.environmentIntensity = dusk ? .35 : .52;
         const sun = this.scene.getObjectByName('sun') as T.DirectionalLight;
@@ -672,11 +749,14 @@ export class SnowGame {
     startReality() {
         const c = this.course;
         const rails = this.rails.map(r => ({ x: r.x, d: r.d, end: r.end, width: r.width, top: r.top, slope: r.slope, round: r.name === 'LONG TUBE' }));
-        const ride = new RealityRide({ height: (x, d) => height(x, d, c), snowDepth: (x, d) => snowDepth(x, d, c), center: d => center(d, c), parkZone: (x, d) => parkZone(x, d, c) }, rails, this.settings.board ?? 'all-mountain');
+        const weather = this.settings.weather;
+        const ride = new RealityRide({ height: (x, d) => height(x, d, c), snowDepth: (x, d) => snowDepth(x, d, c), center: d => center(d, c), parkZone: (x, d) => parkZone(x, d, c),
+            surface: c.dem ? (x, d) => demSurface(x, d, c, weather) : undefined }, rails, this.settings.board ?? 'all-mountain');
         this.configureReality(ride);
         this.reality = ride;
         // A rider drops in from a standstill with a short push (about 3 m/s); gravity does the rest.
-        ride.place(center(2, c), 2, 3);
+        // Real-terrain runs start on summits and stations where the fall line can point anywhere: face down the run.
+        ride.place(center(2, c), 2, 3, c.dem ? Math.PI / 2 : undefined);
         this.syncReality(1 / 120);
         this.prevRenderQ.copy(this.renderQ);
         this.feedback = this.mode === 'training'
@@ -922,7 +1002,7 @@ export class SnowGame {
         this.cameraMode = 0;
     }
     setReplayTime(t: number) { const time = clamp(t, 0, this.run?.time || 0); if (time !== this.replayTime) this.powder?.clear(); this.replayTime = time; }
-    getHUD(): HUD { return { speed: Math.round(this.speed * 3.6), score: this.score, time: this.time, distance: Math.round(this.d), progress: this.d / this.course.length, combo: this.combo, trick: this.toastTimer > 0 ? this.trick : '', trickScore: this.trickScore, feedback: this.feedback, air: !this.ground, gates: this.gateCount, totalGates: this.features.length }; }
+    getHUD(): HUD { return { speed: Math.round(this.speed * 3.6), score: this.score, time: this.time, distance: Math.round(this.d), progress: this.d / this.course.length, combo: this.combo, trick: this.toastTimer > 0 ? this.trick : '', trickScore: this.trickScore, feedback: this.feedback, air: !this.ground, gates: this.gateCount, totalGates: this.features.length , ...(this.course.dem ? { altitude: Math.round(this.y), temperature: Math.round(lapseTemperature(this.y, VILLAGE_TEMP[this.settings.weather] ?? -6)) } : {}) }; }
     tick = () => { this.frameId = requestAnimationFrame(this.tick); const dt = Math.min(this.clock.getDelta(), .10); if (this.state === 'ride') {
         this.physicsAccumulator += dt;
         let substeps = 0;

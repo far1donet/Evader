@@ -42,13 +42,13 @@ export class RealityRide {
         this.sim.wind.x = o.wind?.x ?? 0; this.sim.wind.z = o.wind?.z ?? 0;
     }
     /** Put the rider on the snow at course position (x, d), pointing along the fall line, moving at `speed`. */
-    place(x: number, d: number, speed: number) {
+    place(x: number, d: number, speed: number, yaw?: number) {
         const z = -d;
         terrainNormal(this.terrain, x, z, this.n);
         // Steepest descent direction in the horizontal plane is the horizontal part of the surface normal.
         let dx = this.n.x, dz = this.n.z;
         if (Math.hypot(dx, dz) < 1e-3) { dx = 0; dz = -1; }
-        this.sim.place(x, z, Math.atan2(-dz, dx), speed);
+        this.sim.place(x, z, yaw ?? Math.atan2(-dz, dx), speed);
         this.ctl.reset(); this.tricks.reset();
         this.crashed = false; this.crashTime = 0;
     }
