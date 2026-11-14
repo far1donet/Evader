@@ -12,7 +12,8 @@
     "start": "next start --hostname 127.0.0.1",
     "check": "tsc --noEmit",
     "test": "node --experimental-strip-types tests/physics.mjs && node --experimental-strip-types tests/motion.mjs && node --experimental-strip-types tests/sim.mjs && node --experimental-strip-types tests/reality.mjs",
-    "test:browser": "node tools/browser-check.mjs"
+    "test:browser": "node tools/browser-check.mjs",
+    "build:phone": "STATIC_EXPORT=1 next build && node tools/fix-phone-build.mjs"
   },
   "dependencies": {
     "class-variance-authority": "0.7.1",

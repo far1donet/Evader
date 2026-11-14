@@ -63,3 +63,43 @@
 .diagnostics{position:absolute;left:12px;top:280px;z-index:6;pointer-events:none;padding:10px 12px;border-radius:10px;background:rgba(8,16,22,.72);color:#e8f3f4;font:11px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;max-width:min(560px,calc(100vw - 24px));backdrop-filter:blur(6px)}
 .diagnostics canvas{display:block;width:240px;height:56px;margin-bottom:6px;border-radius:4px}
 .diagnostics pre{margin:0;white-space:pre-wrap}
+/* ---- Phone controls and landscape HUD (0.5 mobile) ---- */
+.screen-ride,.screen-pause{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.touch-controls{align-items:flex-end;pointer-events:none;padding-bottom:env(safe-area-inset-bottom)}
+.touch-controls>*{pointer-events:auto}
+.touch-stick{position:relative;width:148px;height:148px;border-radius:50%;border:1px solid #ffffff66;background:#142f4370;backdrop-filter:blur(5px);touch-action:none;display:grid;place-items:center;margin-left:env(safe-area-inset-left)}
+.touch-knob{width:62px;height:62px;border-radius:50%;background:#d7fa65d9;box-shadow:0 2px 14px #0007;pointer-events:none;transition:transform .05s}
+.touch-stick span{position:absolute;bottom:-17px;font-size:9px;letter-spacing:1.5px;color:#e3eef2;white-space:nowrap}
+.touch-controls .touch-tricks{display:grid;grid-template-columns:repeat(3,56px);gap:9px;max-width:none;margin-right:env(safe-area-inset-right)}
+.touch-controls .touch-tricks button{width:56px;height:56px;min-width:56px;font-size:13px;font-weight:600}
+.touch-controls .touch-tricks button[aria-label^="Spin"]{font-size:24px;font-weight:400}
+.fullscreen-btn{display:none}
+@media (pointer:coarse){.touch-controls{display:flex}.ride-hints{display:none}.fullscreen-btn{display:grid}.ride-top>button{margin-left:auto}.ride-top{gap:8px}}
+@media (pointer:coarse) and (max-height:520px){
+ .ride-top{top:max(8px,env(safe-area-inset-top));left:max(16px,env(safe-area-inset-left));right:max(16px,env(safe-area-inset-right))}
+ .mini-brand{font-size:17px}.ride-course,.ride-mode{font-size:9px}
+ .icon-button{width:38px;height:38px}
+ .hud-score{top:52px;left:max(16px,env(safe-area-inset-left))}.hud-score>strong{font-size:30px;margin:2px 0}.combo-value{font-size:16px}
+ .hud-progress{top:50px;right:max(16px,env(safe-area-inset-right));width:140px;font-size:9px}.hud-progress>span:first-child{font-size:19px}.progress-track{margin:6px 0}
+ .hud-speed{bottom:auto;top:10px;right:50%;transform:translateX(50%);align-items:center}.hud-speed>strong{font-size:38px}.hud-speed>span{font-size:9px}.speed-bars{display:none}
+ .trick-toast{left:50%;transform:translateX(-50%);bottom:auto;top:30%;align-items:center;text-align:center;max-width:60%}.trick-toast strong{font-size:24px}.trick-toast b{font-size:20px}
+ .touch-controls{bottom:12px;left:16px;right:16px}
+ .touch-stick{width:132px;height:132px}.touch-knob{width:56px;height:56px}
+ .touch-controls .touch-tricks{grid-template-columns:repeat(3,52px);gap:8px}.touch-controls .touch-tricks button{width:52px;height:52px;min-width:52px}
+ .diagnostics{top:90px;max-width:55vw;font-size:9px}
+}
+.rotate-hint{display:none}
+@media (pointer:coarse) and (orientation:portrait){.screen-ride .rotate-hint{display:flex;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);padding:14px 18px;background:#0b2433e0;border:1px solid #d7fa6580;color:#d7fa65;font-size:13px;letter-spacing:1px;gap:10px;align-items:center;pointer-events:none;animation:rotateHint 4s forwards}}
+@keyframes rotateHint{0%,80%{opacity:1}100%{opacity:0}}
+@media (pointer:coarse){.performance-label{display:none}}
+@media (pointer:coarse) and (max-height:520px){
+ .evader.screen-menu{overflow-y:auto;height:100svh;-webkit-overflow-scrolling:touch}
+ .menu-header{padding:10px 0}.menu-layout{margin:12px 4.5vw;min-height:0;gap:24px}
+ .wordmark{font-size:58px;letter-spacing:-4px}.brand-subtitle{margin:6px 0 10px;font-size:10px}
+ .menu-left nav button{padding:8px 14px;font-size:14px}
+ .menu-panel{padding:0;align-self:flex-start}.menu-panel h1{font-size:34px;margin:8px 0 10px}
+ .location-details,.weather-line{padding:8px 0}.mode-choices button{padding:9px 10px;font-size:13px}.mode-description{margin:8px 0 10px}
+ .drop-button{min-height:48px;padding:12px}
+ .destination-strip{margin-top:0}.destination{padding:12px}
+ .panel-settings,.panel-career,.panel-studio,.panel-creator,.panel-about,.panel-garage{padding:16px;max-height:calc(100svh - 90px);overflow-y:auto}
+}

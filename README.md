@@ -20,6 +20,22 @@ v0.4 model is still available as **Classic**.
 Later launches: `npm start` in that folder (rebuild with `npm run build` after changing code). Another port:
 `npm start -- --port 3001`.
 
+### On a phone (Android or iPhone)
+
+The phone build is a static, installable web app with touch controls: an analog thumb-stick on the left (sideways =
+lean onto an edge to turn, up/down = nose/tail pressure) and POP, GRAB, spin ⟲/⟳, STOP and TUCK on the right. Play in
+landscape. On first launch a phone gets the Balanced preset at 85 % resolution (change it in Settings).
+
+- **Hosted link:** the private claude.ai artifact made from this build opens on any phone where you are signed in.
+- **Your own hosting:** `npm run build:phone` writes a fully static site to `out/` with relative paths. Upload that
+  folder to any static host (GitHub Pages, Netlify, a NAS). Open it in Chrome (Android: menu › *Add to Home screen* /
+  *Install app*) or Safari (iPhone: Share › *Add to Home Screen*). Installed this way it opens fullscreen in landscape
+  and, after one online visit, plays offline.
+- **Test on your phone over Wi-Fi:** run `npm run build && npm start -- --hostname 0.0.0.0` on your PC and open
+  `http://<your-PC's-IP>:3000` on the phone (same network).
+
+`node tools/phone-check.mjs` (needs Playwright) serves `out/` and drives it as a landscape phone with touch input.
+
 ### In VS Code
 
 Open the folder (`File > Open Folder…`). The `.vscode` folder adds tasks (`Terminal > Run Task…`):

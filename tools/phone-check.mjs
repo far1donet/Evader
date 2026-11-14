@@ -1,0 +1,46 @@
+// Serves out/ (npm run build:phone) under /play/ and drives it as a phone in landscape with touch input.
+// Chromium emulation with software WebGL: checks controls, layout and simulation; not real phone performance.
+import { createRequire } from 'node:module';
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+const require = createRequire(import.meta.url);
+const { chromium } = require('playwright');
+const root = path.resolve('out'), types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.txt': 'text/plain' };
+const server = http.createServer((q, r) => { let p = decodeURIComponent(q.url.split('?')[0]); if (!p.startsWith('/play/')) { r.writeHead(404); return r.end(); } p = p.slice(6) || 'index.html'; if (p.endsWith('/')) p += 'index.html'; const f = path.join(root, p); fs.readFile(f, (e, d) => { if (e) { r.writeHead(404); r.end(); } else { r.writeHead(200, { 'content-type': types[path.extname(f)] || 'application/octet-stream' }); r.end(d); } }); }).listen(4180);
+const out = 'docs/screenshots/phone';
+const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const ctx = await browser.newContext({ viewport: { width: 915, height: 412 }, deviceScaleFactor: 1.5, isMobile: true, hasTouch: true, userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36' });
+const page = await ctx.newPage(); const errors = [];
+page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); }); page.on('pageerror', e => errors.push(String(e)));
+await page.goto('http://127.0.0.1:4180/play/?debug=1');
+await page.waitForFunction(() => !!window.evaderDebug, null, { timeout: 90000 });
+await page.waitForSelector('button.drop-button:not([disabled])', { timeout: 90000 });
+const preset = await page.evaluate(() => window.evaderDebug.settings);
+await page.screenshot({ path: `${out}/01-menu-landscape.png`, timeout: 120000 });
+await page.tap('button.drop-button:not([disabled])');
+await page.waitForSelector('.touch-stick', { timeout: 20000 });
+const st = () => page.evaluate(() => { const g = window.evaderDebug, r = g.reality; return { physics: r ? 'reality' : 'classic', d: +g.d.toFixed(1), kmh: +(g.speed * 3.6).toFixed(0), steer: +g.intent.steer.toFixed(2), crouch: g.intent.crouch, edgeDeg: r ? +(r.sim.edgeAngle * 57.3).toFixed(0) : 0, air: r?.tricks.airborne, feedback: g.feedback, trick: g.trick, crashed: r?.crashed }; });
+const box = async sel => { const b = await page.locator(sel).first().boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2, w: b.width, h: b.height }; };
+const samples = [];
+await page.waitForTimeout(1500); samples.push(['ride start', await st()]);
+const s = await box('.touch-stick');
+await page.mouse.move(s.x, s.y); await page.mouse.down(); await page.mouse.move(s.x + 45, s.y, { steps: 4 });
+await page.waitForTimeout(700); samples.push(['stick right (toe edge)', await st()]);
+await page.screenshot({ path: `${out}/02-ride-carve.png`, timeout: 120000 });
+await page.mouse.move(s.x - 45, s.y, { steps: 6 }); await page.waitForTimeout(700); samples.push(['stick left (heel edge)', await st()]);
+await page.mouse.up(); await page.waitForTimeout(900); samples.push(['stick released', await st()]);
+const pop = await box('button.jump-touch');
+await page.mouse.move(pop.x, pop.y); await page.mouse.down(); await page.waitForTimeout(1200); samples.push(['POP held (crouch)', await st()]);
+await page.mouse.up(); let airSeen = false; for (let i = 0; i < 40; i++) { await page.waitForTimeout(60); if ((await st()).air) { airSeen = true; break; } }
+samples.push(['POP released', { ...(await st()), airSeen }]);
+await page.screenshot({ path: `${out}/03-pop.png`, timeout: 120000 });
+await page.waitForTimeout(2500); samples.push(['after 2.5 s', await st()]);
+const layout = await page.evaluate(() => { const r = s => document.querySelector(s)?.getBoundingClientRect(); const q = ['.touch-stick', '.touch-tricks', '.hud-score', '.hud-speed', '.hud-progress', '.ride-top']; return Object.fromEntries(q.map(k => { const b = r(k); return [k, b ? [Math.round(b.left), Math.round(b.top), Math.round(b.right), Math.round(b.bottom)] : null]; })); });
+await page.setViewportSize({ width: 412, height: 915 }); await page.waitForTimeout(600);
+await page.screenshot({ path: `${out}/04-portrait-hint.png`, timeout: 120000 });
+for (const [k, v] of samples) console.log(k.padEnd(24), JSON.stringify(v));
+console.log('first-launch phone settings', JSON.stringify({ quality: preset.quality, renderScale: preset.renderScale, physics: preset.physics }));
+console.log('layout (l,t,r,b)', JSON.stringify(layout));
+console.log('errors:', errors.join('\n') || 'none');
+await browser.close(); server.close();

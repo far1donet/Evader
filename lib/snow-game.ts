@@ -319,6 +319,8 @@ export class SnowGame {
     /** Selected grab (index into GRABS) for Reality physics. */
     realityGrab = 0;
     padLatch = new Set<string>();
+    /** On-screen thumb-stick (phones): x = edge / steer, y = fore-aft pressure (+ = forward), each -1..1. */
+    stick = { x: 0, y: 0 };
     padId = '';
     diagnostics?: Diagnostics;
     crashVisual = 0;
@@ -721,6 +723,13 @@ export class SnowGame {
     } };
     visibility = () => { if (document.hidden)
         this.blur(); };
+    /** Thumb-stick input. Classic physics has no analog steering, so the stick also drives the A/D keys there. */
+    setStick(x: number, y: number) {
+        this.stick.x = clamp(x, -1, 1); this.stick.y = clamp(y, -1, 1);
+        const left = this.stick.x < -.35, right = this.stick.x > .35;
+        if (left) this.touch.add('KeyA'); else this.touch.delete('KeyA');
+        if (right) this.touch.add('KeyD'); else this.touch.delete('KeyD');
+    }
     press(k: string, on: boolean) { if (on) {
         this.touch.add(k);
         if (k === 'Space')
@@ -1186,12 +1195,13 @@ export class SnowGame {
         const s = this.settings;
         const pad = readGamepad({ deadzone: s.padDeadzone ?? .12, curve: s.padCurve ?? 1.5, sensitivity: s.padSensitivity ?? 1, invertLean: !!s.invertLean });
         const latch = (name: string, on: boolean) => { const was = this.padLatch.has(name); if (on) this.padLatch.add(name); else this.padLatch.delete(name); return on && !was; };
-        const keySteer = (active('KeyD') || active('ArrowRight') ? 1 : 0) - (active('KeyA') || active('ArrowLeft') ? 1 : 0);
+        const keySteer = (this.keys.has('KeyD') || active('ArrowRight') ? 1 : 0) - (this.keys.has('KeyA') || active('ArrowLeft') ? 1 : 0);
         // Keys ramp over ~0.2 s, the time a rider takes to roll from flat to a committed edge.
         this.keySteer += clamp(keySteer - this.keySteer, -dt * 5, dt * 5);
         const i = this.intent;
-        i.steer = pad && pad.lx !== 0 ? pad.lx : this.keySteer;
-        i.lean = pad && pad.ly !== 0 ? -pad.ly : (active('KeyF') ? 1 : 0) - (active('KeyZ') ? 1 : 0);
+        const st = this.stick ?? { x: 0, y: 0 };
+        i.steer = pad && pad.lx !== 0 ? pad.lx : st.x !== 0 ? st.x : this.keySteer;
+        i.lean = pad && pad.ly !== 0 ? -pad.ly : st.y !== 0 ? st.y : (active('KeyF') ? 1 : 0) - (active('KeyZ') ? 1 : 0);
         i.wind = pad && pad.rx !== 0 ? pad.rx : (active('KeyE') ? 1 : 0) - (active('KeyQ') ? 1 : 0);
         i.flip = pad && pad.ry !== 0 ? pad.ry : (active('KeyX') ? 1 : 0) - (active('KeyV') ? 1 : 0);
         i.crouch = Math.max(pad?.rt ?? 0, pad?.a ? 1 : 0, active('Space') ? 1 : 0);

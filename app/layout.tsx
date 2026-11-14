@@ -1,18 +1,21 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
-const basePath = process.env.GITHUB_PAGES === "true" ? "/IB" : "";
+// Relative asset paths: the static build runs from any folder or URL (phone home-screen app, artifact link, file server).
+const base = process.env.GITHUB_PAGES === "true" ? "/IB" : process.env.STATIC_EXPORT === "1" ? "." : "";
 
-export const viewport: Viewport = { themeColor: "#101e28", width: "device-width", initialScale: 1 };
+// No pinch/double-tap zoom: two-thumb play on a phone must not zoom the page.
+export const viewport: Viewport = { themeColor: "#101e28", width: "device-width", initialScale: 1, maximumScale: 1, userScalable: false, viewportFit: "cover" };
 
 export const metadata: Metadata = {
-  manifest: `${basePath}/manifest.webmanifest`,
+  manifest: `${base}/manifest.webmanifest`,
   appleWebApp: { capable: true, title: "EVADER", statusBarStyle: "black-translucent" },
-  title: "EVADER — Ride the mountain",
-  description: "Drop into EVADER: a playable 3D snowboarding prototype with mountain courses, freestyle tricks, rider customization and replays.",
+  title: "EVADER",
+  description: "EVADER Alpine Extreme: a 3D snowboarding game with rigid-body snow physics, freestyle tricks, three mountains and replays.",
   icons: {
-    icon: `${basePath}/favicon.svg`,
-    shortcut: `${basePath}/favicon.svg`,
+    icon: `${base}/favicon.svg`,
+    shortcut: `${base}/favicon.svg`,
+    apple: `${base}/icon-192.png`,
   },
 };
 
