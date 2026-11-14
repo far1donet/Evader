@@ -103,3 +103,9 @@
  .destination-strip{margin-top:0}.destination{padding:12px}
  .panel-settings,.panel-career,.panel-studio,.panel-creator,.panel-about,.panel-garage{padding:16px;max-height:calc(100svh - 90px);overflow-y:auto}
 }
+/* ---- Tilt + gesture mode (no buttons) ---- */
+.gesture-layer{position:absolute;inset:0;z-index:5;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.ride-top{z-index:6}
+.gesture-help{position:absolute;z-index:4;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 18px;background:#0b2433d9;border:1px solid #d7fa6566;color:#e8f2f4;font-size:12px;letter-spacing:.4px;text-align:center;pointer-events:none;animation:gestureHelp 6.5s forwards;max-width:calc(100vw - 32px)}
+.gesture-help strong{color:#d7fa65;font-size:14px;letter-spacing:1.5px;text-transform:uppercase}
+@keyframes gestureHelp{0%,80%{opacity:1}100%{opacity:0}}

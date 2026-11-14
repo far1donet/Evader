@@ -30,6 +30,11 @@ export type Settings = {
     padSensitivity?: number;
     invertLean?: boolean;
     diagnostics?: boolean;
+    /** Phones: 'tilt' = steer by tilting, jump/spin/flip/grab by touch gestures (no buttons); 'buttons' = stick + buttons. */
+    phoneControls?: 'tilt' | 'buttons';
+    /** Degrees of tilt for a full edge (smaller = more sensitive), and whether left/right tilt is inverted. */
+    tiltSensitivity?: number;
+    invertTilt?: boolean;
     quality: string;
     renderScale?: number;
     volume: number;
@@ -321,6 +326,9 @@ export class SnowGame {
     padLatch = new Set<string>();
     /** On-screen thumb-stick (phones): x = edge / steer, y = fore-aft pressure (+ = forward), each -1..1. */
     stick = { x: 0, y: 0 };
+    /** Tilt + gesture input (phones). `fingers` touching the screen; drag offsets give shoulder wind and flip throw. */
+    gesture = { enabled: false, steer: 0, lean: 0, brake: 0, tuck: false, fingers: 0, wind: 0, flip: 0, side: 1, startedInAir: false };
+    private gestureKeys = new Set<string>();
     padId = '';
     diagnostics?: Diagnostics;
     crashVisual = 0;
@@ -730,6 +738,32 @@ export class SnowGame {
         if (left) this.touch.add('KeyA'); else this.touch.delete('KeyA');
         if (right) this.touch.add('KeyD'); else this.touch.delete('KeyD');
     }
+    /** Tilt reading from the phone (already calibrated and shaped by the page). */
+    setTilt(steer: number, lean: number) {
+        const g = this.gesture;
+        g.steer = clamp(steer, -1, 1);
+        g.lean = clamp(lean, -1, 1);
+        g.tuck = lean > .85;
+        g.brake = clamp((-lean - .55) / .45, 0, 1);
+    }
+    /** Touch gesture state from the page. A touch that starts in the air is a grab until it lifts, never a crouch. */
+    setGesture(fingers: number, wind: number, flip: number, side: number) {
+        const g = this.gesture;
+        if (g.fingers === 0 && fingers > 0) g.startedInAir = !this.ground;
+        g.fingers = fingers; g.wind = clamp(wind, -1, 1); g.flip = clamp(flip, -1, 1); g.side = side;
+    }
+    /** Classic physics reads keys, so gestures are translated to the same virtual keys it already understands. */
+    private applyGestureKeys() {
+        const g = this.gesture, want = new Set<string>();
+        if (g.steer > .3) want.add('KeyD'); if (g.steer < -.3) want.add('KeyA');
+        if (g.tuck) want.add('KeyW'); if (g.brake > .3) want.add('KeyS');
+        if (g.fingers > 0) want.add(g.startedInAir || !this.ground ? 'ShiftLeft' : 'Space');
+        if (g.wind > .4) want.add('KeyE'); if (g.wind < -.4) want.add('KeyQ');
+        if (g.flip > .4) want.add('KeyX'); if (g.flip < -.4) want.add('KeyV');
+        for (const k of this.gestureKeys) if (!want.has(k)) this.press(k, false);
+        for (const k of want) if (!this.gestureKeys.has(k)) this.press(k, true);
+        this.gestureKeys = want;
+    }
     press(k: string, on: boolean) { if (on) {
         this.touch.add(k);
         if (k === 'Space')
@@ -934,6 +968,7 @@ export class SnowGame {
     };
     update(dt: number) {
         if (this.reality) { this.updateReality(dt); return; }
+        if (this.gesture?.enabled) this.applyGestureKeys();
         this.time += dt;
         this.bailTimer = Math.max(0, this.bailTimer - dt);
         this.flowTimer = Math.max(0, this.flowTimer - dt);
@@ -1208,6 +1243,17 @@ export class SnowGame {
         i.brake = Math.max(pad?.lt ?? 0, active('KeyS') || active('ArrowDown') ? 1 : 0);
         i.tuck = active('KeyW') || active('ArrowUp') || !!pad?.y;
         i.grab = active('ShiftLeft') || active('ShiftRight') || !!pad?.lb || !!pad?.rb;
+        const gz = this.gesture;
+        if (gz?.enabled && !(pad && (pad.lx || pad.ly))) {
+            i.steer = gz.steer; i.lean = gz.lean; i.tuck = i.tuck || gz.tuck; i.brake = Math.max(i.brake, gz.brake);
+            i.wind = gz.wind || i.wind; i.flip = gz.flip || i.flip;
+            if (gz.fingers > 0) {
+                if (gz.startedInAir || !this.ground) {
+                    i.grab = true;
+                    this.realityGrab = gz.fingers > 1 ? 12 : gz.side < 0 ? 0 : 2; // truck driver / indy / melon
+                } else i.crouch = 1;
+            }
+        }
         if (this.bailTimer > 0) Object.assign(i, IDLE_INTENT);
         if (pad) {
             this.padId = pad.id;
