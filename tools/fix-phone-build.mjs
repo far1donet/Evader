@@ -5,3 +5,4 @@ const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDi
 let n = 0;
 for (const f of walk('out')) if (/\.(js|css)$/.test(f)) { const s = fs.readFileSync(f, 'utf8'); if (s.includes('�')) { fs.writeFileSync(f, s.replaceAll('�', '\\ufffd')); n++; } }
 console.log(`fix-phone-build: ${n} file(s) escaped`);
+fs.writeFileSync('out/.nojekyll', ''); // GitHub Pages: keep the _next/ folder
