@@ -1,6 +1,6 @@
 {
   "name": "evader-snowboarding",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -14,7 +14,7 @@
     "test": "node --experimental-strip-types tests/physics.mjs && node --experimental-strip-types tests/motion.mjs && node --experimental-strip-types tests/sim.mjs && node --experimental-strip-types tests/reality.mjs && node --experimental-strip-types tests/verbier.mjs",
     "test:browser": "node tools/browser-check.mjs",
     "build:phone": "STATIC_EXPORT=1 next build && node tools/fix-phone-build.mjs",
-    "build:verbier": "python3 tools/verbier/build_registry.py tools/verbier/guide-2026-11-14.txt && echo 'Terrain: python3 tools/verbier/fetch_swissalti3d.py <cache> && python3 tools/verbier/build_runs.py <cache> && python3 tools/verbier/build_anchors.py <cache>'"
+    "build:verbier": "python3 tools/verbier/build_registry.py tools/verbier/guide-2026-11-14.txt && echo 'Resort: python3 tools/verbier/fetch_swissalti3d.py <cache>/alti, filter_openskidata.py (see its header), then python3 tools/verbier/build_resort.py <cache> && python3 tools/verbier/build_anchors.py <cache>'"
   },
   "dependencies": {
     "class-variance-authority": "0.7.1",

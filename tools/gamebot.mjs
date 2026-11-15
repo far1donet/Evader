@@ -61,7 +61,7 @@ export function lineFollower(g, course, center, { maxSpeed = 15, ahead = 14 } = 
         const want = Math.atan2(center(td, course) - x, td - d), have = Math.atan2(v.x, -v.z);
         let err = want - have; err = Math.atan2(Math.sin(err), Math.cos(err));
         const speed = Math.hypot(v.x, v.z);
-        Object.assign(g.intent, IDLE_INTENT, { steer: speed < 1 ? 0 : Math.max(-1, Math.min(1, err * 1.6)), brake: g.speed > maxSpeed ? Math.min(1, (g.speed - maxSpeed) * .4) : 0 });
+        Object.assign(g.intent, IDLE_INTENT, { steer: speed < 1 ? 0 : Math.max(-1, Math.min(1, err * 1.6)), brake: g.speed > maxSpeed ? Math.min(1, (g.speed - maxSpeed) * .4) : 0, tuck: speed < 4 });
         return g.intent;
     };
 }

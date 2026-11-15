@@ -87,12 +87,17 @@ function ollie(load, extra = {}) {
 // ---- 4.2 / 4.9 no propulsion on the flat; 4.6 braking ------------------------------------------------------------
 {
     const r = rig(0, 8); let prev = r.sim.speed, rises = 0;
-    run(r, 8, t => ({ ...IDLE_INTENT, steer: .5 * Math.sin(t * 1.3), wind: Math.sin(t * 2.1), tuck: t > 4, lean: .4 * Math.sin(t * .7) }), (t, s) => { if (t > .2 && s.speed > prev + .02) rises++; prev = s.speed; });
+    run(r, 8, t => ({ ...IDLE_INTENT, steer: .5 * Math.sin(t * 1.3), wind: Math.sin(t * 2.1), tuck: t < 2, lean: .4 * Math.sin(t * .7) }), (t, s) => { if (t > .2 && s.speed > prev + .02) rises++; prev = s.speed; });
     assert(r.sim.speed < 8 && rises < 5, `steering, shoulders, tuck and pressure never propel the rider on the flat (end ${r.sim.speed.toFixed(2)} m/s)`);
     const free = rig(8, 12), braked = rig(8, 12); let stopped = -1;
     run(free, 6, () => IDLE_INTENT);
     run(braked, 12, t => ({ ...IDLE_INTENT, brake: t > .3 ? 1 : 0 }), (t, s) => { if (stopped < 0 && t > 1 && s.speed < .6) stopped = t; });
     assert(stopped > 0, 'holding the speed check brings the rider to a stop');
+    // skating out of a lift station: tuck at walking pace = push with the free back foot; it cannot push past ~5 m/s
+    const sk = rig(0, 1); let skMax = 0;
+    run(sk, 12, () => ({ ...IDLE_INTENT, tuck: true }), (t, st) => { skMax = Math.max(skMax, st.speed); });
+    assert(sk.sim.speed > 2.5 && skMax < 5.2, `skating reaches walking pace and stays below 5 m/s (end ${sk.sim.speed.toFixed(2)}, max ${skMax.toFixed(2)} m/s)`);
+    console.log(`Skating push on the flat: ${sk.sim.speed.toFixed(1)} m/s after 12 s, never above ${skMax.toFixed(1)} m/s passed.`);
     console.log(`Flat ground: no propulsion (end ${r.sim.speed.toFixed(2)} m/s). Braking from 12 m/s on 8 deg stops at ${stopped.toFixed(1)} s (free run reaches ${free.sim.speed.toFixed(1)} m/s at 6 s) passed.`);
 }
 

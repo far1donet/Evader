@@ -1,254 +1,4009 @@
-[
- {
-  "id": "attelas",
-  "name": "ATTELAS",
-  "segments": 2,
-  "length": 2346,
-  "drop": 486,
-  "maxSlope": 27.9,
-  "meanSlope": 11.7,
-  "backtrack": 108.5,
-  "trees": 1024,
-  "lifts": [],
-  "bytes": 899976,
-  "zones": [
-   [
-    "Attelas",
-    "groomed",
-    0.0,
-    1802.0
-   ],
-   [
-    "Attelas",
-    "groomed",
-    1802.0,
-    2346.0
-   ]
-  ]
- },
- {
-  "id": "hattey-clambin",
-  "name": "HATTEY → CLAMBIN",
-  "segments": 4,
-  "length": 2287,
-  "drop": 476,
-  "maxSlope": 30.1,
-  "meanSlope": 11.7,
-  "backtrack": 38.5,
-  "trees": 13048,
-  "lifts": [
-   "Médran 2"
+{
+ "stations": [
+  [
+   "s00",
+   "Combe-de-la-Tournelle",
+   "BAV stop register: Combe-de-la-Tournelle (Télésiège, 2 m)",
+   2142.9,
+   1,
+   0
   ],
-  "bytes": 1026844,
-  "zones": [
-   [
-    "Hattey",
-    "groomed",
-    0.0,
-    624.0
-   ],
-   [
-    "Piste de Clambin, Hattey",
-    "groomed",
-    624.0,
-    722.0
-   ],
-   [
-    "Piste de Clambin, Clambin",
-    "ungroomed",
-    722.0,
-    1752.0
-   ],
-   [
-    "Clambin",
-    "ungroomed",
-    1756.0,
-    2287.5
-   ]
-  ]
- },
- {
-  "id": "la-chaux-park",
-  "name": "LA CHAUX SNOWPARK",
-  "segments": 1,
-  "length": 511,
-  "drop": 86,
-  "maxSlope": 20.0,
-  "meanSlope": 9.5,
-  "backtrack": 0.0,
-  "trees": 107,
-  "lifts": [
-   "Mont-Gelé",
-   "Chaux Express",
-   "Chaux 2",
-   "Médran 2"
+  [
+   "s01",
+   "Tête de Savoleyres",
+   "BAV stop register: Tête de Savoleyres (Télésiège, 3 m)",
+   2349.2,
+   1,
+   5
   ],
-  "bytes": 334580,
-  "zones": [
-   [
-    null,
-    "groomed",
-    96.6,
-    441.6
-   ]
-  ]
- },
- {
-  "id": "la-chaux-skicross",
-  "name": "LA CHAUX SKI CROSS",
-  "segments": 1,
-  "length": 583,
-  "drop": 95,
-  "maxSlope": 19.1,
-  "meanSlope": 6.9,
-  "backtrack": 0.0,
-  "trees": 102,
-  "lifts": [
-   "Mont-Gelé",
-   "Chaux Express",
-   "Chaux 2",
-   "Médran 2"
+  [
+   "s02",
+   "Grand-Tsai bottom",
+   "lift end",
+   2033.9,
+   1,
+   0
   ],
-  "bytes": 396312,
-  "zones": [
-   [
-    "Ski Cross",
-    "groomed",
-    0.0,
-    583.4
-   ]
-  ]
- },
- {
-  "id": "mont-fort",
-  "name": "MONT-FORT",
-  "segments": 3,
-  "length": 1466,
-  "drop": 471,
-  "maxSlope": 38.0,
-  "meanSlope": 15.5,
-  "backtrack": 0.0,
-  "trees": 0,
-  "lifts": [],
-  "bytes": 951116,
-  "zones": [
-   [
-    "Mont-Fort",
-    "groomed",
-    0.0,
-    44.2
-   ],
-   [
-    "Mont-Fort",
-    "moguls",
-    44.2,
-    348.6
-   ],
-   [
-    "Mont-Fort",
-    "groomed",
-    348.6,
-    1466.5
-   ]
-  ]
- },
- {
-  "id": "chassoure-tortin",
-  "name": "CHASSOURE → TORTIN",
-  "segments": 4,
-  "length": 3801,
-  "drop": 700,
-  "maxSlope": 37.8,
-  "meanSlope": 10.4,
-  "backtrack": 113.2,
-  "trees": 10266,
-  "lifts": [],
-  "bytes": 1451296,
-  "zones": [
-   [
-    "Chassoure-Tortin",
-    "groomed",
-    0.0,
-    74.0
-   ],
-   [
-    "Chassoure-Tortin",
-    "ungroomed",
-    94.0,
-    950.0
-   ],
-   [
-    "Chassoure-Tortin",
-    "groomed",
-    950.0,
-    1080.0
-   ],
-   [
-    "Chassoure-Tortin",
-    "groomed",
-    1080.0,
-    3801.3
-   ]
-  ]
- },
- {
-  "id": "fis",
-  "name": "FIS",
-  "segments": 2,
-  "length": 2161,
-  "drop": 791,
-  "maxSlope": 32.2,
-  "meanSlope": 14.3,
-  "backtrack": 0.0,
-  "trees": 7775,
-  "lifts": [
+  [
+   "s03",
+   "Grand-Tsai top",
+   "lift end",
+   2229.6,
+   0,
+   5
+  ],
+  [
+   "s04",
+   "Les Collons (Ethérolla)",
+   "BAV stop register: Les Collons (l'Etherolla) (Télésiège, 0 m)",
+   1879.8,
+   1,
+   0
+  ],
+  [
+   "s05",
+   "L'Ethérolla",
+   "BAV stop register: L'Ethérolla (Télésiège, 19 m)",
+   2412.9,
+   0,
+   18
+  ],
+  [
+   "s06",
+   "Siviez",
+   "common station name",
+   1729.6,
+   3,
+   0
+  ],
+  [
+   "s07",
+   "Tortin",
+   "common station name",
+   2044.1,
+   2,
+   1
+  ],
+  [
+   "s08",
+   "Moay bottom",
+   "lift end",
+   1542.5,
+   1,
+   0
+  ],
+  [
+   "s09",
+   "Mayens de Bruson (Moay)",
+   "BAV stop register: Mayens de Bruson (Télécabine, 236 m)",
+   1701.7,
+   0,
+   2
+  ],
+  [
+   "s10",
+   "Le Châble",
+   "common station name",
+   820.6,
+   2,
+   0
+  ],
+  [
+   "s11",
+   "Mayens de Bruson (Châble - Mayens de Bruson)",
+   "common station name",
+   1644.6,
+   0,
+   3
+  ],
+  [
+   "s12",
+   "Les Attelas",
+   "common station name",
+   2725.3,
+   1,
+   16
+  ],
+  [
+   "s13",
    "Mont-Gelé",
+   "common station name",
+   2997.6,
+   0,
+   4
+  ],
+  [
+   "s14",
+   "Greppon Blanc 2 bottom",
+   "lift end",
+   2182.4,
+   2,
+   0
+  ],
+  [
+   "s15",
+   "Le Crepon Blanc",
+   "swissNAMES3D (Hauptgipfel, 194 m)",
+   2633.0,
+   0,
+   8
+  ],
+  [
+   "s16",
+   "Veysonnaz",
+   "common station name",
+   1357.2,
+   1,
+   0
+  ],
+  [
+   "s17",
+   "Thyon",
+   "BAV stop register: Thyon (Mayens-de-l'Hôpital) (, 11 m)",
+   2118.8,
+   3,
+   14
+  ],
+  [
+   "s18",
+   "Les Chottes-La Meina-Greppon Blanc bottom",
+   "lift end",
+   2144.5,
+   1,
+   0
+  ],
+  [
+   "s19",
+   "Greppon Blanc",
+   "BAV stop register: Greppon Blanc (Télésiège, 245 m)",
+   2611.8,
+   0,
+   6
+  ],
+  [
+   "s20",
+   "Cheminée top",
+   "lift end",
+   2385.3,
+   0,
+   21
+  ],
+  [
+   "s21",
+   "La Chaux",
+   "common station name",
+   2263.5,
+   3,
+   0
+  ],
+  [
+   "s22",
+   "Fontanets",
+   "BAV stop register: Fontanets (Télécabine, 19 m)",
+   2465.4,
+   0,
+   12
+  ],
+  [
+   "s23",
+   "Hérémence Les Masses",
+   "BAV stop register: Hérémence Les Masses (Télésiège, 6 m)",
+   1503.4,
+   1,
+   0
+  ],
+  [
+   "s24",
+   "Les Collons (Les Masses, Muraz, Petit Vallon, Theytaz)",
+   "BAV stop register: Les Collons (Les Masses) (Télésiège, 7 m)",
+   1932.4,
+   2,
+   5
+  ],
+  [
+   "s25",
+   "Alpage bottom",
+   "lift end",
+   1894.7,
+   1,
+   0
+  ],
+  [
+   "s26",
+   "Tracouet",
+   "common station name",
+   2187.4,
+   1,
+   6
+  ],
+  [
+   "s27",
+   "Etablons de Riddes-Nord",
+   "BAV stop register: Etablons de Riddes-Nord (Télésiège, 6 m)",
+   2024.3,
+   1,
+   0
+  ],
+  [
+   "s28",
+   "Savoleyres",
+   "common station name",
+   2336.4,
+   0,
+   17
+  ],
+  [
+   "s29",
+   "Jean-Pierre bottom",
+   "lift end",
+   2106.7,
+   1,
+   0
+  ],
+  [
+   "s30",
+   "Lac des Vaux",
+   "common station name",
+   2548.2,
+   2,
+   0
+  ],
+  [
+   "s31",
+   "Chassoure",
+   "common station name",
+   2742.2,
+   0,
+   16
+  ],
+  [
+   "s32",
+   "Rope tow bottom",
+   "lift end",
+   1965.8,
+   1,
+   7
+  ],
+  [
+   "s33",
+   "Mayens-de-l'Hôpital",
+   "BAV stop register: Mayens-de-l'Hôpital (Télécabine, 21 m)",
+   1472.4,
+   1,
+   0
+  ],
+  [
+   "s34",
+   "Chaux 2 top",
+   "common station name",
+   2479.1,
+   0,
+   11
+  ],
+  [
+   "s35",
+   "Verbier – Médran",
+   "common station name",
+   1524.4,
+   2,
+   0
+  ],
+  [
+   "s36",
+   "Les Ruinettes",
+   "common station name",
+   2194.8,
+   2,
+   10
+  ],
+  [
+   "s37",
+   "L'Aviation bottom",
+   "lift end",
+   2143.3,
+   1,
+   0
+  ],
+  [
+   "s38",
+   "L'Aviation top",
+   "lift end",
+   2176.9,
+   0,
+   1
+  ],
+  [
+   "s39",
+   "Les Planards",
+   "common station name",
+   1936.1,
+   1,
+   5
+  ],
+  [
+   "s40",
+   "Inalpe bottom",
+   "lift end",
+   2026.9,
+   1,
+   0
+  ],
+  [
+   "s41",
+   "Rouge bottom",
+   "lift end",
+   1574.6,
+   1,
+   0
+  ],
+  [
+   "s42",
+   "Rouge top",
+   "lift end",
+   1748.7,
+   0,
+   3
+  ],
+  [
+   "s43",
+   "Moay",
+   "BAV stop register: Moay (télésiège) (Télésiège, 13 m)",
+   1611.5,
+   1,
+   0
+  ],
+  [
+   "s44",
+   "La Pasay",
+   "common station name",
+   2156.4,
+   0,
+   6
+  ],
+  [
+   "s45",
+   "Champsec Téléphérique",
+   "BAV stop register: Champsec Téléphérique (Télécabine, 42 m)",
+   901.1,
+   1,
+   0
+  ],
+  [
+   "s46",
+   "Sarreyer Téléphérique",
+   "BAV stop register: Sarreyer Téléphérique (Télécabine, 36 m)",
+   1198.5,
+   0,
+   0
+  ],
+  [
+   "s47",
+   "Tsa bottom",
+   "lift end",
+   2164.2,
+   1,
+   0
+  ],
+  [
+   "s48",
+   "Tsa top",
+   "lift end",
+   2308.0,
+   0,
+   4
+  ],
+  [
+   "s49",
+   "La Tzoumaz (Tzoumaz)",
+   "common station name",
+   1525.5,
+   1,
+   0
+  ],
+  [
+   "s50",
+   "Trabanta",
+   "BAV stop register: Trabanta (Télésiège, 3 m)",
+   2153.1,
+   1,
+   14
+  ],
+  [
+   "s51",
+   "Prarion",
+   "BAV stop register: Prarion (Télécabine / Télésiège, 25 m)",
+   1839.2,
+   2,
+   0
+  ],
+  [
+   "s52",
+   "Dent de Nendaz",
+   "swissNAMES3D (Gipfel, 385 m)",
+   2258.1,
+   0,
+   7
+  ],
+  [
+   "s53",
+   "La Tzoumaz (Les Etablons)",
+   "BAV stop register: La Tzoumaz (télés. Etablons) (Télésiège, 2 m)",
+   1641.7,
+   1,
+   0
+  ],
+  [
+   "s54",
+   "Etablons de Riddes",
+   "BAV stop register: Etablons de Riddes (Télésiège, 6 m)",
+   2129.5,
+   0,
+   4
+  ],
+  [
+   "s55",
+   "Haute-Nendaz",
+   "common station name",
+   1370.8,
+   2,
+   0
+  ],
+  [
+   "s56",
+   "Les Collons (Joc, Petit Vallon, Trabanta)",
+   "BAV stop register: Les Collons (Trabanta) (Télésiège, 6 m)",
+   1829.7,
+   3,
+   0
+  ],
+  [
+   "s57",
+   "Plan-du-Fou",
+   "common station name",
+   2438.2,
+   0,
+   3
+  ],
+  [
+   "s58",
+   "Le Taillay",
+   "BAV stop register: Le Taillay (télésiège) (Télésiège, 16 m)",
+   1904.6,
+   1,
+   0
+  ],
+  [
+   "s59",
+   "Tête-des-Creuses",
+   "BAV stop register: Tête-des-Creuses (Télésiège, 14 m)",
+   2250.3,
+   0,
+   14
+  ],
+  [
+   "s60",
+   "Esserts bottom",
+   "lift end",
+   1612.3,
+   1,
+   0
+  ],
+  [
+   "s61",
+   "Esserts top",
+   "lift end",
+   1681.7,
+   0,
+   4
+  ],
+  [
+   "s62",
+   "Col des Gentianes",
+   "common station name",
+   2895.2,
+   1,
+   4
+  ],
+  [
+   "s63",
+   "Mont-Fort",
+   "common station name",
+   3304.4,
+   0,
+   4
+  ],
+  [
+   "s64",
+   "Moulins bottom",
+   "lift end",
+   1490.6,
+   1,
+   0
+  ],
+  [
+   "s65",
+   "Moulins top",
+   "lift end",
+   1541.1,
+   0,
+   1
+  ],
+  [
+   "s66",
+   "Gentianes bottom",
+   "lift end",
+   2815.3,
+   1,
+   0
+  ],
+  [
+   "s67",
+   "Drus bottom",
+   "lift end",
+   1976.8,
+   1,
+   0
+  ],
+  [
+   "s68",
+   "Les Collons, Télémixte aval",
+   "BAV stop register: Les Collons, Télémixte aval (Télécabine, 2 m)",
+   1860.7,
+   1,
+   0
+  ],
+  [
+   "s69",
+   "Combatzeline",
+   "BAV stop register: Combatzeline (Télésiège, 21 m)",
+   2238.9,
+   0,
+   2
+  ],
+  [
+   "s70",
+   "Mayentzet",
+   "common station name",
+   1731.9,
+   2,
+   2
+  ],
+  [
+   "s71",
+   "Les Esserts",
+   "common station name",
+   1717.0,
+   1,
+   0
+  ],
+  [
+   "s72",
+   "Les Ruinettes – Attelas chair",
+   "common station name",
+   2235.9,
+   1,
+   7
+  ],
+  [
+   "s73",
+   "Tête de Vaux",
+   "BAV stop register: Tête de Vaux (Télésiège, 16 m)",
+   2716.8,
+   0,
+   15
+  ]
+ ],
+ "lifts": [
+  [
+   "l00",
+   "Tournelle",
+   "chair_lift",
+   224,
+   803,
+   "Tournelle"
+  ],
+  [
+   "l01",
+   "Grand-Tsai",
+   "platter",
+   196,
+   617,
+   "Grand-Tsai"
+  ],
+  [
+   "l02",
+   "Tournelle",
+   "platter",
+   47,
+   179,
+   "Tournelle"
+  ],
+  [
+   "l03",
+   "Ethérolla",
+   "chair_lift",
+   533,
+   1634,
+   null
+  ],
+  [
+   "l04",
+   "Tortin",
+   "chair_lift",
+   313,
+   2540,
+   "Tortin"
+  ],
+  [
+   "l05",
+   "Moay",
+   "platter",
+   159,
+   488,
+   "Moay"
+  ],
+  [
+   "l06",
+   "Châble - Mayens de Bruson",
+   "gondola",
+   824,
+   2590,
+   "Châble-Mayens de Bruson"
+  ],
+  [
+   "l07",
+   "Mont-Gelé",
+   "cable_car",
+   268,
+   865,
+   "Mont-Gelé"
+  ],
+  [
+   "l08",
+   "Greppon Blanc 2",
+   "platter",
+   435,
+   1313,
+   null
+  ],
+  [
+   "l09",
+   "Veysonnaz",
+   "gondola",
+   759,
+   2570,
+   null
+  ],
+  [
+   "l10",
+   "Les Chottes-La Meina-Greppon Blanc",
+   "chair_lift",
+   467,
+   1754,
+   "Les Chottes"
+  ],
+  [
+   "l11",
+   "Cheminée",
+   "t-bar",
+   266,
+   1104,
+   null
+  ],
+  [
+   "l12",
    "Chaux Express",
+   "mixed_lift",
+   202,
+   785,
+   "Chaux-Express"
+  ],
+  [
+   "l13",
+   "Les Masses",
+   "chair_lift",
+   439,
+   1203,
+   null
+  ],
+  [
+   "l14",
+   "Greppon Blanc 1",
+   "platter",
+   466,
+   1429,
+   null
+  ],
+  [
+   "l15",
+   "Alpage",
+   "platter",
+   292,
+   976,
+   null
+  ],
+  [
+   "l16",
+   "Nord",
+   "chair_lift",
+   313,
+   1107,
+   "Nord"
+  ],
+  [
+   "l17",
+   "Jean-Pierre",
+   "platter",
+   89,
+   321,
+   null
+  ],
+  [
+   "l18",
    "Lac des Vaux 2",
-   null,
-   "Chaux 2",
-   "Médran 2"
+   "chair_lift",
+   197,
+   738,
+   "Lac des Vaux 2"
   ],
-  "bytes": 2036212,
-  "zones": [
-   [
-    "FIS",
-    "groomed",
-    0.0,
-    1677.4
-   ],
-   [
-    "FIS",
-    "groomed",
-    1677.4,
-    2161.5
-   ]
-  ]
- },
- {
-  "id": "mont-gele-chaux",
-  "name": "MONT-GELÉ → LA CHAUX",
-  "segments": 1,
-  "length": 1326,
-  "drop": 489,
-  "maxSlope": 37.6,
-  "meanSlope": 18.0,
-  "backtrack": 0.0,
-  "trees": 0,
-  "lifts": [
-   "Mont-Gelé",
-   "Chaux Express",
-   "Lac des Vaux 2",
+  [
+   "l19",
+   "Rope tow",
+   "rope_tow",
+   49,
+   177,
+   null
+  ],
+  [
+   "l20",
+   "Piste de l'Ours",
+   "gondola",
+   650,
+   2044,
+   null
+  ],
+  [
+   "l21",
+   "Chaux 2",
+   "chair_lift",
+   215,
+   1087,
    "Chaux 2"
   ],
-  "bytes": 780744,
-  "zones": [
-   [
-    "Mt-Gelé - La Chaux",
-    "ungroomed",
-    0.0,
-    1327.3
-   ]
+  [
+   "l22",
+   "Médran 2",
+   "gondola",
+   668,
+   1658,
+   "Médran 2"
+  ],
+  [
+   "l23",
+   "Bambino 1",
+   "platter",
+   27,
+   141,
+   null
+  ],
+  [
+   "l24",
+   "L'Aviation",
+   "drag_lift",
+   34,
+   237,
+   null
+  ],
+  [
+   "l25",
+   "TMX Savoleyres",
+   "mixed_lift",
+   400,
+   1481,
+   "Piguet Galland (Télémixte Planards-Savoleyres)"
+  ],
+  [
+   "l26",
+   "Inalpe",
+   "platter",
+   95,
+   489,
+   null
+  ],
+  [
+   "l27",
+   "Funispace",
+   "cable_car",
+   526,
+   1544,
+   "Funispace"
+  ],
+  [
+   "l28",
+   "Rouge",
+   "platter",
+   174,
+   764,
+   "Rouge"
+  ],
+  [
+   "l29",
+   "Pasay",
+   "chair_lift",
+   545,
+   1482,
+   "Pasay"
+  ],
+  [
+   "l30",
+   "Cable car",
+   "cable_car",
+   297,
+   557,
+   null
+  ],
+  [
+   "l31",
+   "Tsa",
+   "t-bar",
+   144,
+   558,
+   null
+  ],
+  [
+   "l32",
+   "Tzoumaz",
+   "gondola",
+   810,
+   2787,
+   "La Tzoumaz-Savoleyres"
+  ],
+  [
+   "l33",
+   "Muraz",
+   "t-bar",
+   291,
+   1007,
+   null
+  ],
+  [
+   "l34",
+   "TSCD6/10 Prarion Telemixt",
+   "mixed_lift",
+   346,
+   1416,
+   null
+  ],
+  [
+   "l35",
+   "La Dent",
+   "platter",
+   84,
+   349,
+   null
+  ],
+  [
+   "l36",
+   "Les Etablons",
+   "chair_lift",
+   488,
+   1430,
+   "Etablons"
+  ],
+  [
+   "l37",
+   "Funiculaire Ecluses - Telecabine",
+   "funicular",
+   33,
+   68,
+   null
+  ],
+  [
+   "l38",
+   "Trabanta",
+   "chair_lift",
+   397,
+   1488,
+   null
+  ],
+  [
+   "l39",
+   "Siviez",
+   "gondola",
+   708,
+   1858,
+   "Siviez - Plan du fou"
+  ],
+  [
+   "l40",
+   "Taillay",
+   "chair_lift",
+   346,
+   1382,
+   "Taillay"
+  ],
+  [
+   "l41",
+   "Esserts",
+   "platter",
+   69,
+   397,
+   "Esserts"
+  ],
+  [
+   "l42",
+   "Mont-Fort",
+   "cable_car",
+   414,
+   1434,
+   "Mont-Fort"
+  ],
+  [
+   "l43",
+   "Prarion-Plan-du-Fou",
+   "gondola",
+   601,
+   1593,
+   null
+  ],
+  [
+   "l44",
+   "Châble - Verbier",
+   "gondola",
+   702,
+   2314,
+   "Le Châble-Verbier"
+  ],
+  [
+   "l45",
+   "Jumbo",
+   "cable_car",
+   641,
+   2480,
+   "Jumbo"
+  ],
+  [
+   "l46",
+   "Chaux-Express",
+   "mixed_lift",
+   261,
+   949,
+   "Chaux-Express"
+  ],
+  [
+   "l47",
+   "Petit Vallon",
+   "platter",
+   66,
+   322,
+   null
+  ],
+  [
+   "l48",
+   "Moulins",
+   "platter",
+   50,
+   318,
+   "Moulins"
+  ],
+  [
+   "l49",
+   "Gentianes",
+   "platter",
+   85,
+   418,
+   "Gentianes"
+  ],
+  [
+   "l50",
+   "Drus",
+   "t-bar",
+   140,
+   471,
+   null
+  ],
+  [
+   "l51",
+   "La Matze",
+   "mixed_lift",
+   231,
+   936,
+   null
+  ],
+  [
+   "l52",
+   "Lac des Vaux 1",
+   "chair_lift",
+   176,
+   572,
+   "Lac des Vaux 1"
+  ],
+  [
+   "l53",
+   "Joc",
+   "t-bar",
+   294,
+   1161,
+   null
+  ],
+  [
+   "l54",
+   "Combatseline",
+   "chair_lift",
+   510,
+   1475,
+   null
+  ],
+  [
+   "l55",
+   "Bambino 2",
+   "platter",
+   35,
+   173,
+   null
+  ],
+  [
+   "l56",
+   "Rope tow",
+   "rope_tow",
+   9,
+   100,
+   null
+  ],
+  [
+   "l57",
+   "Tortin-Chassoure",
+   "gondola",
+   696,
+   2233,
+   "Chassoure"
+  ],
+  [
+   "l58",
+   "Médran 4",
+   "gondola",
+   664,
+   1625,
+   null
+  ],
+  [
+   "l59",
+   "Piccolo",
+   "platter",
+   53,
+   207,
+   null
+  ],
+  [
+   "l60",
+   "Les Esserts-Les Planards",
+   "gondola",
+   219,
+   1358,
+   null
+  ],
+  [
+   "l61",
+   "Attelas",
+   "chair_lift",
+   495,
+   1443,
+   "Attelas"
+  ],
+  [
+   "l62",
+   "Theytaz 2",
+   "platter",
+   280,
+   1036,
+   null
+  ],
+  [
+   "l63",
+   "Tracouet",
+   "gondola",
+   809,
+   2242,
+   null
+  ],
+  [
+   "l64",
+   "Mayentzet",
+   "chair_lift",
+   520,
+   1462,
+   "Mayentzet"
+  ],
+  [
+   "l65",
+   "Tortin - Col des Gentianes",
+   "cable_car",
+   845,
+   3240,
+   "Tortin-Gentianes"
   ]
- }
-]
+ ],
+ "routes": [
+  {
+   "id": "r000",
+   "name": "TÊTE DE SAVOLEYRES → COMBE-DE-LA-TOURNELLE",
+   "length": 720,
+   "drop": 201,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s01",
+   "to": "s00"
+  },
+  {
+   "id": "r001",
+   "name": "TÊTE DE SAVOLEYRES → ETABLONS DE RIDDES-NORD",
+   "length": 1312,
+   "drop": 336,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s01",
+   "to": "s27"
+  },
+  {
+   "id": "r002",
+   "name": "TÊTE DE SAVOLEYRES → LE TAILLAY",
+   "length": 2141,
+   "drop": 433,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s01",
+   "to": "s58"
+  },
+  {
+   "id": "r003",
+   "name": "TÊTE DE SAVOLEYRES → LA TZOUMAZ (LES ETABLONS)",
+   "length": 2608,
+   "drop": 723,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s01",
+   "to": "s53"
+  },
+  {
+   "id": "r004",
+   "name": "TÊTE DE SAVOLEYRES → LA TZOUMAZ (TZOUMAZ)",
+   "length": 2938,
+   "drop": 832,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s01",
+   "to": "s49"
+  },
+  {
+   "id": "r005",
+   "name": "GRAND-TSAI TOP → GRAND-TSAI BOTTOM",
+   "length": 552,
+   "drop": 190,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s03",
+   "to": "s02"
+  },
+  {
+   "id": "r006",
+   "name": "GRAND-TSAI TOP → MOAY",
+   "length": 3019,
+   "drop": 613,
+   "climb": 4,
+   "mode": "curvilinear",
+   "from_": "s03",
+   "to": "s43"
+  },
+  {
+   "id": "r007",
+   "name": "GRAND-TSAI TOP → MOAY BOTTOM",
+   "length": 1768,
+   "drop": 677,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s03",
+   "to": "s08"
+  },
+  {
+   "id": "r008",
+   "name": "GRAND-TSAI TOP → MOAY",
+   "length": 1758,
+   "drop": 614,
+   "climb": 4,
+   "mode": "rotated",
+   "from_": "s03",
+   "to": "s43"
+  },
+  {
+   "id": "r009",
+   "name": "GRAND-TSAI TOP → MOAY BOTTOM",
+   "length": 2103,
+   "drop": 668,
+   "climb": 5,
+   "mode": "rotated",
+   "from_": "s03",
+   "to": "s08"
+  },
+  {
+   "id": "r010",
+   "name": "L'ETHÉROLLA → THYON",
+   "length": 1424,
+   "drop": 290,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s05",
+   "to": "s17"
+  },
+  {
+   "id": "r011",
+   "name": "L'ETHÉROLLA → TRABANTA",
+   "length": 1256,
+   "drop": 335,
+   "climb": 7,
+   "mode": "rotated",
+   "from_": "s05",
+   "to": "s50"
+  },
+  {
+   "id": "r012",
+   "name": "L'ETHÉROLLA → TSA BOTTOM",
+   "length": 1979,
+   "drop": 249,
+   "climb": 4,
+   "mode": "curvilinear",
+   "from_": "s05",
+   "to": "s47"
+  },
+  {
+   "id": "r013",
+   "name": "L'ETHÉROLLA → INALPE BOTTOM",
+   "length": 1491,
+   "drop": 385,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s05",
+   "to": "s40"
+  },
+  {
+   "id": "r014",
+   "name": "L'ETHÉROLLA → DRUS BOTTOM",
+   "length": 1220,
+   "drop": 435,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s05",
+   "to": "s67"
+  },
+  {
+   "id": "r015",
+   "name": "L'ETHÉROLLA → LES COLLONS (LES MASSES, MURAZ, PETIT VALLON, THEYTAZ)",
+   "length": 1397,
+   "drop": 474,
+   "climb": 7,
+   "mode": "rotated",
+   "from_": "s05",
+   "to": "s24"
+  },
+  {
+   "id": "r016",
+   "name": "L'ETHÉROLLA → LES COLLONS, TÉLÉMIXTE AVAL",
+   "length": 2079,
+   "drop": 551,
+   "climb": 9,
+   "mode": "rotated",
+   "from_": "s05",
+   "to": "s68"
+  },
+  {
+   "id": "r017",
+   "name": "L'ETHÉROLLA → LES COLLONS (JOC, PETIT VALLON, TRABANTA)",
+   "length": 1756,
+   "drop": 563,
+   "climb": 7,
+   "mode": "rotated",
+   "from_": "s05",
+   "to": "s56"
+  },
+  {
+   "id": "r018",
+   "name": "L'ETHÉROLLA → LES COLLONS (ETHÉROLLA)",
+   "length": 1429,
+   "drop": 528,
+   "climb": 7,
+   "mode": "rotated",
+   "from_": "s05",
+   "to": "s04"
+  },
+  {
+   "id": "r019",
+   "name": "L'ETHÉROLLA → MAYENS-DE-L'HÔPITAL",
+   "length": 2426,
+   "drop": 938,
+   "climb": 6,
+   "mode": "rotated",
+   "from_": "s05",
+   "to": "s33"
+  },
+  {
+   "id": "r020",
+   "name": "L'ETHÉROLLA → VEYSONNAZ",
+   "length": 3689,
+   "drop": 1049,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s05",
+   "to": "s16"
+  },
+  {
+   "id": "r021",
+   "name": "L'ETHÉROLLA → HÉRÉMENCE LES MASSES",
+   "length": 2218,
+   "drop": 874,
+   "climb": 7,
+   "mode": "rotated",
+   "from_": "s05",
+   "to": "s23"
+  },
+  {
+   "id": "r022",
+   "name": "L'ETHÉROLLA → LES COLLONS (LES MASSES, MURAZ, PETIT VALLON, THEYTAZ)",
+   "length": 1242,
+   "drop": 471,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s05",
+   "to": "s24"
+  },
+  {
+   "id": "r023",
+   "name": "L'ETHÉROLLA → LES COLLONS (ETHÉROLLA)",
+   "length": 1509,
+   "drop": 529,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s05",
+   "to": "s04"
+  },
+  {
+   "id": "r024",
+   "name": "L'ETHÉROLLA → TRABANTA",
+   "length": 1255,
+   "drop": 335,
+   "climb": 5,
+   "mode": "rotated",
+   "from_": "s05",
+   "to": "s50"
+  },
+  {
+   "id": "r025",
+   "name": "L'ETHÉROLLA → LES COLLONS (JOC, PETIT VALLON, TRABANTA)",
+   "length": 1905,
+   "drop": 617,
+   "climb": 3,
+   "mode": "rotated",
+   "from_": "s05",
+   "to": "s56"
+  },
+  {
+   "id": "r026",
+   "name": "L'ETHÉROLLA → LES COLLONS, TÉLÉMIXTE AVAL",
+   "length": 2079,
+   "drop": 551,
+   "climb": 8,
+   "mode": "rotated",
+   "from_": "s05",
+   "to": "s68"
+  },
+  {
+   "id": "r027",
+   "name": "L'ETHÉROLLA → HÉRÉMENCE LES MASSES",
+   "length": 2055,
+   "drop": 875,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s05",
+   "to": "s23"
+  },
+  {
+   "id": "r028",
+   "name": "TORTIN → SIVIEZ",
+   "length": 2525,
+   "drop": 312,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s07",
+   "to": "s06"
+  },
+  {
+   "id": "r029",
+   "name": "MAYENS DE BRUSON (MOAY) → MOAY BOTTOM",
+   "length": 403,
+   "drop": 139,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s09",
+   "to": "s08"
+  },
+  {
+   "id": "r030",
+   "name": "MAYENS DE BRUSON (MOAY) → MOAY",
+   "length": 418,
+   "drop": 76,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s09",
+   "to": "s43"
+  },
+  {
+   "id": "r031",
+   "name": "MAYENS DE BRUSON (CHÂBLE - MAYENS DE BRUSON) → MOAY BOTTOM",
+   "length": 1695,
+   "drop": 90,
+   "climb": 20,
+   "mode": "curvilinear",
+   "from_": "s11",
+   "to": "s08"
+  },
+  {
+   "id": "r032",
+   "name": "MAYENS DE BRUSON (CHÂBLE - MAYENS DE BRUSON) → MOAY",
+   "length": 221,
+   "drop": 35,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s11",
+   "to": "s43"
+  },
+  {
+   "id": "r033",
+   "name": "MAYENS DE BRUSON (CHÂBLE - MAYENS DE BRUSON) → MOAY BOTTOM",
+   "length": 302,
+   "drop": 93,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s11",
+   "to": "s08"
+  },
+  {
+   "id": "r034",
+   "name": "LES ATTELAS → LAC DES VAUX",
+   "length": 595,
+   "drop": 179,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s12",
+   "to": "s30"
+  },
+  {
+   "id": "r035",
+   "name": "LES ATTELAS → LAC DES VAUX",
+   "length": 583,
+   "drop": 179,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s12",
+   "to": "s30"
+  },
+  {
+   "id": "r036",
+   "name": "LES ATTELAS → LES RUINETTES – ATTELAS CHAIR",
+   "length": 2457,
+   "drop": 497,
+   "climb": 0,
+   "mode": "curvilinear",
+   "from_": "s12",
+   "to": "s72"
+  },
+  {
+   "id": "r037",
+   "name": "LES ATTELAS → LES RUINETTES",
+   "length": 2452,
+   "drop": 519,
+   "climb": 0,
+   "mode": "curvilinear",
+   "from_": "s12",
+   "to": "s36"
+  },
+  {
+   "id": "r038",
+   "name": "LES ATTELAS → LA CHAUX",
+   "length": 2000,
+   "drop": 457,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s12",
+   "to": "s21"
+  },
+  {
+   "id": "r039",
+   "name": "LES ATTELAS → MAYENTZET",
+   "length": 4129,
+   "drop": 989,
+   "climb": 0,
+   "mode": "curvilinear",
+   "from_": "s12",
+   "to": "s70"
+  },
+  {
+   "id": "r040",
+   "name": "LES ATTELAS → VERBIER – MÉDRAN",
+   "length": 5725,
+   "drop": 1189,
+   "climb": 0,
+   "mode": "curvilinear",
+   "from_": "s12",
+   "to": "s35"
+  },
+  {
+   "id": "r041",
+   "name": "LES ATTELAS → ROUGE BOTTOM",
+   "length": 5751,
+   "drop": 1151,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s12",
+   "to": "s41"
+  },
+  {
+   "id": "r042",
+   "name": "LES ATTELAS → LAC DES VAUX",
+   "length": 499,
+   "drop": 165,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s12",
+   "to": "s30"
+  },
+  {
+   "id": "r043",
+   "name": "LES ATTELAS → LES RUINETTES – ATTELAS CHAIR",
+   "length": 2158,
+   "drop": 502,
+   "climb": 0,
+   "mode": "curvilinear",
+   "from_": "s12",
+   "to": "s72"
+  },
+  {
+   "id": "r044",
+   "name": "LES ATTELAS → LES RUINETTES",
+   "length": 2382,
+   "drop": 519,
+   "climb": 0,
+   "mode": "curvilinear",
+   "from_": "s12",
+   "to": "s36"
+  },
+  {
+   "id": "r045",
+   "name": "LES ATTELAS → MAYENTZET",
+   "length": 3757,
+   "drop": 989,
+   "climb": 0,
+   "mode": "curvilinear",
+   "from_": "s12",
+   "to": "s70"
+  },
+  {
+   "id": "r046",
+   "name": "LES ATTELAS → ROUGE BOTTOM",
+   "length": 4719,
+   "drop": 1151,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s12",
+   "to": "s41"
+  },
+  {
+   "id": "r047",
+   "name": "LES ATTELAS → VERBIER – MÉDRAN",
+   "length": 5353,
+   "drop": 1189,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s12",
+   "to": "s35"
+  },
+  {
+   "id": "r048",
+   "name": "LES ATTELAS → ROUGE BOTTOM",
+   "length": 2739,
+   "drop": 1136,
+   "climb": 13,
+   "mode": "rotated",
+   "from_": "s12",
+   "to": "s41"
+  },
+  {
+   "id": "r049",
+   "name": "LES ATTELAS → LA TZOUMAZ (TZOUMAZ)",
+   "length": 5635,
+   "drop": 1183,
+   "climb": 16,
+   "mode": "rotated",
+   "from_": "s12",
+   "to": "s49"
+  },
+  {
+   "id": "r050",
+   "name": "MONT-GELÉ → LA CHAUX",
+   "length": 2871,
+   "drop": 731,
+   "climb": 8,
+   "mode": "curvilinear",
+   "from_": "s13",
+   "to": "s21"
+  },
+  {
+   "id": "r051",
+   "name": "MONT-GELÉ → TORTIN",
+   "length": 2665,
+   "drop": 957,
+   "climb": 9,
+   "mode": "rotated",
+   "from_": "s13",
+   "to": "s07"
+  },
+  {
+   "id": "r052",
+   "name": "MONT-GELÉ → SIVIEZ",
+   "length": 5128,
+   "drop": 1269,
+   "climb": 12,
+   "mode": "rotated",
+   "from_": "s13",
+   "to": "s06"
+  },
+  {
+   "id": "r053",
+   "name": "LE CREPON BLANC → LES CHOTTES-LA MEINA-GREPPON BLANC BOTTOM",
+   "length": 1988,
+   "drop": 485,
+   "climb": 5,
+   "mode": "rotated",
+   "from_": "s15",
+   "to": "s18"
+  },
+  {
+   "id": "r054",
+   "name": "LE CREPON BLANC → TSA BOTTOM",
+   "length": 2013,
+   "drop": 465,
+   "climb": 10,
+   "mode": "rotated",
+   "from_": "s15",
+   "to": "s47"
+  },
+  {
+   "id": "r055",
+   "name": "LE CREPON BLANC → GREPPON BLANC 2 BOTTOM",
+   "length": 3019,
+   "drop": 445,
+   "climb": 3,
+   "mode": "curvilinear",
+   "from_": "s15",
+   "to": "s14"
+  },
+  {
+   "id": "r056",
+   "name": "LE CREPON BLANC → DRUS BOTTOM",
+   "length": 3828,
+   "drop": 649,
+   "climb": 11,
+   "mode": "rotated",
+   "from_": "s15",
+   "to": "s67"
+  },
+  {
+   "id": "r057",
+   "name": "LE CREPON BLANC → SIVIEZ",
+   "length": 5337,
+   "drop": 894,
+   "climb": 8,
+   "mode": "curvilinear",
+   "from_": "s15",
+   "to": "s06"
+  },
+  {
+   "id": "r058",
+   "name": "LE CREPON BLANC → GREPPON BLANC 2 BOTTOM",
+   "length": 1142,
+   "drop": 398,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s15",
+   "to": "s14"
+  },
+  {
+   "id": "r059",
+   "name": "LE CREPON BLANC → SIVIEZ",
+   "length": 2924,
+   "drop": 869,
+   "climb": 5,
+   "mode": "rotated",
+   "from_": "s15",
+   "to": "s06"
+  },
+  {
+   "id": "r060",
+   "name": "LE CREPON BLANC → VEYSONNAZ",
+   "length": 5656,
+   "drop": 1265,
+   "climb": 13,
+   "mode": "rotated",
+   "from_": "s15",
+   "to": "s16"
+  },
+  {
+   "id": "r061",
+   "name": "THYON → TRABANTA",
+   "length": 382,
+   "drop": 37,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s17",
+   "to": "s50"
+  },
+  {
+   "id": "r062",
+   "name": "THYON → INALPE BOTTOM",
+   "length": 405,
+   "drop": 76,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s17",
+   "to": "s40"
+  },
+  {
+   "id": "r063",
+   "name": "THYON → DRUS BOTTOM",
+   "length": 425,
+   "drop": 132,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s17",
+   "to": "s67"
+  },
+  {
+   "id": "r064",
+   "name": "THYON → LES COLLONS (LES MASSES, MURAZ, PETIT VALLON, THEYTAZ)",
+   "length": 1013,
+   "drop": 177,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s17",
+   "to": "s24"
+  },
+  {
+   "id": "r065",
+   "name": "THYON → LES COLLONS, TÉLÉMIXTE AVAL",
+   "length": 1199,
+   "drop": 253,
+   "climb": 3,
+   "mode": "rotated",
+   "from_": "s17",
+   "to": "s68"
+  },
+  {
+   "id": "r066",
+   "name": "THYON → LES COLLONS (ETHÉROLLA)",
+   "length": 1300,
+   "drop": 231,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s17",
+   "to": "s04"
+  },
+  {
+   "id": "r067",
+   "name": "THYON → LES COLLONS (JOC, PETIT VALLON, TRABANTA)",
+   "length": 1266,
+   "drop": 265,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s17",
+   "to": "s56"
+  },
+  {
+   "id": "r068",
+   "name": "THYON → DRUS BOTTOM",
+   "length": 431,
+   "drop": 133,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s17",
+   "to": "s67"
+  },
+  {
+   "id": "r069",
+   "name": "THYON → LES COLLONS (JOC, PETIT VALLON, TRABANTA)",
+   "length": 1266,
+   "drop": 265,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s17",
+   "to": "s56"
+  },
+  {
+   "id": "r070",
+   "name": "THYON → MAYENS-DE-L'HÔPITAL",
+   "length": 1322,
+   "drop": 629,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s17",
+   "to": "s33"
+  },
+  {
+   "id": "r071",
+   "name": "THYON → VEYSONNAZ",
+   "length": 2384,
+   "drop": 741,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s17",
+   "to": "s16"
+  },
+  {
+   "id": "r072",
+   "name": "THYON → HÉRÉMENCE LES MASSES",
+   "length": 1988,
+   "drop": 577,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s17",
+   "to": "s23"
+  },
+  {
+   "id": "r073",
+   "name": "THYON → LES COLLONS (ETHÉROLLA)",
+   "length": 1302,
+   "drop": 231,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s17",
+   "to": "s04"
+  },
+  {
+   "id": "r074",
+   "name": "THYON → HÉRÉMENCE LES MASSES",
+   "length": 1979,
+   "drop": 577,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s17",
+   "to": "s23"
+  },
+  {
+   "id": "r075",
+   "name": "GREPPON BLANC → LES CHOTTES-LA MEINA-GREPPON BLANC BOTTOM",
+   "length": 1658,
+   "drop": 476,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s19",
+   "to": "s18"
+  },
+  {
+   "id": "r076",
+   "name": "GREPPON BLANC → TSA BOTTOM",
+   "length": 1696,
+   "drop": 456,
+   "climb": 8,
+   "mode": "rotated",
+   "from_": "s19",
+   "to": "s47"
+  },
+  {
+   "id": "r077",
+   "name": "GREPPON BLANC → GREPPON BLANC 2 BOTTOM",
+   "length": 2671,
+   "drop": 437,
+   "climb": 0,
+   "mode": "curvilinear",
+   "from_": "s19",
+   "to": "s14"
+  },
+  {
+   "id": "r078",
+   "name": "GREPPON BLANC → DRUS BOTTOM",
+   "length": 3504,
+   "drop": 640,
+   "climb": 8,
+   "mode": "rotated",
+   "from_": "s19",
+   "to": "s67"
+  },
+  {
+   "id": "r079",
+   "name": "GREPPON BLANC → SIVIEZ",
+   "length": 4989,
+   "drop": 885,
+   "climb": 5,
+   "mode": "curvilinear",
+   "from_": "s19",
+   "to": "s06"
+  },
+  {
+   "id": "r080",
+   "name": "GREPPON BLANC → VEYSONNAZ",
+   "length": 5331,
+   "drop": 1256,
+   "climb": 10,
+   "mode": "rotated",
+   "from_": "s19",
+   "to": "s16"
+  },
+  {
+   "id": "r081",
+   "name": "CHEMINÉE TOP → THYON",
+   "length": 996,
+   "drop": 250,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s17"
+  },
+  {
+   "id": "r082",
+   "name": "CHEMINÉE TOP → TRABANTA",
+   "length": 958,
+   "drop": 295,
+   "climb": 5,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s50"
+  },
+  {
+   "id": "r083",
+   "name": "CHEMINÉE TOP → TSA BOTTOM",
+   "length": 1182,
+   "drop": 206,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s47"
+  },
+  {
+   "id": "r084",
+   "name": "CHEMINÉE TOP → INALPE BOTTOM",
+   "length": 1214,
+   "drop": 344,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s40"
+  },
+  {
+   "id": "r085",
+   "name": "CHEMINÉE TOP → DRUS BOTTOM",
+   "length": 1011,
+   "drop": 394,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s67"
+  },
+  {
+   "id": "r086",
+   "name": "CHEMINÉE TOP → LES COLLONS (LES MASSES, MURAZ, PETIT VALLON, THEYTAZ)",
+   "length": 1186,
+   "drop": 434,
+   "climb": 5,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s24"
+  },
+  {
+   "id": "r087",
+   "name": "CHEMINÉE TOP → LES COLLONS, TÉLÉMIXTE AVAL",
+   "length": 1780,
+   "drop": 511,
+   "climb": 7,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s68"
+  },
+  {
+   "id": "r088",
+   "name": "CHEMINÉE TOP → LES COLLONS (JOC, PETIT VALLON, TRABANTA)",
+   "length": 1552,
+   "drop": 523,
+   "climb": 5,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s56"
+  },
+  {
+   "id": "r089",
+   "name": "CHEMINÉE TOP → LES COLLONS (ETHÉROLLA)",
+   "length": 1285,
+   "drop": 488,
+   "climb": 5,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s04"
+  },
+  {
+   "id": "r090",
+   "name": "CHEMINÉE TOP → MAYENS-DE-L'HÔPITAL",
+   "length": 2151,
+   "drop": 897,
+   "climb": 4,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s33"
+  },
+  {
+   "id": "r091",
+   "name": "CHEMINÉE TOP → VEYSONNAZ",
+   "length": 3326,
+   "drop": 1009,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s16"
+  },
+  {
+   "id": "r092",
+   "name": "CHEMINÉE TOP → HÉRÉMENCE LES MASSES",
+   "length": 2099,
+   "drop": 834,
+   "climb": 5,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s23"
+  },
+  {
+   "id": "r093",
+   "name": "CHEMINÉE TOP → TRABANTA",
+   "length": 957,
+   "drop": 294,
+   "climb": 3,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s50"
+  },
+  {
+   "id": "r094",
+   "name": "CHEMINÉE TOP → LES COLLONS (LES MASSES, MURAZ, PETIT VALLON, THEYTAZ)",
+   "length": 1011,
+   "drop": 430,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s24"
+  },
+  {
+   "id": "r095",
+   "name": "CHEMINÉE TOP → LES COLLONS (ETHÉROLLA)",
+   "length": 1294,
+   "drop": 488,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s04"
+  },
+  {
+   "id": "r096",
+   "name": "CHEMINÉE TOP → LES COLLONS (JOC, PETIT VALLON, TRABANTA)",
+   "length": 1606,
+   "drop": 522,
+   "climb": 3,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s56"
+  },
+  {
+   "id": "r097",
+   "name": "CHEMINÉE TOP → LES COLLONS, TÉLÉMIXTE AVAL",
+   "length": 1780,
+   "drop": 510,
+   "climb": 5,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s68"
+  },
+  {
+   "id": "r098",
+   "name": "CHEMINÉE TOP → HÉRÉMENCE LES MASSES",
+   "length": 2121,
+   "drop": 834,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s23"
+  },
+  {
+   "id": "r099",
+   "name": "CHEMINÉE TOP → LES COLLONS (LES MASSES, MURAZ, PETIT VALLON, THEYTAZ)",
+   "length": 1012,
+   "drop": 430,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s24"
+  },
+  {
+   "id": "r100",
+   "name": "CHEMINÉE TOP → LES COLLONS (ETHÉROLLA)",
+   "length": 1294,
+   "drop": 488,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s04"
+  },
+  {
+   "id": "r101",
+   "name": "CHEMINÉE TOP → HÉRÉMENCE LES MASSES",
+   "length": 2100,
+   "drop": 834,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s20",
+   "to": "s23"
+  },
+  {
+   "id": "r102",
+   "name": "FONTANETS → LA CHAUX",
+   "length": 1411,
+   "drop": 193,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s22",
+   "to": "s21"
+  },
+  {
+   "id": "r103",
+   "name": "FONTANETS → LA CHAUX",
+   "length": 815,
+   "drop": 196,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s22",
+   "to": "s21"
+  },
+  {
+   "id": "r104",
+   "name": "FONTANETS → LES RUINETTES – ATTELAS CHAIR",
+   "length": 436,
+   "drop": 207,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s22",
+   "to": "s72"
+  },
+  {
+   "id": "r105",
+   "name": "FONTANETS → LES RUINETTES",
+   "length": 701,
+   "drop": 229,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s22",
+   "to": "s36"
+  },
+  {
+   "id": "r106",
+   "name": "FONTANETS → MAYENTZET",
+   "length": 2052,
+   "drop": 698,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s22",
+   "to": "s70"
+  },
+  {
+   "id": "r107",
+   "name": "FONTANETS → VERBIER – MÉDRAN",
+   "length": 2359,
+   "drop": 899,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s22",
+   "to": "s35"
+  },
+  {
+   "id": "r108",
+   "name": "FONTANETS → ROUGE BOTTOM",
+   "length": 2841,
+   "drop": 860,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s22",
+   "to": "s41"
+  },
+  {
+   "id": "r109",
+   "name": "FONTANETS → LES RUINETTES – ATTELAS CHAIR",
+   "length": 604,
+   "drop": 211,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s22",
+   "to": "s72"
+  },
+  {
+   "id": "r110",
+   "name": "FONTANETS → MAYENTZET",
+   "length": 2021,
+   "drop": 698,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s22",
+   "to": "s70"
+  },
+  {
+   "id": "r111",
+   "name": "FONTANETS → ROUGE BOTTOM",
+   "length": 2841,
+   "drop": 860,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s22",
+   "to": "s41"
+  },
+  {
+   "id": "r112",
+   "name": "FONTANETS → VERBIER – MÉDRAN",
+   "length": 2356,
+   "drop": 899,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s22",
+   "to": "s35"
+  },
+  {
+   "id": "r113",
+   "name": "LES COLLONS (LES MASSES, MURAZ, PETIT VALLON, THEYTAZ) → LES COLLONS (ETHÉROLLA)",
+   "length": 243,
+   "drop": 33,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s24",
+   "to": "s04"
+  },
+  {
+   "id": "r114",
+   "name": "LES COLLONS (LES MASSES, MURAZ, PETIT VALLON, THEYTAZ) → LES COLLONS (JOC, PETIT VALLON, TRABANTA)",
+   "length": 285,
+   "drop": 65,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s24",
+   "to": "s56"
+  },
+  {
+   "id": "r115",
+   "name": "LES COLLONS (LES MASSES, MURAZ, PETIT VALLON, THEYTAZ) → HÉRÉMENCE LES MASSES",
+   "length": 916,
+   "drop": 379,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s24",
+   "to": "s23"
+  },
+  {
+   "id": "r116",
+   "name": "LES COLLONS (LES MASSES, MURAZ, PETIT VALLON, THEYTAZ) → LES COLLONS (ETHÉROLLA)",
+   "length": 209,
+   "drop": 54,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s24",
+   "to": "s04"
+  },
+  {
+   "id": "r117",
+   "name": "LES COLLONS (LES MASSES, MURAZ, PETIT VALLON, THEYTAZ) → HÉRÉMENCE LES MASSES",
+   "length": 1013,
+   "drop": 400,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s24",
+   "to": "s23"
+  },
+  {
+   "id": "r118",
+   "name": "TRACOUET → JEAN-PIERRE BOTTOM",
+   "length": 356,
+   "drop": 66,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s26",
+   "to": "s29"
+  },
+  {
+   "id": "r119",
+   "name": "TRACOUET → ALPAGE BOTTOM",
+   "length": 873,
+   "drop": 281,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s26",
+   "to": "s25"
+  },
+  {
+   "id": "r120",
+   "name": "TRACOUET → HAUTE-NENDAZ",
+   "length": 3775,
+   "drop": 796,
+   "climb": 0,
+   "mode": "curvilinear",
+   "from_": "s26",
+   "to": "s55"
+  },
+  {
+   "id": "r121",
+   "name": "TRACOUET → ALPAGE BOTTOM",
+   "length": 927,
+   "drop": 281,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s26",
+   "to": "s25"
+  },
+  {
+   "id": "r122",
+   "name": "TRACOUET → PRARION",
+   "length": 1280,
+   "drop": 322,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s26",
+   "to": "s51"
+  },
+  {
+   "id": "r123",
+   "name": "TRACOUET → HAUTE-NENDAZ",
+   "length": 2004,
+   "drop": 796,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s26",
+   "to": "s55"
+  },
+  {
+   "id": "r124",
+   "name": "SAVOLEYRES → ETABLONS DE RIDDES-NORD",
+   "length": 2166,
+   "drop": 310,
+   "climb": 5,
+   "mode": "curvilinear",
+   "from_": "s28",
+   "to": "s27"
+  },
+  {
+   "id": "r125",
+   "name": "SAVOLEYRES → LE TAILLAY",
+   "length": 1693,
+   "drop": 432,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s28",
+   "to": "s58"
+  },
+  {
+   "id": "r126",
+   "name": "SAVOLEYRES → LES PLANARDS",
+   "length": 1245,
+   "drop": 399,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s28",
+   "to": "s39"
+  },
+  {
+   "id": "r127",
+   "name": "SAVOLEYRES → MAYENTZET",
+   "length": 3123,
+   "drop": 597,
+   "climb": 3,
+   "mode": "rotated",
+   "from_": "s28",
+   "to": "s70"
+  },
+  {
+   "id": "r128",
+   "name": "SAVOLEYRES → ROUGE BOTTOM",
+   "length": 5957,
+   "drop": 760,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s28",
+   "to": "s41"
+  },
+  {
+   "id": "r129",
+   "name": "SAVOLEYRES → VERBIER – MÉDRAN",
+   "length": 7053,
+   "drop": 798,
+   "climb": 3,
+   "mode": "curvilinear",
+   "from_": "s28",
+   "to": "s35"
+  },
+  {
+   "id": "r130",
+   "name": "SAVOLEYRES → TÊTE DE SAVOLEYRES",
+   "length": 312,
+   "drop": 22,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s28",
+   "to": "s01"
+  },
+  {
+   "id": "r131",
+   "name": "SAVOLEYRES → COMBE-DE-LA-TOURNELLE",
+   "length": 500,
+   "drop": 176,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s28",
+   "to": "s00"
+  },
+  {
+   "id": "r132",
+   "name": "SAVOLEYRES → LES PLANARDS",
+   "length": 1383,
+   "drop": 409,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s28",
+   "to": "s39"
+  },
+  {
+   "id": "r133",
+   "name": "SAVOLEYRES → ETABLONS DE RIDDES-NORD",
+   "length": 947,
+   "drop": 315,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s28",
+   "to": "s27"
+  },
+  {
+   "id": "r134",
+   "name": "SAVOLEYRES → LE TAILLAY",
+   "length": 1720,
+   "drop": 438,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s28",
+   "to": "s58"
+  },
+  {
+   "id": "r135",
+   "name": "SAVOLEYRES → ESSERTS BOTTOM",
+   "length": 2237,
+   "drop": 724,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s28",
+   "to": "s60"
+  },
+  {
+   "id": "r136",
+   "name": "SAVOLEYRES → LA TZOUMAZ (LES ETABLONS)",
+   "length": 2254,
+   "drop": 696,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s28",
+   "to": "s53"
+  },
+  {
+   "id": "r137",
+   "name": "SAVOLEYRES → ROUGE BOTTOM",
+   "length": 2597,
+   "drop": 762,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s28",
+   "to": "s41"
+  },
+  {
+   "id": "r138",
+   "name": "SAVOLEYRES → LA TZOUMAZ (TZOUMAZ)",
+   "length": 2610,
+   "drop": 805,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s28",
+   "to": "s49"
+  },
+  {
+   "id": "r139",
+   "name": "SAVOLEYRES → MAYENTZET",
+   "length": 3131,
+   "drop": 598,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s28",
+   "to": "s70"
+  },
+  {
+   "id": "r140",
+   "name": "SAVOLEYRES → VERBIER – MÉDRAN",
+   "length": 5285,
+   "drop": 800,
+   "climb": 3,
+   "mode": "curvilinear",
+   "from_": "s28",
+   "to": "s35"
+  },
+  {
+   "id": "r141",
+   "name": "CHASSOURE → LAC DES VAUX",
+   "length": 721,
+   "drop": 195,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s31",
+   "to": "s30"
+  },
+  {
+   "id": "r142",
+   "name": "CHASSOURE → LES RUINETTES – ATTELAS CHAIR",
+   "length": 2889,
+   "drop": 513,
+   "climb": 10,
+   "mode": "curvilinear",
+   "from_": "s31",
+   "to": "s72"
+  },
+  {
+   "id": "r143",
+   "name": "CHASSOURE → LES RUINETTES",
+   "length": 2287,
+   "drop": 535,
+   "climb": 10,
+   "mode": "rotated",
+   "from_": "s31",
+   "to": "s36"
+  },
+  {
+   "id": "r144",
+   "name": "CHASSOURE → LA CHAUX",
+   "length": 2399,
+   "drop": 473,
+   "climb": 11,
+   "mode": "rotated",
+   "from_": "s31",
+   "to": "s21"
+  },
+  {
+   "id": "r145",
+   "name": "CHASSOURE → MAYENTZET",
+   "length": 2672,
+   "drop": 1005,
+   "climb": 10,
+   "mode": "rotated",
+   "from_": "s31",
+   "to": "s70"
+  },
+  {
+   "id": "r146",
+   "name": "CHASSOURE → VERBIER – MÉDRAN",
+   "length": 3115,
+   "drop": 1205,
+   "climb": 11,
+   "mode": "rotated",
+   "from_": "s31",
+   "to": "s35"
+  },
+  {
+   "id": "r147",
+   "name": "CHASSOURE → ROUGE BOTTOM",
+   "length": 3469,
+   "drop": 1167,
+   "climb": 11,
+   "mode": "rotated",
+   "from_": "s31",
+   "to": "s41"
+  },
+  {
+   "id": "r148",
+   "name": "CHASSOURE → LES RUINETTES – ATTELAS CHAIR",
+   "length": 1954,
+   "drop": 518,
+   "climb": 11,
+   "mode": "rotated",
+   "from_": "s31",
+   "to": "s72"
+  },
+  {
+   "id": "r149",
+   "name": "CHASSOURE → LES RUINETTES",
+   "length": 2287,
+   "drop": 535,
+   "climb": 10,
+   "mode": "rotated",
+   "from_": "s31",
+   "to": "s36"
+  },
+  {
+   "id": "r150",
+   "name": "CHASSOURE → MAYENTZET",
+   "length": 2744,
+   "drop": 1005,
+   "climb": 11,
+   "mode": "rotated",
+   "from_": "s31",
+   "to": "s70"
+  },
+  {
+   "id": "r151",
+   "name": "CHASSOURE → ROUGE BOTTOM",
+   "length": 3306,
+   "drop": 1167,
+   "climb": 11,
+   "mode": "rotated",
+   "from_": "s31",
+   "to": "s41"
+  },
+  {
+   "id": "r152",
+   "name": "CHASSOURE → VERBIER – MÉDRAN",
+   "length": 3204,
+   "drop": 1205,
+   "climb": 11,
+   "mode": "rotated",
+   "from_": "s31",
+   "to": "s35"
+  },
+  {
+   "id": "r153",
+   "name": "CHASSOURE → TORTIN",
+   "length": 3678,
+   "drop": 675,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s31",
+   "to": "s07"
+  },
+  {
+   "id": "r154",
+   "name": "CHASSOURE → SIVIEZ",
+   "length": 5281,
+   "drop": 987,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s31",
+   "to": "s06"
+  },
+  {
+   "id": "r155",
+   "name": "CHASSOURE → LA TZOUMAZ (TZOUMAZ)",
+   "length": 8063,
+   "drop": 1213,
+   "climb": 14,
+   "mode": "curvilinear",
+   "from_": "s31",
+   "to": "s49"
+  },
+  {
+   "id": "r156",
+   "name": "ROPE TOW BOTTOM → LES PLANARDS",
+   "length": 452,
+   "drop": 61,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s32",
+   "to": "s39"
+  },
+  {
+   "id": "r157",
+   "name": "ROPE TOW BOTTOM → MAYENTZET",
+   "length": 2172,
+   "drop": 258,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s32",
+   "to": "s70"
+  },
+  {
+   "id": "r158",
+   "name": "ROPE TOW BOTTOM → ROUGE BOTTOM",
+   "length": 3107,
+   "drop": 421,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s32",
+   "to": "s41"
+  },
+  {
+   "id": "r159",
+   "name": "ROPE TOW BOTTOM → VERBIER – MÉDRAN",
+   "length": 4203,
+   "drop": 460,
+   "climb": 3,
+   "mode": "curvilinear",
+   "from_": "s32",
+   "to": "s35"
+  },
+  {
+   "id": "r160",
+   "name": "ROPE TOW BOTTOM → LES PLANARDS",
+   "length": 382,
+   "drop": 68,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s32",
+   "to": "s39"
+  },
+  {
+   "id": "r161",
+   "name": "ROPE TOW BOTTOM → ESSERTS BOTTOM",
+   "length": 1347,
+   "drop": 384,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s32",
+   "to": "s60"
+  },
+  {
+   "id": "r162",
+   "name": "ROPE TOW BOTTOM → ROUGE BOTTOM",
+   "length": 1756,
+   "drop": 422,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s32",
+   "to": "s41"
+  },
+  {
+   "id": "r163",
+   "name": "CHAUX 2 TOP → LA CHAUX",
+   "length": 934,
+   "drop": 173,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s34",
+   "to": "s21"
+  },
+  {
+   "id": "r164",
+   "name": "CHAUX 2 TOP → LES RUINETTES – ATTELAS CHAIR",
+   "length": 1533,
+   "drop": 249,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s34",
+   "to": "s72"
+  },
+  {
+   "id": "r165",
+   "name": "CHAUX 2 TOP → LES RUINETTES",
+   "length": 1249,
+   "drop": 271,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s34",
+   "to": "s36"
+  },
+  {
+   "id": "r166",
+   "name": "CHAUX 2 TOP → MAYENTZET",
+   "length": 2329,
+   "drop": 741,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s34",
+   "to": "s70"
+  },
+  {
+   "id": "r167",
+   "name": "CHAUX 2 TOP → VERBIER – MÉDRAN",
+   "length": 2788,
+   "drop": 941,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s34",
+   "to": "s35"
+  },
+  {
+   "id": "r168",
+   "name": "CHAUX 2 TOP → ROUGE BOTTOM",
+   "length": 3133,
+   "drop": 903,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s34",
+   "to": "s41"
+  },
+  {
+   "id": "r169",
+   "name": "CHAUX 2 TOP → LES RUINETTES – ATTELAS CHAIR",
+   "length": 949,
+   "drop": 254,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s34",
+   "to": "s72"
+  },
+  {
+   "id": "r170",
+   "name": "CHAUX 2 TOP → MAYENTZET",
+   "length": 2382,
+   "drop": 741,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s34",
+   "to": "s70"
+  },
+  {
+   "id": "r171",
+   "name": "CHAUX 2 TOP → ROUGE BOTTOM",
+   "length": 3181,
+   "drop": 903,
+   "climb": 3,
+   "mode": "rotated",
+   "from_": "s34",
+   "to": "s41"
+  },
+  {
+   "id": "r172",
+   "name": "CHAUX 2 TOP → VERBIER – MÉDRAN",
+   "length": 2797,
+   "drop": 941,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s34",
+   "to": "s35"
+  },
+  {
+   "id": "r173",
+   "name": "LES RUINETTES → MAYENTZET",
+   "length": 5065,
+   "drop": 455,
+   "climb": 2,
+   "mode": "curvilinear",
+   "from_": "s36",
+   "to": "s70"
+  },
+  {
+   "id": "r174",
+   "name": "LES RUINETTES → ROUGE BOTTOM",
+   "length": 5765,
+   "drop": 618,
+   "climb": 2,
+   "mode": "curvilinear",
+   "from_": "s36",
+   "to": "s41"
+  },
+  {
+   "id": "r175",
+   "name": "LES RUINETTES → VERBIER – MÉDRAN",
+   "length": 6753,
+   "drop": 656,
+   "climb": 2,
+   "mode": "curvilinear",
+   "from_": "s36",
+   "to": "s35"
+  },
+  {
+   "id": "r176",
+   "name": "LES RUINETTES → MAYENTZET",
+   "length": 1170,
+   "drop": 456,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s36",
+   "to": "s70"
+  },
+  {
+   "id": "r177",
+   "name": "LES RUINETTES → VERBIER – MÉDRAN",
+   "length": 1475,
+   "drop": 656,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s36",
+   "to": "s35"
+  },
+  {
+   "id": "r178",
+   "name": "LES RUINETTES → ROUGE BOTTOM",
+   "length": 1983,
+   "drop": 618,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s36",
+   "to": "s41"
+  },
+  {
+   "id": "r179",
+   "name": "LES RUINETTES → MAYENTZET",
+   "length": 1170,
+   "drop": 456,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s36",
+   "to": "s70"
+  },
+  {
+   "id": "r180",
+   "name": "LES RUINETTES → ROUGE BOTTOM",
+   "length": 2771,
+   "drop": 618,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s36",
+   "to": "s41"
+  },
+  {
+   "id": "r181",
+   "name": "LES RUINETTES → VERBIER – MÉDRAN",
+   "length": 1475,
+   "drop": 656,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s36",
+   "to": "s35"
+  },
+  {
+   "id": "r182",
+   "name": "L'AVIATION TOP → PRARION",
+   "length": 1094,
+   "drop": 314,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s38",
+   "to": "s51"
+  },
+  {
+   "id": "r183",
+   "name": "LES PLANARDS → MAYENTZET",
+   "length": 1827,
+   "drop": 190,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s39",
+   "to": "s70"
+  },
+  {
+   "id": "r184",
+   "name": "LES PLANARDS → ROUGE BOTTOM",
+   "length": 1499,
+   "drop": 353,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s39",
+   "to": "s41"
+  },
+  {
+   "id": "r185",
+   "name": "LES PLANARDS → VERBIER – MÉDRAN",
+   "length": 3649,
+   "drop": 391,
+   "climb": 3,
+   "mode": "curvilinear",
+   "from_": "s39",
+   "to": "s35"
+  },
+  {
+   "id": "r186",
+   "name": "LES PLANARDS → ESSERTS BOTTOM",
+   "length": 1180,
+   "drop": 315,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s39",
+   "to": "s60"
+  },
+  {
+   "id": "r187",
+   "name": "LES PLANARDS → ROUGE BOTTOM",
+   "length": 1608,
+   "drop": 353,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s39",
+   "to": "s41"
+  },
+  {
+   "id": "r188",
+   "name": "ROUGE TOP → MAYENTZET",
+   "length": 241,
+   "drop": 17,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s42",
+   "to": "s70"
+  },
+  {
+   "id": "r189",
+   "name": "ROUGE TOP → ROUGE BOTTOM",
+   "length": 768,
+   "drop": 180,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s42",
+   "to": "s41"
+  },
+  {
+   "id": "r190",
+   "name": "ROUGE TOP → VERBIER – MÉDRAN",
+   "length": 1937,
+   "drop": 218,
+   "climb": 2,
+   "mode": "curvilinear",
+   "from_": "s42",
+   "to": "s35"
+  },
+  {
+   "id": "r191",
+   "name": "LA PASAY → MOAY BOTTOM",
+   "length": 6169,
+   "drop": 599,
+   "climb": 26,
+   "mode": "curvilinear",
+   "from_": "s44",
+   "to": "s08"
+  },
+  {
+   "id": "r192",
+   "name": "LA PASAY → GRAND-TSAI BOTTOM",
+   "length": 528,
+   "drop": 126,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s44",
+   "to": "s02"
+  },
+  {
+   "id": "r193",
+   "name": "LA PASAY → MOAY",
+   "length": 2877,
+   "drop": 543,
+   "climb": 5,
+   "mode": "curvilinear",
+   "from_": "s44",
+   "to": "s43"
+  },
+  {
+   "id": "r194",
+   "name": "LA PASAY → MOAY BOTTOM",
+   "length": 1739,
+   "drop": 607,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s44",
+   "to": "s08"
+  },
+  {
+   "id": "r195",
+   "name": "LA PASAY → MOAY",
+   "length": 1397,
+   "drop": 539,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s44",
+   "to": "s43"
+  },
+  {
+   "id": "r196",
+   "name": "LA PASAY → MOAY BOTTOM",
+   "length": 1653,
+   "drop": 594,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s44",
+   "to": "s08"
+  },
+  {
+   "id": "r197",
+   "name": "TSA TOP → TSA BOTTOM",
+   "length": 466,
+   "drop": 147,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s48",
+   "to": "s47"
+  },
+  {
+   "id": "r198",
+   "name": "TSA TOP → LES CHOTTES-LA MEINA-GREPPON BLANC BOTTOM",
+   "length": 583,
+   "drop": 165,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s48",
+   "to": "s18"
+  },
+  {
+   "id": "r199",
+   "name": "TSA TOP → DRUS BOTTOM",
+   "length": 2333,
+   "drop": 331,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s48",
+   "to": "s67"
+  },
+  {
+   "id": "r200",
+   "name": "TSA TOP → VEYSONNAZ",
+   "length": 3998,
+   "drop": 947,
+   "climb": 3,
+   "mode": "rotated",
+   "from_": "s48",
+   "to": "s16"
+  },
+  {
+   "id": "r201",
+   "name": "TRABANTA → THYON",
+   "length": 239,
+   "drop": 25,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s50",
+   "to": "s17"
+  },
+  {
+   "id": "r202",
+   "name": "TRABANTA → LES COLLONS (LES MASSES, MURAZ, PETIT VALLON, THEYTAZ)",
+   "length": 734,
+   "drop": 192,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s50",
+   "to": "s24"
+  },
+  {
+   "id": "r203",
+   "name": "TRABANTA → LES COLLONS, TÉLÉMIXTE AVAL",
+   "length": 875,
+   "drop": 217,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s50",
+   "to": "s68"
+  },
+  {
+   "id": "r204",
+   "name": "TRABANTA → LES COLLONS (ETHÉROLLA)",
+   "length": 999,
+   "drop": 246,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s50",
+   "to": "s04"
+  },
+  {
+   "id": "r205",
+   "name": "TRABANTA → LES COLLONS (JOC, PETIT VALLON, TRABANTA)",
+   "length": 1044,
+   "drop": 281,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s50",
+   "to": "s56"
+  },
+  {
+   "id": "r206",
+   "name": "TRABANTA → INALPE BOTTOM",
+   "length": 718,
+   "drop": 150,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s50",
+   "to": "s40"
+  },
+  {
+   "id": "r207",
+   "name": "TRABANTA → DRUS BOTTOM",
+   "length": 649,
+   "drop": 200,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s50",
+   "to": "s67"
+  },
+  {
+   "id": "r208",
+   "name": "TRABANTA → LES COLLONS, TÉLÉMIXTE AVAL",
+   "length": 905,
+   "drop": 232,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s50",
+   "to": "s68"
+  },
+  {
+   "id": "r209",
+   "name": "TRABANTA → LES COLLONS (JOC, PETIT VALLON, TRABANTA)",
+   "length": 903,
+   "drop": 229,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s50",
+   "to": "s56"
+  },
+  {
+   "id": "r210",
+   "name": "TRABANTA → MAYENS-DE-L'HÔPITAL",
+   "length": 1706,
+   "drop": 703,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s50",
+   "to": "s33"
+  },
+  {
+   "id": "r211",
+   "name": "TRABANTA → HÉRÉMENCE LES MASSES",
+   "length": 1750,
+   "drop": 592,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s50",
+   "to": "s23"
+  },
+  {
+   "id": "r212",
+   "name": "TRABANTA → VEYSONNAZ",
+   "length": 2737,
+   "drop": 815,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s50",
+   "to": "s16"
+  },
+  {
+   "id": "r213",
+   "name": "TRABANTA → LES COLLONS (ETHÉROLLA)",
+   "length": 1001,
+   "drop": 246,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s50",
+   "to": "s04"
+  },
+  {
+   "id": "r214",
+   "name": "TRABANTA → HÉRÉMENCE LES MASSES",
+   "length": 1751,
+   "drop": 592,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s50",
+   "to": "s23"
+  },
+  {
+   "id": "r215",
+   "name": "DENT DE NENDAZ → TRACOUET",
+   "length": 257,
+   "drop": 82,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s52",
+   "to": "s26"
+  },
+  {
+   "id": "r216",
+   "name": "DENT DE NENDAZ → JEAN-PIERRE BOTTOM",
+   "length": 753,
+   "drop": 153,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s52",
+   "to": "s29"
+  },
+  {
+   "id": "r217",
+   "name": "DENT DE NENDAZ → ALPAGE BOTTOM",
+   "length": 1647,
+   "drop": 358,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s52",
+   "to": "s25"
+  },
+  {
+   "id": "r218",
+   "name": "DENT DE NENDAZ → HAUTE-NENDAZ",
+   "length": 4339,
+   "drop": 873,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s52",
+   "to": "s55"
+  },
+  {
+   "id": "r219",
+   "name": "DENT DE NENDAZ → ALPAGE BOTTOM",
+   "length": 1029,
+   "drop": 357,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s52",
+   "to": "s25"
+  },
+  {
+   "id": "r220",
+   "name": "DENT DE NENDAZ → PRARION",
+   "length": 2327,
+   "drop": 409,
+   "climb": 3,
+   "mode": "curvilinear",
+   "from_": "s52",
+   "to": "s51"
+  },
+  {
+   "id": "r221",
+   "name": "DENT DE NENDAZ → HAUTE-NENDAZ",
+   "length": 2317,
+   "drop": 873,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s52",
+   "to": "s55"
+  },
+  {
+   "id": "r222",
+   "name": "ETABLONS DE RIDDES → ETABLONS DE RIDDES-NORD",
+   "length": 300,
+   "drop": 97,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s54",
+   "to": "s27"
+  },
+  {
+   "id": "r223",
+   "name": "ETABLONS DE RIDDES → LE TAILLAY",
+   "length": 1614,
+   "drop": 193,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s54",
+   "to": "s58"
+  },
+  {
+   "id": "r224",
+   "name": "ETABLONS DE RIDDES → LA TZOUMAZ (LES ETABLONS)",
+   "length": 2170,
+   "drop": 483,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s54",
+   "to": "s53"
+  },
+  {
+   "id": "r225",
+   "name": "ETABLONS DE RIDDES → LA TZOUMAZ (TZOUMAZ)",
+   "length": 2658,
+   "drop": 593,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s54",
+   "to": "s49"
+  },
+  {
+   "id": "r226",
+   "name": "PLAN-DU-FOU → SIVIEZ",
+   "length": 1689,
+   "drop": 703,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s57",
+   "to": "s06"
+  },
+  {
+   "id": "r227",
+   "name": "PLAN-DU-FOU → PRARION",
+   "length": 1445,
+   "drop": 577,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s57",
+   "to": "s51"
+  },
+  {
+   "id": "r228",
+   "name": "PLAN-DU-FOU → PRARION",
+   "length": 1233,
+   "drop": 570,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s57",
+   "to": "s51"
+  },
+  {
+   "id": "r229",
+   "name": "TÊTE-DES-CREUSES → ETABLONS DE RIDDES-NORD",
+   "length": 1601,
+   "drop": 224,
+   "climb": 5,
+   "mode": "curvilinear",
+   "from_": "s59",
+   "to": "s27"
+  },
+  {
+   "id": "r230",
+   "name": "TÊTE-DES-CREUSES → LE TAILLAY",
+   "length": 1340,
+   "drop": 347,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s59",
+   "to": "s58"
+  },
+  {
+   "id": "r231",
+   "name": "TÊTE-DES-CREUSES → LES PLANARDS",
+   "length": 1020,
+   "drop": 314,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s59",
+   "to": "s39"
+  },
+  {
+   "id": "r232",
+   "name": "TÊTE-DES-CREUSES → MAYENTZET",
+   "length": 2894,
+   "drop": 511,
+   "climb": 3,
+   "mode": "rotated",
+   "from_": "s59",
+   "to": "s70"
+  },
+  {
+   "id": "r233",
+   "name": "TÊTE-DES-CREUSES → ROUGE BOTTOM",
+   "length": 5393,
+   "drop": 675,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s59",
+   "to": "s41"
+  },
+  {
+   "id": "r234",
+   "name": "TÊTE-DES-CREUSES → VERBIER – MÉDRAN",
+   "length": 6489,
+   "drop": 713,
+   "climb": 3,
+   "mode": "curvilinear",
+   "from_": "s59",
+   "to": "s35"
+  },
+  {
+   "id": "r235",
+   "name": "TÊTE-DES-CREUSES → LES PLANARDS",
+   "length": 1022,
+   "drop": 322,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s59",
+   "to": "s39"
+  },
+  {
+   "id": "r236",
+   "name": "TÊTE-DES-CREUSES → LE TAILLAY",
+   "length": 1392,
+   "drop": 353,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s59",
+   "to": "s58"
+  },
+  {
+   "id": "r237",
+   "name": "TÊTE-DES-CREUSES → ESSERTS BOTTOM",
+   "length": 2072,
+   "drop": 637,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s59",
+   "to": "s60"
+  },
+  {
+   "id": "r238",
+   "name": "TÊTE-DES-CREUSES → LA TZOUMAZ (LES ETABLONS)",
+   "length": 2085,
+   "drop": 611,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s59",
+   "to": "s53"
+  },
+  {
+   "id": "r239",
+   "name": "TÊTE-DES-CREUSES → ROUGE BOTTOM",
+   "length": 2474,
+   "drop": 675,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s59",
+   "to": "s41"
+  },
+  {
+   "id": "r240",
+   "name": "TÊTE-DES-CREUSES → MAYENTZET",
+   "length": 2897,
+   "drop": 512,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s59",
+   "to": "s70"
+  },
+  {
+   "id": "r241",
+   "name": "TÊTE-DES-CREUSES → LA TZOUMAZ (TZOUMAZ)",
+   "length": 2466,
+   "drop": 720,
+   "climb": 2,
+   "mode": "rotated",
+   "from_": "s59",
+   "to": "s49"
+  },
+  {
+   "id": "r242",
+   "name": "TÊTE-DES-CREUSES → VERBIER – MÉDRAN",
+   "length": 4937,
+   "drop": 713,
+   "climb": 3,
+   "mode": "curvilinear",
+   "from_": "s59",
+   "to": "s35"
+  },
+  {
+   "id": "r243",
+   "name": "ESSERTS TOP → ESSERTS BOTTOM",
+   "length": 324,
+   "drop": 59,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s61",
+   "to": "s60"
+  },
+  {
+   "id": "r244",
+   "name": "ESSERTS TOP → ROUGE BOTTOM",
+   "length": 723,
+   "drop": 97,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s61",
+   "to": "s41"
+  },
+  {
+   "id": "r245",
+   "name": "ESSERTS TOP → ESSERTS BOTTOM",
+   "length": 312,
+   "drop": 57,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s61",
+   "to": "s60"
+  },
+  {
+   "id": "r246",
+   "name": "ESSERTS TOP → ROUGE BOTTOM",
+   "length": 716,
+   "drop": 95,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s61",
+   "to": "s41"
+  },
+  {
+   "id": "r247",
+   "name": "COL DES GENTIANES → GENTIANES BOTTOM",
+   "length": 339,
+   "drop": 71,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s62",
+   "to": "s66"
+  },
+  {
+   "id": "r248",
+   "name": "COL DES GENTIANES → LA CHAUX",
+   "length": 2244,
+   "drop": 618,
+   "climb": 12,
+   "mode": "rotated",
+   "from_": "s62",
+   "to": "s21"
+  },
+  {
+   "id": "r249",
+   "name": "COL DES GENTIANES → TORTIN",
+   "length": 3088,
+   "drop": 845,
+   "climb": 4,
+   "mode": "rotated",
+   "from_": "s62",
+   "to": "s07"
+  },
+  {
+   "id": "r250",
+   "name": "COL DES GENTIANES → SIVIEZ",
+   "length": 5625,
+   "drop": 1157,
+   "climb": 6,
+   "mode": "rotated",
+   "from_": "s62",
+   "to": "s06"
+  },
+  {
+   "id": "r251",
+   "name": "MONT-FORT → GENTIANES BOTTOM",
+   "length": 1470,
+   "drop": 467,
+   "climb": 5,
+   "mode": "rotated",
+   "from_": "s63",
+   "to": "s66"
+  },
+  {
+   "id": "r252",
+   "name": "MONT-FORT → TORTIN",
+   "length": 3712,
+   "drop": 1241,
+   "climb": 9,
+   "mode": "rotated",
+   "from_": "s63",
+   "to": "s07"
+  },
+  {
+   "id": "r253",
+   "name": "MONT-FORT → SIVIEZ",
+   "length": 7441,
+   "drop": 1553,
+   "climb": 11,
+   "mode": "curvilinear",
+   "from_": "s63",
+   "to": "s06"
+  },
+  {
+   "id": "r254",
+   "name": "MOULINS TOP → MOULINS BOTTOM",
+   "length": 218,
+   "drop": 47,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s65",
+   "to": "s64"
+  },
+  {
+   "id": "r255",
+   "name": "COMBATZELINE → GREPPON BLANC 2 BOTTOM",
+   "length": 484,
+   "drop": 55,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s69",
+   "to": "s14"
+  },
+  {
+   "id": "r256",
+   "name": "COMBATZELINE → SIVIEZ",
+   "length": 1257,
+   "drop": 504,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s69",
+   "to": "s06"
+  },
+  {
+   "id": "r257",
+   "name": "MAYENTZET → ROUGE BOTTOM",
+   "length": 681,
+   "drop": 160,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s70",
+   "to": "s41"
+  },
+  {
+   "id": "r258",
+   "name": "MAYENTZET → VERBIER – MÉDRAN",
+   "length": 425,
+   "drop": 192,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s70",
+   "to": "s35"
+  },
+  {
+   "id": "r259",
+   "name": "LES RUINETTES – ATTELAS CHAIR → LES RUINETTES",
+   "length": 137,
+   "drop": 36,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s72",
+   "to": "s36"
+  },
+  {
+   "id": "r260",
+   "name": "LES RUINETTES – ATTELAS CHAIR → MAYENTZET",
+   "length": 1349,
+   "drop": 506,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s72",
+   "to": "s70"
+  },
+  {
+   "id": "r261",
+   "name": "LES RUINETTES – ATTELAS CHAIR → VERBIER – MÉDRAN",
+   "length": 1681,
+   "drop": 706,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s72",
+   "to": "s35"
+  },
+  {
+   "id": "r262",
+   "name": "LES RUINETTES – ATTELAS CHAIR → ROUGE BOTTOM",
+   "length": 2138,
+   "drop": 668,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s72",
+   "to": "s41"
+  },
+  {
+   "id": "r263",
+   "name": "LES RUINETTES – ATTELAS CHAIR → MAYENTZET",
+   "length": 1349,
+   "drop": 506,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s72",
+   "to": "s70"
+  },
+  {
+   "id": "r264",
+   "name": "LES RUINETTES – ATTELAS CHAIR → ROUGE BOTTOM",
+   "length": 2751,
+   "drop": 669,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s72",
+   "to": "s41"
+  },
+  {
+   "id": "r265",
+   "name": "LES RUINETTES – ATTELAS CHAIR → VERBIER – MÉDRAN",
+   "length": 1685,
+   "drop": 706,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s72",
+   "to": "s35"
+  },
+  {
+   "id": "r266",
+   "name": "TÊTE DE VAUX → LAC DES VAUX",
+   "length": 680,
+   "drop": 169,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s73",
+   "to": "s30"
+  },
+  {
+   "id": "r267",
+   "name": "TÊTE DE VAUX → LAC DES VAUX",
+   "length": 670,
+   "drop": 162,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s73",
+   "to": "s30"
+  },
+  {
+   "id": "r268",
+   "name": "TÊTE DE VAUX → LES RUINETTES – ATTELAS CHAIR",
+   "length": 2171,
+   "drop": 443,
+   "climb": 0,
+   "mode": "curvilinear",
+   "from_": "s73",
+   "to": "s72"
+  },
+  {
+   "id": "r269",
+   "name": "TÊTE DE VAUX → LES RUINETTES",
+   "length": 1426,
+   "drop": 465,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s73",
+   "to": "s36"
+  },
+  {
+   "id": "r270",
+   "name": "TÊTE DE VAUX → LA CHAUX",
+   "length": 1829,
+   "drop": 403,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": "s73",
+   "to": "s21"
+  },
+  {
+   "id": "r271",
+   "name": "TÊTE DE VAUX → MAYENTZET",
+   "length": 3843,
+   "drop": 934,
+   "climb": 0,
+   "mode": "curvilinear",
+   "from_": "s73",
+   "to": "s70"
+  },
+  {
+   "id": "r272",
+   "name": "TÊTE DE VAUX → VERBIER – MÉDRAN",
+   "length": 5439,
+   "drop": 1135,
+   "climb": 0,
+   "mode": "curvilinear",
+   "from_": "s73",
+   "to": "s35"
+  },
+  {
+   "id": "r273",
+   "name": "TÊTE DE VAUX → ROUGE BOTTOM",
+   "length": 5465,
+   "drop": 1097,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s73",
+   "to": "s41"
+  },
+  {
+   "id": "r274",
+   "name": "TÊTE DE VAUX → LES RUINETTES – ATTELAS CHAIR",
+   "length": 1872,
+   "drop": 447,
+   "climb": 0,
+   "mode": "curvilinear",
+   "from_": "s73",
+   "to": "s72"
+  },
+  {
+   "id": "r275",
+   "name": "TÊTE DE VAUX → LES RUINETTES",
+   "length": 1426,
+   "drop": 465,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s73",
+   "to": "s36"
+  },
+  {
+   "id": "r276",
+   "name": "TÊTE DE VAUX → MAYENTZET",
+   "length": 3471,
+   "drop": 934,
+   "climb": 0,
+   "mode": "curvilinear",
+   "from_": "s73",
+   "to": "s70"
+  },
+  {
+   "id": "r277",
+   "name": "TÊTE DE VAUX → ROUGE BOTTOM",
+   "length": 4433,
+   "drop": 1097,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s73",
+   "to": "s41"
+  },
+  {
+   "id": "r278",
+   "name": "TÊTE DE VAUX → VERBIER – MÉDRAN",
+   "length": 5067,
+   "drop": 1135,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s73",
+   "to": "s35"
+  },
+  {
+   "id": "r279",
+   "name": "TÊTE DE VAUX → LA TZOUMAZ (TZOUMAZ)",
+   "length": 5929,
+   "drop": 1180,
+   "climb": 17,
+   "mode": "rotated",
+   "from_": "s73",
+   "to": "s49"
+  },
+  {
+   "id": "attelas",
+   "name": "ATTELAS",
+   "length": 2337,
+   "drop": 485,
+   "climb": 0,
+   "mode": "curvilinear",
+   "from_": "s73",
+   "to": "s72"
+  },
+  {
+   "id": "hattey-clambin",
+   "name": "HATTEY → CLAMBIN",
+   "length": 2273,
+   "drop": 476,
+   "climb": 0,
+   "mode": "curvilinear",
+   "from_": "s36",
+   "to": "s35"
+  },
+  {
+   "id": "la-chaux-park",
+   "name": "LA CHAUX SNOWPARK",
+   "length": 511,
+   "drop": 86,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s22",
+   "to": "s21"
+  },
+  {
+   "id": "la-chaux-skicross",
+   "name": "LA CHAUX SKI CROSS",
+   "length": 583,
+   "drop": 94,
+   "climb": 0,
+   "mode": "rotated",
+   "from_": "s34",
+   "to": "s21"
+  },
+  {
+   "id": "mont-fort",
+   "name": "MONT-FORT",
+   "length": 1469,
+   "drop": 467,
+   "climb": 5,
+   "mode": "rotated",
+   "from_": "s63",
+   "to": "s66"
+  },
+  {
+   "id": "chassoure-tortin",
+   "name": "CHASSOURE → TORTIN",
+   "length": 3785,
+   "drop": 698,
+   "climb": 1,
+   "mode": "curvilinear",
+   "from_": "s31",
+   "to": "s07"
+  },
+  {
+   "id": "fis",
+   "name": "FIS",
+   "length": 2161,
+   "drop": 792,
+   "climb": 1,
+   "mode": "rotated",
+   "from_": null,
+   "to": "s70"
+  },
+  {
+   "id": "mont-gele-chaux",
+   "name": "MONT-GELÉ → LA CHAUX",
+   "length": 1326,
+   "drop": 487,
+   "climb": 7,
+   "mode": "rotated",
+   "from_": "s13",
+   "to": null
+  }
+ ],
+ "tiles": 198
+}

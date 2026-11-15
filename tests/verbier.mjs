@@ -3,10 +3,10 @@
 import assert from 'node:assert/strict';
 import * as T from 'three';
 import { PISTES, LIFTS, ANCHORS, ITINERARIES, SNOWPARK, infrastructureFor, FUN_ZONES } from '../lib/verbier/registry.ts';
-import { verbierRun, moguls, RUNS } from '../lib/verbier/terrain.ts';
+import { verbierRun, moguls, RUNS, resortSync, worldHeight, tileLoaded } from '../lib/verbier/terrain.ts';
 import { curvature } from '../lib/verbier/scenery.ts';
 import { LA_CHAUX_FEATURES } from '../lib/park-jumps.ts';
-import { COURSES, height, snowDepth, SnowGame, center } from '../lib/snow-game.ts';
+import { COURSES, height, snowDepth, SnowGame, center, routeCourse } from '../lib/snow-game.ts';
 import { makeParkRails } from '../lib/park-rails.ts';
 import { IDLE_INTENT } from '../lib/sim/rider-controller.ts';
 import { lineFollower } from '../tools/gamebot.mjs';
@@ -34,26 +34,54 @@ import { lineFollower } from '../tools/gamebot.mjs';
     console.log('Infrastructure versioning: historical link and Télémixte never coexist; on 14 Nov 2026 only the upper section passed.');
 }
 
-// ---- anchors: gazetteer positions, swissALTI3D heights; cross-checked against the shipped run grids ----------------------
+// ---- anchors: gazetteer positions, swissALTI3D heights; cross-checked against the shipped 2 m tiles ------------------------
 {
+    for (const m of RUNS) verbierRun(m.id);                                    // loads the tiles around the featured runs
     const resolved = ANCHORS.filter(a => a.resolved);
-    for (const a of resolved) assert(Math.abs(a.error) <= 25, `${a.name}: DEM ${a.demElevation} m vs published ${a.publishedElevation} m`);
-    assert(resolved.length >= 14, `${resolved.length} of ${ANCHORS.length} anchors resolved`);
+    // villages span a range of heights around their rounded published figure; stations and summits are points
+    for (const a of resolved) assert(Math.abs(a.error) <= (a.gazetteer?.startsWith('Ort ') ? 40 : 25), `${a.name}: DEM ${a.demElevation} m vs published ${a.publishedElevation} m`);
+    assert(resolved.length >= 15, `${resolved.length} of ${ANCHORS.length} anchors resolved`);
     assert(ANCHORS.filter(a => !a.resolved).every(a => a.status && a.status.length > 10), 'unresolved anchors say why');
-    // independent check: an anchor inside a rotated run's 2 m grid, mapped through the run frame, sits at the same height
     let checked = 0;
-    for (const meta of RUNS) {
-        const run = verbierRun(meta.id), f = run.h.frame, n = run.h.near; if (f.mode !== 'rotated') continue;
-        for (const a of ANCHORS) {
-            const de = a.e - f.e0, dn = a.n - f.n0, d = de * f.ue + dn * f.un, x = de * f.un - dn * f.ue;
-            if (x < n.x0 + 50 || x > n.x0 + (n.nx - 1) * n.cell - 50 || d < n.d0 + 50 || d > n.d0 + (n.nd - 1) * n.cell - 50) continue;
-            const w = run.world(x, d); assert(Math.hypot(w.e - a.e, w.n - a.n) < .01, 'frame round trip');
-            assert(Math.abs(run.terrain(x, d) - a.demElevation) < 4, `${a.name} on ${run.name}: grid ${run.terrain(x, d).toFixed(1)} vs ${a.demElevation}`);
-            checked++;
-        }
+    for (const a of resolved) {
+        if (!tileLoaded(a.e, a.n)) continue;
+        assert(Math.abs(worldHeight(a.e, a.n) - a.demElevation) < 4, `${a.name}: tile ${worldHeight(a.e, a.n).toFixed(1)} vs ${a.demElevation}`);
+        checked++;
     }
-    assert(checked >= 2, `anchors cross-checked against run grids (${checked})`);
-    console.log(`Anchors: ${resolved.length}/${ANCHORS.length} within 25 m of published elevations; ${checked} cross-checked against the shipped 2 m run grids (snow-smoothed, <4 m) passed.`);
+    assert(checked >= 6, `anchors cross-checked against the shipped tiles (${checked})`);
+    console.log(`Anchors: ${resolved.length}/${ANCHORS.length} within tolerance of published elevations (stations/summits 25 m, villages 40 m); ${checked} cross-checked against the shipped 2 m tiles (snow-smoothed, <4 m) passed.`);
+}
+
+// ---- the resort: real lifts and stations, every run ends at a lift station, the domain is connected ----------------------------
+{
+    const r = resortSync();
+    const lift = name => r.lifts.find(l => l.name === name), station = name => r.stations.find(s => s.name === name);
+    for (const n of ['Châble - Verbier', 'Médran 2', 'Funispace', 'Attelas', 'Mont-Gelé', 'Chaux-Express', 'Chaux 2', 'Jumbo', 'Mont-Fort', 'Tortin - Col des Gentianes', 'Tortin-Chassoure', 'Lac des Vaux 1', 'Lac des Vaux 2', 'Mayentzet', 'Tzoumaz', 'TMX Savoleyres', 'Siviez', 'Châble - Mayens de Bruson'])
+        assert(lift(n), `mapped lift ${n}`);
+    for (const n of ['Le Châble', 'Verbier – Médran', 'Les Ruinettes', 'Les Attelas', 'Mont-Gelé', 'La Chaux', 'Col des Gentianes', 'Mont-Fort', 'Tortin', 'Chassoure', 'Savoleyres', 'La Tzoumaz (Tzoumaz)', 'Siviez'])
+        assert(station(n), `station ${n}`);
+    assert(Math.abs(lift('Médran 2').vertical - 680) < 40, `Médran 2 climbs ${lift('Médran 2').vertical} m (Verbier 1,520 m to Les Ruinettes 2,200 m)`);
+    assert(Math.abs(lift('Funispace').vertical - 530) < 40, `Funispace climbs ${lift('Funispace').vertical} m (Les Ruinettes to Les Attelas)`);
+    assert.equal(r.stations.find(s => s.id === lift('Mont-Fort').to).name, 'Mont-Fort'); assert.equal(r.stations.find(s => s.id === lift('Médran 2').from).name, 'Verbier – Médran');
+    for (const l of r.lifts) { assert(l.topZ > l.bottomZ, `${l.name} goes up`); assert(r.stations.some(s => s.id === l.from) && r.stations.some(s => s.id === l.to)); }
+    const ids = new Set(r.routes.map(x => x.id));
+    for (const x of r.routes.filter(x => !x.featured)) {
+        const to = r.stations.find(s => s.id === x.toStation), end = x.line[x.line.length - 1];
+        assert(to && to.liftsUp.length > 0, `${x.name} ends where a lift goes up`);
+        assert(Math.hypot(end[0] - to.e, end[1] - to.n) < 450, `${x.name} ends at ${to.name}`);
+        assert(r.stations.find(s => s.id === x.fromStation).routesFrom.includes(x.id) && ids.has(x.id));
+        assert(x.drop > 5, `${x.name} goes down (${x.drop} m)`);
+    }
+    // from Verbier village, lifts and pistes reach the whole Verbier sector
+    const seen = new Set([station('Verbier – Médran').id]), queue = [...seen];
+    while (queue.length) {
+        const id = queue.shift(), s = r.stations.find(x => x.id === id);
+        for (const next of [...s.liftsUp.map(id => r.lifts.find(l => l.id === id).to), ...s.routesFrom.map(id => r.routes.find(x => x.id === id).toStation)])
+            if (next && !seen.has(next)) { seen.add(next); queue.push(next); }
+    }
+    for (const n of ['Mont-Fort', 'Tortin', 'Savoleyres', 'La Chaux', 'Les Attelas', 'Siviez']) assert(seen.has(station(n).id), `${n} reachable from Verbier`);
+    const network = r.routes.filter(x => !x.featured);
+    console.log(`Resort: ${r.lifts.length} mapped lifts, ${r.stations.length} named stations, ${network.length} station-to-station runs, all ending where a lift goes up; ${seen.size} stations reachable from Verbier – Médran passed.`);
 }
 
 // ---- runs: real descents along the mapped lines --------------------------------------------------------------------------
@@ -118,7 +146,8 @@ import { lineFollower } from '../tools/gamebot.mjs';
 
 // ---- riding the real terrain under Reality physics ---------------------------------------------------------------------
 {
-    for (const course of COURSES.filter(c => c.dem)) {
+    const net = resortSync().routes.filter(x => !x.featured), sample = [0, 37, 91, 150, 211].map(i => net[i % net.length]);
+    for (const course of [...COURSES.filter(c => c.dem), ...sample.map((x, i) => routeCourse(x, i))]) {
         const g = Object.create(SnowGame.prototype);
         Object.assign(g, { course, mode: 'freeride', state: 'ride', x: 0, d: 0, y: 0, vy: 0, speed: 0, heading: 0, spin: 0, flip: 0, airTime: 0, grabTime: 0, ground: true,
             settings: { physics: 'reality', assistLevel: 'balanced', quality: 'high', volume: 0, assist: false, motion: false, weather: 'clear', fov: 62 },
@@ -135,6 +164,6 @@ import { lineFollower } from '../tools/gamebot.mjs';
         assert(y0 - g.y > 8, `${course.name}: descends under gravity (${(y0 - g.y).toFixed(0)} m lower)`);
         assert(g.getHUD().altitude > 1400 && g.getHUD().altitude < 3400, 'HUD shows a real altitude');
     }
-    console.log('Reality physics on all eight Verbier runs: rides down the real slopes, HUD altitude from the DEM passed.');
+    console.log('Reality physics on all eight featured runs and five network runs: rides down the real slopes, HUD altitude from the DEM passed.');
 }
 console.log('Verbier validation passed.');

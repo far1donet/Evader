@@ -67,28 +67,32 @@ npm run build && npm start
 
 Use `npm run dev` for hot reload while editing (slower; use the production build for performance comparisons).
 
-## Verbier – 4 Vallées (real terrain)
+## Verbier – 4 Vallées resort map
 
-Eight runs are built from Swiss federal survey data and mapped run lines:
-- **Attelas**
-- **Hattey → Clambin**
-- **La Chaux Snowpark**
-- **La Chaux Ski Cross**
-- **Mont-Fort**
-- **Chassoure → Tortin**
-- **FIS**
-- **Mont-Gelé → La Chaux**
+Choose **Verbier resort map** in the menu to open the resort in **2D** (a shaded piste map) or **3D** (the real
+mountains). You start at Verbier – Médran.
 
-| What | Source |
+From any station you can:
+1. **Take a lift.** Lifts follow their mapped lines and use their real ride times. The map plays the ride sped up.
+2. **Ride down to another station.** There are 280 routes, each following mapped pistes to where a lift goes up.
+
+When a run ends, you arrive at that lift station and choose where to go next. There is no finish line and no trip back
+to the main menu. You can also tap any lift, run or station on the map and travel there.
+
+At walking pace, tuck (**W**, or tilt the phone forward) to skate out of stations and across flats.
+
+| Data | Source |
 | --- | --- |
-| Terrain | swissALTI3D 2 m (2024) © swisstopo |
-| Run and lift lines | OpenStreetMap contributors (ODbL), via OpenSkiData |
-| Trees | Detected in SWISSIMAGE aerial photos © swisstopo |
-| Place heights | swisstopo gazetteer |
+| Terrain | swissALTI3D 2 m (2024) © swisstopo, covering Bruson to Thyon |
+| Pistes and lifts | OpenStreetMap contributors (ODbL), via OpenSkiData |
+| Station names | Swiss public-transport stop register and swissNAMES3D |
+| Trees | SWISSIMAGE © swisstopo |
+| Distant horizon | SRTM |
 
-Each run follows its real mapped line, with its real bends, steepness and grooming. The lifts and pylons are where they are mapped, and the HUD shows your real altitude and the air temperature at that altitude. Rebuild the data with the `tools/verbier/fetch_swissalti3d.py`, `build_runs.py` and `build_anchors.py` scripts.
+The eight featured runs are still in the menu.
 
-See [docs/verbier/STATUS.md](docs/verbier/STATUS.md) for what is exact, what is a design value, and what is missing.
+Rebuild the data with the scripts in `tools/verbier/`. See [docs/verbier/STATUS.md](docs/verbier/STATUS.md) for what
+is exact, what is estimated, and what is missing.
 
 ## What Reality physics does
 

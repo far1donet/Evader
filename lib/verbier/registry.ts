@@ -95,5 +95,8 @@ export const SOURCES = [
     { name: 'SWISSIMAGE (tree positions) © swisstopo', url: 'https://www.swisstopo.admin.ch/en/orthoimage-swissimage-10' },
     { name: 'swisstopo gazetteer / search service (anchor positions)', url: 'https://api3.geo.admin.ch/' },
     { name: 'OpenSkiData: run and lift lines from OpenStreetMap contributors (ODbL)', url: 'https://openskidata.org/' },
+    { name: 'Public-transport stop register (BAV), lift station names', url: 'https://api3.geo.admin.ch/' },
+    { name: 'swissNAMES3D © swisstopo (station names where no stop exists)', url: 'https://www.swisstopo.admin.ch/en/landscape-model-swissnames3d' },
+    { name: 'SRTM 1 arc-second, NASA/USGS (public domain): distant horizon only', url: 'https://www.earthdata.nasa.gov/' },
 ] as const;
 export const RIGHTS = 'Place and run names are factual references. No resort logos, piste-map artwork or branding are used. Terrain and imagery-derived data © swisstopo (free geodata, attribution required). Run and lift lines © OpenStreetMap contributors, available under the Open Database License (ODbL), via OpenSkiData.';

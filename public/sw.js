@@ -1,6 +1,6 @@
 // EVADER offline cache: everything the game loads is same-origin and static. Pages are network-first (updates arrive
 // when online), hashed build assets are cache-first. After one online visit the installed app plays offline.
-const CACHE = 'evader-v0.5';
+const CACHE = 'evader-v0.7';
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./', './manifest.webmanifest', './icon-192.png', './icon-512.png', './favicon.svg']).catch(() => {}))); });
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener('fetch', e => {

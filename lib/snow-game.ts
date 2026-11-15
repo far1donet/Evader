@@ -104,6 +104,11 @@ const VERBIER_COURSES: Course[] = VERBIER_RUNS.map((r, i) => ({
     drop: Math.round(r.startElevation - r.endElevation), difficulty: CLASS_LABEL[r.klass] ?? r.klass.toUpperCase(), spacing: 1e9,
     rails: r.klass === 'park' ? 4 : 0, seed: 300 + i, dem: r.id, runClass: r.klass as RunClass,
 }));
+/** A playable course for any resort route (station to station along mapped pistes). Load it with loadRun first. */
+export function routeCourse(r: { id: string; name: string; description: string; klass: string; length: number; drop: number }, index = 0): Course {
+    return { id: 1000 + index, name: r.name, region: 'VERBIER · 4 VALLÉES', subtitle: r.description, length: r.length, drop: r.drop,
+        difficulty: CLASS_LABEL[r.klass] ?? r.klass.toUpperCase(), spacing: 1e9, rails: r.klass === 'park' ? 4 : 0, seed: 500 + index, dem: r.id, runClass: r.klass as RunClass };
+}
 export const COURSES: Course[] = [
     { id: 0, name: 'AIGUILLE NOIRE', region: 'THE ALPINE RANGE', subtitle: 'Big lines. Bigger possibilities.', length: 1600, drop: 416, difficulty: 'INTERMEDIATE', spacing: 190, rails: 5, seed: 27 },
     { id: 1, name: 'NORTHLINE PARK', region: 'THE NORTHERN RIDGE', subtitle: 'A perfectly imperfect playground.', length: 1200, drop: 300, difficulty: 'BEGINNER', spacing: 125, rails: 8, seed: 56 },
@@ -303,6 +308,8 @@ export class SnowGame {
     keys = new Set<string>();
     touch = new Set<string>();
     frameId = 0;
+    /** True while another full-screen view (the resort map) owns the GPU: the game stops rendering. */
+    suspended = false;
     resizeObserver: ResizeObserver;
     private readonly host: HTMLElement;
     private readonly gearPreview: GearPreview;
@@ -683,7 +690,8 @@ export class SnowGame {
         }
         this.rails = makeParkRails(c, d => center(d, c), (x, d) => height(x, d, c), poleMat);
         for (const rail of this.rails) this.world.add(rail.mesh);
-        for (let i = 1; i <= Math.floor(c.length / 180) - 1; i++) {
+        // Real-terrain runs: no gates or finish banner; the run ends at the mapped lift station (drawn with the lifts).
+        for (let i = 1; i <= (c.dem ? 0 : Math.floor(c.length / 180) - 1); i++) {
             const d = i * 180, x = center(d, c), group = new T.Group();
             for (const side of [-1, 1]) {
                 this.mesh(new T.CylinderGeometry(.065, .065, 3.8), poleMat, x + side * 12, height(x + side * 12, d, c) + 1.9, -d, group);
@@ -696,7 +704,7 @@ export class SnowGame {
         for (const side of [-1, 1])
             this.mesh(new T.BoxGeometry(.4, 8, .4), poleMat, fx + side * 20, fy + 4, -fd, finish);
         this.mesh(new T.BoxGeometry(40, 1, .5), flagMat, fx, fy + 8, -fd, finish);
-        this.world.add(finish);
+        if (!c.dem) this.world.add(finish);
         this.setAtmosphere();
         this.x = center(0, c);
         this.y = height(this.x, 0, c);
@@ -1023,7 +1031,7 @@ export class SnowGame {
     }
     setReplayTime(t: number) { const time = clamp(t, 0, this.run?.time || 0); if (time !== this.replayTime) this.powder?.clear(); this.replayTime = time; }
     getHUD(): HUD { return { speed: Math.round(this.speed * 3.6), score: this.score, time: this.time, distance: Math.round(this.d), progress: this.d / this.course.length, combo: this.combo, trick: this.toastTimer > 0 ? this.trick : '', trickScore: this.trickScore, feedback: this.feedback, air: !this.ground, gates: this.gateCount, totalGates: this.features.length , ...(this.course.dem ? { altitude: Math.round(this.y), temperature: Math.round(lapseTemperature(this.y, VILLAGE_TEMP[this.settings.weather] ?? -6)) } : {}) }; }
-    tick = () => { this.frameId = requestAnimationFrame(this.tick); const dt = Math.min(this.clock.getDelta(), .10); if (this.state === 'ride') {
+    tick = () => { this.frameId = requestAnimationFrame(this.tick); const dt = Math.min(this.clock.getDelta(), .10); if (this.suspended) return; if (this.state === 'ride') {
         this.physicsAccumulator += dt;
         let substeps = 0;
         while (this.physicsAccumulator >= 1 / 120 && substeps++ < 12) {

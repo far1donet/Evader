@@ -1,9 +1,9 @@
-"""Download swissALTI3D 2 m tiles (newest year per 1 km tile) for the Verbier domain and mosaic them.
+"""Download swissALTI3D 2 m tiles (newest year per 1 km tile) for the 4 Vallees domain and mosaic them.
 Data: (c) swisstopo, free geodata (attribution required). Output: <cache>/alti2m.npy (float32, rows north->south) + .json.
 Run: python3 tools/verbier/fetch_swissalti3d.py <cache dir>"""
 import json, os, sys, urllib.request, numpy as np, tifffile
 CACHE = sys.argv[1]; os.makedirs(CACHE, exist_ok=True)
-E0, E1, N0, N1 = 2581, 2595, 1099, 1109          # km, LV95
+E0, E1, N0, N1 = 2579, 2598, 1098, 1117          # km, LV95: the whole 4 Vallees lift network (Bruson to Thyon)
 STAC = 'https://data.geo.admin.ch/api/stac/v0.9/collections/ch.swisstopo.swissalti3d/items'
 def lv95_to_wgs(e, n):
     y, x = (e - 2600000) / 1e6, (n - 1200000) / 1e6

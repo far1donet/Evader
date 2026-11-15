@@ -1,100 +1,113 @@
-# Verbier – 4 Vallées: what is in the game (EVADER 0.6)
+# Verbier – 4 Vallées: what is in the game (EVADER 0.7)
 
 Status date: 15 November 2026.
 
 Sources:
-- *Verbier 4 Vallées — Complete Ski & Snowboard Game Development Guide* (reference date 14 November 2026), kept as text in `tools/verbier/guide-2026-11-14.txt`;
-- the Swiss federal geodata and OpenStreetMap data below.
+- *Verbier 4 Vallées — Complete Ski & Snowboard Game Development Guide* (reference date 14 November 2026), kept in `tools/verbier/guide-2026-11-14.txt`.
+- The federal geodata and OpenStreetMap data listed below.
 
-**About "geographically accurate".** Section 10 of the guide lets a release use this label only when piste and lift geometry has been checked against georeferenced data. Version 0.6 meets that for the eight runs it ships:
-- the terrain is swisstopo's 2 m survey model;
-- the run and lift lines are the mapped OpenStreetMap lines;
-- named places were checked against the federal gazetteer.
+## The resort map
 
-What is still estimated or designed is listed below and labelled in the code.
+Open **Verbier resort map** from the menu.
+- **Views:** 2D (shaded piste map) or 3D (the real mountains with the piste map draped on them).
+- **Starting point:** Verbier – Médran.
+- **Lifts:** take any lift from your station. Each ride plays sped up; its real ride time is shown.
+- **Pistes:** ride down to another station along mapped pistes. Every run ends where a lift goes up.
+- **Arrival:** at the end of a run you arrive at that station and choose your next lift or run. There is no finish line.
+- **Fast travel:** tap any lift, run or station to travel there.
+
+| | Count | Source |
+| --- | --- | --- |
+| Lifts | 66 operating lifts of the 4 Vallées (Bruson, Verbier, Savoleyres–La Tzoumaz, Mont-Fort, Siviez, Nendaz, Veysonnaz, Thyon); magic carpets left out | OpenStreetMap via OpenSkiData: line, type, capacity, seats and ride duration where mapped (otherwise estimated from length and a typical speed, and labelled "est."). 30 match the guide's lift registry by name. |
+| Stations | 74 (lift ends within 200 m merged) | Names, in order of preference: common station names (Le Châble, Médran, Les Ruinettes, Les Attelas…); the Swiss public-transport stop register (BAV, includes lift stops); swissNAMES3D; the lift name as a last resort ("Rouge bottom"). Each station records the source of its name. |
+| Station-to-station runs | 280 | Computed on the mapped piste graph. Pistes are oriented downhill on the terrain and split at junctions and stations. For each start station, destination and difficulty ceiling (blue / red / black / itinerary), the shortest line is kept. |
+| Featured runs | 8 | As in 0.6: Attelas, Hattey → Clambin, the snowpark, the ski cross, Mont-Fort, Chassoure → Tortin, FIS, Mont-Gelé → La Chaux. |
+
+From Verbier – Médran, 58 of the 74 stations can be reached using lifts and pistes alone (tested).
+
+The remaining 16 are separate parts of the network, such as Champsec–Sarreyer and the beginner lifts. They can be reached by fast travel.
+
+Two lifts carry notes from the guide:
+- The Télémixte upper section (TMX Savoleyres) has operated since December 2025.
+- The lower section, Les Esserts–Les Planards, is scheduled for December 2026. OpenStreetMap already draws it.
+
+The abandoned Savoleyres gondola is excluded.
 
 ## Data used
 
 | Data | Source | How it is used |
 | --- | --- | --- |
-| Terrain | **swissALTI3D 2 m, 2024** © swisstopo (140 × 1 km tiles, E 2581–2595 km, N 1099–1109 km, no gaps) | 2 m grid within ~150 m of each run (bicubic) and a 16 m grid out to the horizon. It is smoothed for snow cover: σ 3 m off-piste and σ 9 m on groomed piste. Rock bands and summits are kept. |
-| Run lines, grooming, difficulty | **OpenStreetMap contributors (ODbL), via OpenSkiData** | Real centre lines of the mapped segments. Grooming from OSM `piste:grooming` (classic / mogul / backcountry). |
-| Lifts | Same | Mapped lift lines, stations at the ends and pylons at the mapped nodes. Cables have an estimated sag. Lifts are scenery only. |
-| Snowpark footprint | OSM `snow_park` polygon at La Chaux | The park's axis and extent. The S/M/L lanes sit inside it. |
-| Trees | **SWISSIMAGE** aerial photos © swisstopo (WMTS, zoom 17) | Dark-green canopy pixels below 2,350 m give real tree positions. Heights are estimated. |
-| Place heights | **swisstopo gazetteer** (api3.geo.admin.ch) | 14 of 17 named anchors are located and fall within 18 m of their published elevation (most within 6 m). |
-| Names, classes, published figures | The guide | 107 pistes, 35 lifts, 8 itineraries and 9 fun zones (`lib/verbier/registry.ts`). |
+| Terrain | **swissALTI3D 2 m, 2024** © swisstopo. 361 tiles of 1 km² (E 2579–2598, N 1098–1117 km), with no gaps. | Snow surface: σ 3 m blur off-piste and σ 9 m on groomed pistes (groomers fill hollows). It is shipped as 198 compressed 2 m tiles within 800 m of a piste or lift, and loaded per run. A 10 m overview covers the whole area, for the far terrain and the maps. |
+| Horizon | SRTM 1″ (NASA/USGS, public domain) | 40 m grid out to 14 km beyond the survey box, blended in over its last 400 m. |
+| Pistes, lifts, snowpark | OpenStreetMap contributors (ODbL), via OpenSkiData | Lines, difficulty, grooming, lift data. |
+| Station names | BAV public-transport stop register; swissNAMES3D © swisstopo | See above. |
+| Trees | **SWISSIMAGE** © swisstopo (zoom 16, about 1.7 m pixels) | About 800,000 tree positions from dark-green canopy below 2,350 m. Heights are estimated. |
+| Place heights | swisstopo gazetteer | 16 of 17 named anchors fall within tolerance of their published elevation: 25 m for stations and summits, 40 m for villages. |
 
-The tools are in `tools/verbier/`:
-- `fetch_swissalti3d.py` builds the terrain mosaic;
-- `filter_openskidata.py` filters the run and lift lines;
-- `build_runs.py` builds the run files (`public/terrain/*.bin`, loaded on demand, 7.6 MB in total);
+All data is rebuilt with `tools/verbier/`:
+- `fetch_swissalti3d.py` fetches the terrain;
+- `filter_openskidata.py` filters the pistes and lifts;
+- `build_resort.py` builds the tiles, overview, horizon, stations, lifts, routes and trees in `public/resort/`;
 - `build_anchors.py` locates the named anchors;
 - `build_registry.py` builds the guide registry.
 
-## The eight runs
+The shipped data is about 40 MB in total. A run loads roughly 1–5 MB.
 
-| Run | Length | Vertical | Max slope | Frame |
-| --- | --- | --- | --- | --- |
-| Attelas (red) | 2,346 m | 2,712 → 2,226 m | 28° | unrolled (hairpins) |
-| Hattey → Clambin (red into forest itinerary) | 2,287 m | 2,132 → 1,656 m | 35° | unrolled |
-| La Chaux Snowpark | 511 m | 2,360 → 2,274 m | 22° | exact plan |
-| La Chaux Ski Cross | 583 m | 2,393 → 2,299 m | 18° | exact plan |
-| Mont-Fort (black, moguls on top) | 1,466 m | 3,289 → 2,818 m | 39° | exact plan |
-| Chassoure → Tortin (itinerary) | 3,801 m | 2,745 → 2,045 m | 39° | unrolled |
-| FIS | 2,161 m | 2,543 → 1,752 m | 30° | exact plan |
-| Mont-Gelé → La Chaux (itinerary) | 1,326 m | 2,928 → 2,439 m | 46° | exact plan |
+## Course frames
 
-There are two kinds of frame:
-- **Exact plan**: the map is only rotated, so every bend of the real run appears as it is on the map.
-- **Unrolled**: used for runs whose mapped line doubles back (hairpins). Distance is measured along the real line and the offset across it. Heights along and beside the line are real, but the bends are drawn straightened.
+**Rotated (226 routes).** The map is only rotated, so every bend of the real piste appears as on the map.
 
-## Designed, not surveyed (labelled in code)
+**Curvilinear (62 routes with hairpins).**
+- Distance is measured along the real line.
+- Within 30 m of the line, the frame follows it exactly.
+- Further out, it follows progressively smoother copies of the line (windows of 120 m to 4 km). Offsets on the inside of a bend therefore never cross, so the far terrain cannot fold into walls.
+- Heights there are real; their positions are approximate.
+- The worst step along such a route is now about 2 m/m, the same as real cliffs on rotated routes.
 
-- **Snowpark features.** The published structure is used: S line with 5 table-tops; 3 kickers with 9–13 m tables; jibs. Their positions inside the mapped footprint and their exact profiles are a design, because positions are not published.
-- **Ski cross.** The track follows the real mapped line, with these designed elements:
-  - Banked turns sized from the line's real curvature (banked for about 12 m/s).
-  - Whoops on the straights.
-  - Two table jumps.
-  - Netting at ±8.5 m.
-  - A 6 m built start ramp. The mapped start area is nearly flat for its first 45 m, and real ski-cross starts are built up with snow.
-- **Lift tower heights, station sizes and cable sag** are typical values.
-- **Moguls** are irregular procedural fields, placed where OSM maps mogul or ungroomed sections.
+## Physics change: skating
+
+At walking pace, tucking (W, or tilting the phone forward) makes the rider push with the free back foot:
+- a force of about 1.1 m/s² along the board;
+- full strength up to 3 m/s, fading out completely by 5 m/s.
+
+This is how real riders leave station platforms and cross flats. With no input, the rider still gets no propulsion (tested).
+
+## Designed, not surveyed
+
+- **Snowpark lanes and ski-cross features.** Positions and profiles within the published structure are designed. The ski cross has a 6 m built start ramp.
+- **Lift visuals.** Tower heights, station boxes and cable sag are typical values. Ride times without a mapped duration are estimated.
+- **Moguls** are procedural, placed where OSM maps mogul or ungroomed sections.
+- **Speed-ups.** Lift rides are shown sped up (6–18 s on screen) with the real time displayed. "Go to station" is fast travel.
 
 ## Not done
 
-- Lifts are not rideable.
-- There are no buildings or villages: the OpenStreetMap Overpass service was unreachable from the build machine.
-- There are no AI skiers, groomers or queues.
-- Bruson, Nendaz, Veysonnaz, Thyon, Siviez and La Tzoumaz are outside the terrain area. The Siviez and La Tzoumaz anchors are therefore unresolved.
-- The Gentianes anchor is unresolved: the gazetteer point is the lift building, 50 m below the published label.
-- There is no Bec des Rosses face.
-- The Funslope and the stadiums are listed in the registry but not built.
-- On the three unrolled runs, the hairpin bends are straightened.
+- You don't ride inside a lift cabin in the game world; lift rides are animated on the map.
+- No buildings or villages: the OpenStreetMap Overpass service was unreachable from the build machine.
+- No AI skiers, groomers or queues.
+- Gentianes is still unresolved: the gazetteer point is the lift building, 50 m below the published label.
+- No Bec des Rosses face.
+- The Funslope and the stadiums are in the registry only.
 
-## Quality gates (`tests/verbier.mjs`)
+## Quality gates
 
-**Registry**
-- 107 pistes, 35 lifts and the class counts match the guide.
-- No geometry is invented.
-- The historical and modern Savoleyres links never appear together.
+**`tests/verbier.mjs`**
+- **Registry:** guide counts match; no geometry is invented.
+- **Savoleyres link:** the historical and modern versions never coexist.
+- **Anchors:** 16 of 17 are within tolerance. 12 were cross-checked against the shipped 2 m tiles and agree within 4 m.
+- **Resort network:**
+  - 18 named real lifts are present.
+  - 13 named stations are present.
+  - Médran 2 climbs 668 m (real: 1,520 m to 2,200 m).
+  - Funispace climbs 526 m.
+  - Every lift goes up.
+  - Every station-to-station run goes down and ends within 450 m of a station where a lift goes up.
+  - Mont-Fort, Tortin, Savoleyres, La Chaux, Les Attelas and Siviez are reachable from Verbier – Médran.
+- **Featured runs:** header elevations match the grid; no long climbs.
+- **Mont-Fort face:** 39°.
+- **Trees:** only below the treeline.
+- **Snowpark:** kicker tables are within the published 9–13 m.
+- **Riding:** Reality physics rides all 8 featured runs and 5 sampled network runs down the real slopes.
 
-**Anchors and terrain**
-- 14 of 17 anchors fall within 25 m of their published elevation.
-- 6 anchors were mapped through a run's frame and checked against the shipped 2 m grid; they agree within 4 m.
-- On every run, the header elevations match the grid.
-- No run climbs more than 8 m along its line.
-- The Mont-Fort upper face reaches 39°; the guide says close to 35°.
-- Trees appear only below the treeline.
-
-**Run character**
-- Attelas is groomed, with no moguls on its corridor.
-- Chassoure → Tortin is ungroomed, with moguls.
-
-**Snowpark and ski cross**
-- The kicker tables are within the published 9–13 m.
-- Every park feature is solid collision geometry.
-- The ski cross has banked turns and jumps.
-
-**Riding**
-- Reality physics rides all eight runs down the real slopes, with a pure-pursuit bot steering along the mapped line.
+**`tests/reality.mjs`**
+- Flat ground with no input: no propulsion.
+- Skating reaches walking pace and never exceeds 5 m/s.

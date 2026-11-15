@@ -21,6 +21,9 @@ export type RiderCommand = {
     /** 0 neutral .. 1 deepest crouch; negative values extend the legs toward full extension (-1), used for pops. */
     crouch: number;
     tuck: boolean;
+    /** Optional, -1..1. Skating push: the free back foot pushes against the snow along the board (sign = direction of
+     *  travel along the board's x axis). Only at walking pace (the controller fades it out by 5 m/s), as on real flats. */
+    skate?: number;
     /** Pivot torque about the board's up axis (N m): rider twists hips/legs against the snow. The reaction torque on the
      *  upper body is not modelled in this single-point-mass rider, so this is limited by `maxPivotTorque`. */
     pivotTorque: number;
@@ -322,6 +325,11 @@ export class SnowboardSim {
         b.force.y -= b.mass * G;
         let rax = (fx + this.riderReaction.x) / rd.mass, ray = (fy + this.riderReaction.y) / rd.mass - G, raz = (fz + this.riderReaction.z) / rd.mass;
 
+        // ---- Skating push: about 1.1 m/s^2 for the rider+board while a foot is on the snow (flats, station exits) ----
+        if (cmd.skate && this.diag.contacts > 0) {
+            const hl = Math.hypot(ex.x, ex.z);
+            if (hl > .3) { const f = clamp(cmd.skate, -1, 1) * M * 1.1 / hl; b.force.x += ex.x * f; b.force.z += ex.z * f; }
+        }
         // ---- Aerodynamic drag on the rider+board (tucking reduces drag area, it adds no thrust) -------------
         const cda = cmd.tuck ? rd.cdaTuck : rd.cdaUpright;
         const ux = this.riderV.x - this.wind.x, uy = this.riderV.y - this.wind.y, uz = this.riderV.z - this.wind.z;

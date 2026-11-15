@@ -125,6 +125,8 @@ export class RiderController {
 
         const popX = (this.popEnd === 'tail' ? -1 : 1) * fwd;
         c.tuck = intent.tuck && grounded;
+        // At walking pace "tuck" means skate: push with the free back foot (full to 3 m/s, gone by 5 m/s, never at speed).
+        c.skate = intent.tuck && grounded && intent.brake < .05 ? fwd * Math.min(1, Math.max(0, (5 - planar) / 2)) : 0;
         c.balance = false;
         c.comZ = 0;
         if (grounded) {
