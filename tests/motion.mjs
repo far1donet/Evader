@@ -38,6 +38,23 @@ assert(gripTip(rig.hands[1]).distanceTo(boardEdgeAt(.31,-1))<.025,'Indy grab sho
 for(let i=0;i<120;i++)rig.pose({dt:1/60,time:2+i/60,turn:-.6,speed:25,air:false,grab:false,landing:0,menu:false});
 root.updateMatrixWorld(true);root.traverse(o=>{for(const value of [...o.position.toArray(),...o.quaternion.toArray()])assert(Number.isFinite(value));});rig.dispose();root.traverse(disposeMesh);
 console.log('Board-contact grab and post-landing rider transforms passed.');
+{
+ // skating: the rear boot leaves its binding (the binding stays on the board), pushes on the toe side, and comes back
+ const sroot=new T.Group(),srig=new RiderRig(sroot,new T.MeshStandardMaterial(),new T.MeshStandardMaterial());
+ const rest=srig.boots.map(b=>b.position.clone()),bind=srig.bindings.map(b=>b.position.clone());let maxOff=0,minZ=0,rear=-1;
+ for(let i=0;i<240;i++){srig.pose({dt:1/60,time:i/60,turn:0,speed:1.5,air:false,grab:false,landing:0,menu:false,tuck:true,skate:1});
+  srig.boots.forEach((b,k)=>{const off=b.position.distanceTo(rest[k]);if(off>maxOff){maxOff=off;rear=k;}minZ=Math.min(minZ,b.position.z);});}
+ assert(maxOff>.25&&minZ<-.25,`rear boot steps out of the binding onto the toe side (${maxOff.toFixed(2)} off, z ${minZ.toFixed(2)})`);
+ assert(srig.boots.some((b,k)=>k!==rear&&b.position.distanceTo(rest[k])<1e-6),'the front boot stays strapped in');
+ assert(srig.bindings.every((b,k)=>b.position.distanceTo(bind[k])<1e-6),'bindings stay on the board');
+ for(let i=0;i<120;i++)srig.pose({dt:1/60,time:5+i/60,turn:0,speed:6,air:false,grab:false,landing:0,menu:false,skate:0});
+ assert(srig.boots.every((b,k)=>b.position.distanceTo(rest[k])<1e-6),'riding again: both boots back in the bindings');
+ // falling: arms thrown out wide
+ for(let i=0;i<90;i++)srig.pose({dt:1/60,time:8+i/60,turn:0,speed:8,air:false,grab:false,landing:0,menu:false,crash:1,tumble:6});
+ assert(Math.abs(srig.hands[0].position.x-srig.hands[1].position.x)>1.1,'falling: arms splay out');
+ srig.dispose();sroot.traverse(disposeMesh);
+ console.log(`Skating: rear boot steps out ${maxOff.toFixed(2)} m to the toe side and back in; falling splays the arms passed.`);
+}
 
 function rotateAt(fps){let velocity=0,angle=0;for(let i=0;i<fps;i++){const r=rotationStep(velocity,1,1/fps);velocity=r.velocity;angle+=r.angle;}return{velocity,angle};}
 const spinRef=rotateAt(60);for(const fps of [30,120,144,240]){const r=rotateAt(fps);assert(Math.abs(r.velocity-spinRef.velocity)<1e-10);assert(Math.abs(r.angle-spinRef.angle)<1e-10);}

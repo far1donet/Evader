@@ -1,13 +1,14 @@
 import * as T from 'three';
 /** Rendering presets never change simulation geometry or the physics timestep. */
 export const PRESETS = {
- low: { pixel: 1, shadow: 1024, step: 3, trees: 300, ridge: 64 },
- balanced: { pixel: 1.25, shadow: 2048, step: 2, trees: 600, ridge: 96 },
- high: { pixel: 1.75, shadow: 2048, step: 1.5, trees: 1000, ridge: 128 },
- ultra: { pixel: 2, shadow: 4096, step: 1, trees: 1800, ridge: 192 },
- extreme: { pixel: 2.5, shadow: 4096, step: .75, trees: 2600, ridge: 216 },
+ // shadowRange: half-width of the sun's shadow box around the rider, m (bigger maps cover more ground at similar sharpness)
+ low: { pixel: 1, shadow: 1024, step: 3, trees: 300, ridge: 64, shadowRange: 92 },
+ balanced: { pixel: 1.25, shadow: 2048, step: 2, trees: 600, ridge: 96, shadowRange: 100 },
+ high: { pixel: 1.75, shadow: 2048, step: 1.5, trees: 1000, ridge: 128, shadowRange: 120 },
+ ultra: { pixel: 2, shadow: 4096, step: 1, trees: 1800, ridge: 192, shadowRange: 180 },
+ extreme: { pixel: 2.5, shadow: 4096, step: .75, trees: 2600, ridge: 216, shadowRange: 220 },
  // Image quality first: 8K shadow map (about 256 MB of depth), half-metre terrain rows, the densest forest.
- cinematic: { pixel: 3, shadow: 8192, step: .5, trees: 3600, ridge: 256 },
+ cinematic: { pixel: 3, shadow: 8192, step: .5, trees: 3600, ridge: 256, shadowRange: 300 },
 };
 export const preset = (q: string) => PRESETS[q as keyof typeof PRESETS] ?? PRESETS.high;
 export const GRAVITY = 9.81;

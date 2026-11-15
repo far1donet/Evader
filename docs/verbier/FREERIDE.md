@@ -65,6 +65,6 @@ Snow is set by a surface map built from every mapped piste (OpenStreetMap), in 4
 
 - Cliffs are only as sharp as the 2 m survey and the snow smoothing allow.
 - There are no avalanche, closed-area or out-of-bounds rules; you can ride anything in the survey box.
-- Lift towers and station buildings are not solid.
+- Lift towers and buildings are solid (since 1.2); lift station buildings are not, so the boarding area is always reachable.
 - Outside the survey box (Bruson's lowest slopes, beyond Thyon), the ground is the coarse overview or SRTM.
 - On a phone, set Balanced or Low quality for a steady frame rate.

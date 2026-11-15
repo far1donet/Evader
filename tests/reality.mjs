@@ -14,6 +14,7 @@ import { shapeStick } from '../lib/input.ts';
 import { SnowGame, COURSES, center, height } from '../lib/snow-game.ts';
 import { makeParkRails } from '../lib/park-rails.ts';
 import { lineFollower } from '../tools/gamebot.mjs';
+import { Tutorial, TUTORIAL_STEPS } from '../lib/tutorial.ts';
 
 const rig = (deg = 3, speed = 8, assist = 'balanced', mat = 'groomed', rider = DEFAULT_RIDER) => {
     const sim = new SnowboardSim(BOARDS['all-mountain'], new PlaneTerrain(deg * Math.PI / 180, SNOW[mat]), rider);
@@ -110,12 +111,12 @@ function ollie(load, extra = {}) {
 
 // ---- carving with the controller: no spin-out inside the stable envelope ----------------------------------------
 {
-    for (const v of [6, 8, 10, 12, 16]) for (const steer of [0, .3, .6]) {
+    for (const [v, steer] of [6, 8, 10, 12, 16].flatMap(v => [0, .3, .6].map(s => [v, s])).concat([[16, 1], [20, 1], [22, -1]])) {
         const r = rig(12, v, 'authentic'); let worst = 0;
         run(r, 2.5, () => ({ ...IDLE_INTENT, steer }), (t, s, c) => { if (t > .5) worst = Math.max(worst, Math.abs(c.slipAngle(s))); });
         assert(worst < 15 * Math.PI / 180, `v ${v} steer ${steer}: board within ${(worst * 57.3).toFixed(0)} deg of travel`);
     }
-    console.log('Controller carving: 6-16 m/s at steer 0-0.6 stays within 15 deg of travel (full lock at 16 m/s may wash out; see KNOWN_ISSUES) passed.');
+    console.log('Controller carving: 6-16 m/s at steer 0-0.6, and full lock at 16-22 m/s, stays within 15 deg of travel (no high-speed washout) passed.');
 }
 
 // ---- 7 landings: clean straight landing vs sideways landing ------------------------------------------------------
@@ -213,3 +214,26 @@ function game(course, settings = {}) {
     console.log('Rig: real board length and stance for all six boards, 1.6-1.85 m rider, feet in bindings, 13 grabs reach without stretching (crail/seatbelt within 13 cm) passed.');
 }
 console.log('Reality validation passed.');
+
+// ---- tutorial: every step is completed by riding it with the real physics -------------------------------------------
+{
+    const tut = new Tutorial(), log = [];
+    const feed = (r, secs, intentFn) => run(r, secs, intentFn, (t, s) => {
+        tut.update({ dt: SIM_DT, speed: s.speed, steer: intentFn(t).steer, brake: intentFn(t).brake, tuck: intentFn(t).tuck, ground: !r.tr.airborne, riding: true, onLift: false });
+        for (const e of r.events.splice(0)) if (e.type === 'landed') tut.event({ type: 'landed', air: e.air, rotationDeg: e.rotationDeg });
+        if (tut.justDone) log.push(`${tut.justDone.id}@${t.toFixed(1)}s`);
+    });
+    feed(rig(12, 8), 5, t => ({ ...IDLE_INTENT, steer: t < 2.2 ? .8 : -.8 }));
+    assert.equal(tut.current?.id, 'stop', `carving both edges completes step 1 (${log})`);
+    feed(rig(8, 6.5), 16, t => ({ ...IDLE_INTENT, brake: t > .3 ? 1 : 0 }));
+    assert.equal(tut.current?.id, 'skate', `stopping from above 20 km/h completes step 2 (${log})`);
+    feed(rig(0, 1), 4, () => ({ ...IDLE_INTENT, tuck: true }));
+    assert.equal(tut.current?.id, 'pop', `skating completes step 3 (${log})`);
+    feed(rig(3, 8), 3.6, t => ({ ...IDLE_INTENT, crouch: t > 1 && t < 1.4 ? 1 : 0 }));
+    assert.equal(tut.current?.id, 'spin', `an ollie completes step 4 (${log})`);
+    feed(rig(3, 8), 3.9, t => ({ ...IDLE_INTENT, crouch: t > 1 && t < 1.4 ? 1 : 0, wind: t > 1 && t < 1.4 ? 1 : t >= 1.4 && t < 2 ? -1 : 0 }));
+    assert.equal(tut.current?.id, 'lift', `a wound-up spin completes step 5 (${log})`);
+    tut.update({ dt: .01, speed: 0, steer: 0, brake: 0, tuck: false, ground: true, riding: false, onLift: true });
+    assert(tut.finished, 'getting on a lift completes the tutorial');
+    console.log(`Tutorial: all ${TUTORIAL_STEPS.length} steps completed by riding them (${log.join(', ')}, lift) passed.`);
+}

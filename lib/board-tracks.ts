@@ -152,9 +152,13 @@ export class BoardTracks {
             const length = Math.hypot(dx, 1, dd);
             const isLip = Math.abs(lane) === .81 || Math.abs(lane) === 1;
             this.positions.setXYZ(first + i, x, y + .017 + .009 * powder + (isLip ? .045 * powder : 0), -d);
-            this.normals.setXYZ(first + i, -dx / length, 1 / length, dd / length);
-
             const onEdge = lane * sample.edgeAngle > 0 ? edge : edge * .25;
+            // The trench walls face the middle of the track and the lips face outward, so the sun shades them like a
+            // groove in the snow (the strip itself is thin; the depth is in the lighting).
+            const wall = Math.abs(lane) === .61 ? -(.9 * powder + .55 * onEdge) : Math.abs(lane) === .81 ? .6 * powder : 0, sgn = Math.sign(lane);
+            const nx = -dx / length + sgn * wall * sideX, ny = 1 / length, nz = dd / length - sgn * wall * sideD, nl = Math.hypot(nx, ny, nz);
+            this.normals.setXYZ(first + i, nx / nl, ny / nl, nz / nl);
+
             const cutProfile = Math.abs(lane) === .61 ? .46 + .54 * onEdge : .17;
             const isRim = Math.abs(lane) === .81;
             const alpha = Math.abs(lane) === 1 ? 0 : isRim

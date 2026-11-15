@@ -82,8 +82,8 @@ This is how real riders leave station platforms and cross flats. With no input, 
 ## Not done
 
 - There are no lift queues and no real station architecture (see [LIFTS.md](LIFTS.md)).
-- No buildings or villages: the OpenStreetMap Overpass service was unreachable from the build machine.
-- No AI skiers, groomers or queues.
+- Buildings (1.2) come from swisstopo VECTOR25 and the GWR register instead of OpenStreetMap, which was unreachable from the build machine. Footprints are generalised rectangles.
+- Other skiers ride the pistes in free ride (1.2). There are no groomers and no queues.
 - Gentianes is still unresolved: the gazetteer point is the lift building, 50 m below the published label.
 - No Bec des Rosses face.
 - The Funslope and the stadiums are in the registry only.

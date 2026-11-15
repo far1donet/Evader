@@ -29,6 +29,8 @@
 - its type and seats;
 - its ride time and capacity, where mapped.
 
+**Pylons from the aviation-obstacle register (since 1.2).** 25 lifts, the taller ones, are registered with the Swiss Federal Office of Civil Aviation (BAZL, `ch.bazl.luftfahrthindernis`). The register gives every span from pylon to pylon, with its top elevation. For these lifts the 251 registered pylons replace the OpenStreetMap nodes, at their real positions and heights: Mont-Gelé has none (a single span), and Jumbo's first pylon stands about 60 m above the ground. A registered line never gets invented towers; if a span would come too low, its rope is tensioned (less sag) instead. Built by `tools/verbier/build_pylons.py`.
+
 **Speed** is the line length divided by the mapped ride time, so a ride at ×1 lasts as long as the real one:
 - Médran 2: 6 min;
 - Attelas: 5 min 30 s;
@@ -42,7 +44,7 @@
 ## Estimated, and labelled as such (`lib/verbier/lift-profile.ts`)
 
 - **Per-type dimensions** (typical values): tower heights, distance between the uphill and downhill cables, seat height under the grip, cabin sizes, and loaded cable sag (2.2 %; 3.2 % for cable cars).
-- **Added towers** (61 in all): where the mapped pylons alone would let the vehicle come closer to the ground than a minimum clearance, a tower is added on the crest. These are flagged `mapped: false`.
+- **Added towers** (40 in all, down from 61 with the registered pylons): where the mapped pylons alone would let the vehicle come closer to the ground than a minimum clearance, a tower is added on the crest. These are flagged `mapped: false`.
 - **Vehicle and station designs** are generic: no manufacturer's model or resort livery.
 - **Boarding speeds:** detachable chairs and gondolas slow to about 1.0 and 0.35 m/s in stations; fixed-grip chairs load at up to 2.2 m/s; cable cars stop.
 
@@ -68,7 +70,7 @@ For example, Verbier – Médran → Mont-Fort becomes: Médran 2 → Chaux-Expr
 
 ## Not done
 
-- Lift queues and other skiers at the stations.
+- Lift queues. Other skiers ride the pistes in free ride (1.2), but nobody waits at the stations.
 - Real station architecture.
 - Cabin interiors seen from inside.
 - The rider keeps the board strapped on inside gondolas and cable cars; there are no external board racks.

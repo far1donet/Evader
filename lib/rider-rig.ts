@@ -1,7 +1,7 @@
 import * as T from 'three';
 import { wrapAngle } from './trick-motion.ts';
 import { ClothedLimb, springStep, VectorSpring, type Spring } from './motion.ts';
-import { windy, setLooseness } from './cloth-wind.ts';
+import { windy, windyDepth, setLooseness } from './cloth-wind.ts';
 import { addBootBinding, alpineBaseTexture, applyWeatheredDeck, baseTexture, boardEdgeAt, makeBoardGeometry } from './snowboard-gear.ts';
 export { boardOutline, deckTexture, makeBoardGeometry } from './snowboard-gear.ts';
 // A clothed, articulated rider built in metres. Materials and silhouettes stay
@@ -35,6 +35,10 @@ export type RiderPose = {
     press?: number;
     /** Rig-space target for the front hand (surface lifts: holding the hanger). */
     hold?: T.Vector3;
+    /** Skating push 0..1 (the controller's skate command): the rear boot leaves its binding and pushes on the toe side. */
+    skate?: number;
+    /** Falling 0..1: limbs splay out and flail while the body tumbles (`tumble`, rad/s). */
+    crash?: number; tumble?: number;
 };
 export type SeatedPose = { dt: number; time: number; sit: number; hands: 'bar' | 'knees' | 'side'; look?: number };
 export type RiderKit = 'ochre' | 'shadow' | 'alpine';
@@ -311,6 +315,11 @@ export class RiderRig {
     grabSpring: Spring = { value: 0, velocity: 0 };
     leadSpring: Spring = { value: 1, velocity: 0 };
     tuckSpring: Spring = { value: 0, velocity: 0 };
+    skateSpring: Spring = { value: 0, velocity: 0 };
+    crashSpring: Spring = { value: 0, velocity: 0 };
+    /** Push cycle phase, rad. */ skatePhase = 0;
+    private bootRest: { p: T.Vector3; ry: number }[] = [];
+    bindings: T.Group[] = [];
     carveSpring: Spring = { value: 0, velocity: 0 };
     softSpring: Spring = { value: 0, velocity: 0 };
     private boardRest?: Float32Array;
@@ -375,12 +384,16 @@ export class RiderRig {
             boot.rotation.y = T.MathUtils.degToRad(side > 0 ? -17 : 9);
             this.boots.push(boot);
             this.board.add(boot);
-            addBootBinding(boot, side, add, rubber, fabricBlack, trim);
+            // the binding stays on the board when the boot steps out (skating)
+            const binding = new T.Group(); binding.position.copy(boot.position); binding.rotation.copy(boot.rotation); this.board.add(binding); this.bindings.push(binding);
+            addBootBinding(boot, side, add, rubber, fabricBlack, trim, binding);
+            this.bootRest.push({ p: boot.position.clone(), ry: boot.rotation.y });
             const leg = new ClothedLimb(.44, .43, .13, legFabric, 'leg');
             shapeTrouser(leg.mesh.geometry, side);
             // loose below the knee, held at the waistband
             const luv = leg.mesh.geometry.attributes.uv;
             setLooseness(leg.mesh.geometry, i => .08 + .92 * T.MathUtils.smoothstep(luv.getY(i), .12, .95));
+            leg.mesh.customDepthMaterial = windyDepth();
             this.legs.push(leg);
             root.add(leg.mesh);
         }
@@ -393,6 +406,7 @@ export class RiderRig {
           setLooseness(this.chest.geometry, i => { const y = pos.getY(i), back = Math.max(0, pos.getZ(i)) / .2;
               return (.18 + .82 * (1 - T.MathUtils.smoothstep(y, -.22, .34))) * (.8 + .35 * Math.min(1, back)); }); }
         windy(jacket); windy(raglan); windy(sleeves); windy(legFabric);
+        this.chest.customDepthMaterial = windyDepth();
         this.chest.frustumCulled = false;
         this.jacketRest = Float32Array.from(this.chest.geometry.attributes.position.array);
         this.jacketSectors = Uint8Array.from({ length: this.jacketRest.length / 3 },
@@ -423,6 +437,7 @@ export class RiderRig {
             const arm = new ClothedLimb(.31, .29, .095, sleeves, 'arm');
             const auv = arm.mesh.geometry.attributes.uv;
             setLooseness(arm.mesh.geometry, i => .15 + .85 * T.MathUtils.smoothstep(auv.getY(i), .3, 1));
+            arm.mesh.customDepthMaterial = windyDepth();
             this.arms.push(arm);
             root.add(arm.mesh);
             const cuff = add(new T.SphereGeometry(.067, 20, 12), sleeves, root);
@@ -665,7 +680,8 @@ export class RiderRig {
             this.boardMesh.geometry = makeBoardGeometry(length, width);
             this.boardRest = undefined;
         }
-        this.boots.forEach((boot, i) => { boot.position.x = (i === 0 ? -1 : 1) * stanceHalf; });
+        this.boots.forEach((boot, i) => { boot.position.x = (i === 0 ? -1 : 1) * stanceHalf; this.bootRest[i]?.p.setX(boot.position.x); });
+        this.bindings.forEach((b, i) => { b.position.x = (i === 0 ? -1 : 1) * stanceHalf; });
     }
     /** Grab contact on the board for the active grab kind and hand, in rig units. */
     grabContact(kind: number, lead: number, hand: number) {
@@ -690,7 +706,11 @@ export class RiderRig {
         const breathing = p.menu ? Math.sin(p.time * 1.45) * .006 : 0;
         const edge = T.MathUtils.clamp(p.edge ?? p.turn, -1, 1);
         const speedWeight = T.MathUtils.smoothstep(p.speed, 3, 23);
-        const tuck = springStep(this.tuckSpring, p.tuck && !p.air && !p.menu ? 1 : 0, 3.1, p.dt);
+        const skate = springStep(this.skateSpring, p.air || p.menu ? 0 : Math.min(1, p.skate ?? 0), 5, p.dt);
+        if (skate > .01) this.skatePhase += p.dt * Math.PI * 2 * (.75 + .35 * skate); else this.skatePhase = 0;
+        const fall = springStep(this.crashSpring, p.menu ? 0 : p.crash ?? 0, 6, p.dt);
+        // (tuck at walking pace is the skate push, not a crouch)
+        const tuck = springStep(this.tuckSpring, p.tuck && !p.air && !p.menu && (p.skate ?? 0) < .05 ? 1 : 0, 3.1, p.dt);
         const spin = p.spin ?? 0, alignment = Math.cos(spin);
         const projectedSpin = spin + T.MathUtils.clamp(spinVelocity * .11, -.55, .55);
         const landingSpin = p.landingSpin ?? Math.round(projectedSpin / Math.PI) * Math.PI;
@@ -714,7 +734,8 @@ export class RiderRig {
         const compact = T.MathUtils.lerp(.265 + rotationCrouch, .055, pop) + (p.grab ? .39 : 0);
         const airCrouch = .07 + T.MathUtils.lerp(compact, .085, extension);
         const compression = p.menu ? .096 : p.air ? airCrouch : groundCrouch;
-        this.crouch = springStep(this.crouchSpring, T.MathUtils.clamp(compression, .055, .73), p.landing > .10 || pop > .32 ? 5.0 : 3.9, p.dt);
+        const compressionSk = T.MathUtils.lerp(T.MathUtils.lerp(compression, .09 + .05 * Math.max(0, Math.sin(this.skatePhase)), skate), .16, fall);
+        this.crouch = springStep(this.crouchSpring, T.MathUtils.clamp(compressionSk, .055, .73), p.landing > .10 || pop > .32 ? 5.0 : 3.9, p.dt);
         const flex = Math.max(0, this.crouch - .07);
         // Input is downhill-left/right, while flex is expressed across the deck.
         // A 180 swaps which local edge and foot face that direction.
@@ -727,7 +748,7 @@ export class RiderRig {
         const windup = -(p.spinInput ?? 0) * load * .43;
         const stanceTwist = -.245 * lead - bank * .10;
         const rotationTwist = T.MathUtils.clamp(spinVelocity * .097, -.46, .46);
-        const twistTarget = p.air ? T.MathUtils.lerp(rotationTwist, stanceTwist, opening) : windup + stanceTwist;
+        const twistTarget = (p.air ? T.MathUtils.lerp(rotationTwist, stanceTwist, opening) : windup + stanceTwist) - lead * .32 * skate;
         const twist = springStep(this.twistSpring, p.menu ? -.05 : twistTarget, 3.8, p.dt);
         const turnError = wrapAngle(spin - landingSpin);
         const spotTarget = p.air ? -turnError * opening * .8 + T.MathUtils.clamp(spinVelocity * .07, -.3, .3) * (1 - opening) : -bank * .17;
@@ -735,7 +756,7 @@ export class RiderRig {
         const rail = p.rail ? Math.sin(p.time * 3.1) * .055 : 0;
         const hipY = 1.145 - this.crouch;
         const pressure = p.air ? .035 + pop * .035 : .055 - load * .105 - p.landing * .033 - soft * .085;
-        const hipX = lead * pressure + rail * .35;
+        const hipX = lead * pressure + rail * .35 + lead * .09 * skate;          // skating: weight over the front foot
         const hipZ = -.012 - flex * (p.air ? .16 : .38) - this.lean * .24;
         this.pelvis.position.set(hipX, hipY + breathing, hipZ);
         const frontKneePressure = p.air ? .013 : -.035 + load * .063 + p.landing * .029;
@@ -752,7 +773,7 @@ export class RiderRig {
         const grabPitch = target ? target.pitch : this.activeGrabKind === 2 ? .76 : -.81;
         const handWeights = this.grabHands(this.activeGrabKind, lead);
         const stanceHalf = this.realBoard?.stanceHalf ?? .39;
-        this.torso.rotation.set(T.MathUtils.lerp(torsoPitch, grabPitch, this.grabWeight), twist,
+        this.torso.rotation.set(T.MathUtils.lerp(T.MathUtils.lerp(torsoPitch, grabPitch, this.grabWeight), .32, fall), twist,
             this.lean * .22 + lead * (p.air ? .025 + pop * .045 : -.065 - soft * .09) + rail + grabTilt * this.grabWeight);
         this.torso.updateMatrix();
         this.shellMatrix.copy(this.torso.matrix).invert();
@@ -763,6 +784,20 @@ export class RiderRig {
             const side = i === 0 ? -1 : 1;
             const leading = side * lead;
             const ankle = new T.Vector3(side * stanceHalf, .305, 0), hip = new T.Vector3(side * .17, -.015, 0).applyMatrix4(this.pelvis.matrix);
+            const rest = this.bootRest[i], boot = this.boots[i];
+            if (leading < 0 && skate > .01) {
+                // Skating: the rear boot is out of its binding, on the snow on the toe side, pushing back toward the tail
+                // (62 % of the cycle on the snow), then lifted and brought forward again.
+                const u = (this.skatePhase / (Math.PI * 2)) % 1, reach = stanceHalf + .40;
+                const along = u < .62 ? .05 + (u / .62) * reach : .05 + reach * (1 - (u - .62) / .38);
+                const lift = u < .62 ? 0 : .13 * Math.sin(Math.PI * (u - .62) / .38);
+                const free = new T.Vector3(side * along, .29 + lift, -.31);
+                ankle.lerp(free, skate);
+                boot.position.set(ankle.x, ankle.y - .185, ankle.z);
+                boot.rotation.y = T.MathUtils.lerp(rest.ry, -lead * 1.25, skate);
+            } else if (rest && (boot.position.distanceToSquared(rest.p) > 1e-8 || boot.rotation.y !== rest.ry)) {
+                boot.position.copy(rest.p); boot.rotation.y = rest.ry;
+            }
             const kneePole = new T.Vector3(side * ((p.air ? .41 : .34) + .035 * leading),
                 .57 - (!p.air ? .045 * leading : 0), -.65 + .08 * leading - this.lean * .07);
             const knee = this.legs[i].pose(hip, ankle, kneePole).joint;
@@ -797,7 +832,12 @@ export class RiderRig {
             }
             wrist.lerp(new T.Vector3(hipX + side * .21, hipY + .04, hipZ + .14), tuck * (1 - load));
             if (p.hold && leading > 0) wrist.copy(p.hold);
-            if (!p.air) {
+            if (fall > .01) {
+                // Falling: arms thrown out wide and flailing with the tumble, not braced on the body
+                const fl = Math.sin(p.time * (5 + Math.abs(p.tumble ?? 0) * .8) + i * 2.1);
+                wrist.lerp(new T.Vector3(side * (.78 + .08 * fl), hipY + .42 + .22 * fl, hipZ + .18 * Math.cos(p.time * 4.3 + i)), fall);
+            }
+            if (!p.air && fall < .01) {
                 const reach = .577 + Math.abs(bank) * .011;
                 wrist.sub(shoulder).clampLength(0, reach).add(shoulder);
             }

@@ -3,8 +3,10 @@
 import assert from 'node:assert/strict';
 import * as T from 'three';
 import { PISTES, LIFTS, ANCHORS, ITINERARIES, SNOWPARK, infrastructureFor, FUN_ZONES } from '../lib/verbier/registry.ts';
-import { verbierRun, moguls, RUNS, resortSync, worldHeight, tileLoaded, loadTilesAround, FreeTerrain, setFreeTerrain } from '../lib/verbier/terrain.ts';
-import { SurfaceMap } from '../lib/verbier/free-world.ts';
+import { verbierRun, moguls, RUNS, resortSync, worldHeight, tileLoaded, loadTilesAround, FreeTerrain, setFreeTerrain, buildingsSync, buildingsAround } from '../lib/verbier/terrain.ts';
+import { insideSolid } from '../lib/verbier/buildings.ts';
+import { EMPTY_PASSPORT, record, goals } from '../lib/passport.ts';
+import { SurfaceMap, FreeView } from '../lib/verbier/free-world.ts';
 import { curvature } from '../lib/verbier/scenery.ts';
 import { LiftRide } from '../lib/verbier/lift-ride.ts';
 import { planJourney } from '../lib/verbier/journey.ts';
@@ -91,13 +93,14 @@ import { lineFollower } from '../tools/gamebot.mjs';
 {
     const r = resortSync();
     const below = { chair: 2.95, gondola: 3.4, mixed: 3.4, cablecar: 7, surface: 0 }, need = { chair: 1, gondola: 1.5, mixed: 1.5, cablecar: 3, surface: 4 };
-    let rides = 0, inserted = 0, mapped = 0;
+    let rides = 0, inserted = 0, mapped = 0, registered = 0, real = 0;
     for (const l of r.lifts) {
         const course = liftCourse(l), run = verbierRun(course.dem), cl = run.h.lifts.find(x => x.id === l.id);
         assert(cl, `${l.name}: on its own lift course`);
         const ride = new LiftRide(cl, (x, d) => height(x, d, course), 'low');
         const p = ride.profile;
         mapped += p.heads.filter(h => h.mapped && !h.station).length; inserted += p.heads.filter(h => !h.mapped).length;
+        if (l.pylons) { registered++; real += p.heads.filter(h => h.real).length; assert(p.heads.filter(h => h.real).length === l.pylons.length, `${l.name}: every registered pylon is a tower`); }
         assert(p.minClearance(below[p.kind]) >= need[p.kind], `${l.name}: vehicle clearance ${p.minClearance(below[p.kind]).toFixed(1)} m`);
         // speed from the mapped ride time (OpenStreetMap) within the typical range of the lift type
         assert(Math.abs(ride.dyn.ride - l.rideS) / l.rideS < .02 || ride.dyn.v === p.spec.speed[0] || ride.dyn.v === p.spec.speed[1], `${l.name}: ride time follows the mapped duration`);
@@ -110,7 +113,7 @@ import { lineFollower } from '../tools/gamebot.mjs';
         if (l.type !== 'funicular') assert(Math.abs(f.root.y - l.topZ) < 12, `${l.name}: rider ends at the top station (${f.root.y.toFixed(0)} vs ${l.topZ})`);
         rides++;
     }
-    console.log(`Lifts: all ${rides} lifts ridden end to end (board, ride, get off at the top) at their mapped speeds; ${mapped} mapped pylons, ${inserted} towers added for clearance passed.`);
+    console.log(`Lifts: all ${rides} lifts ridden end to end (board, ride, get off at the top) at their mapped speeds; ${registered} lifts on ${real} real BAZL pylons; ${mapped} pylons in all, ${inserted} towers added for clearance passed.`);
 }
 
 // ---- journeys: lifts up, runs down, from one station to any other -------------------------------------------------------------
@@ -164,6 +167,44 @@ import { lineFollower } from '../tools/gamebot.mjs';
         rides++;
     }
     console.log(`Free ride: snow from every mapped piste (groomed corridors, powder off-piste, itineraries); ${rides} free rides from real stations descend the real terrain passed.`);
+}
+
+// ---- free ride world: real buildings (VECTOR25 + GWR), solid lift towers, other people on the pistes -----------------------
+{
+    const r = resortSync(), sm = new SurfaceMap(r), all = buildingsSync();
+    assert(all.length > 10000, `about 10,800 buildings in the survey box (${all.length})`);
+    assert(all.filter(b => b.registered).length > all.length * .45, 'about half have their floor count from the federal register (GWR)');
+    const ends = r.lifts.flatMap(l => [l.points[0], l.points.at(-1)]);
+    assert(all.every(b => ends.every(([e, n]) => Math.hypot(b.e - e, b.n - n) >= 35)), 'no building on a lift station (the lift scenery draws those)');
+    const med = r.stations.find(s => s.name === 'Verbier – Médran');
+    const village = buildingsAround(med.e, med.n, 600);
+    assert(village.length > 150 && village.filter(b => b.kind === 0).length > village.length / 2, `Verbier around Médran: ${village.length} buildings, mostly chalets`);
+    await loadTilesAround(med.e, med.n, 1600);
+    const run = new FreeTerrain(Math.round(med.e), Math.round(med.n), (e, n) => sm.at(e, n)); setFreeTerrain(run);
+    const view = new FreeView(run, sm, r, 'balanced', (x, d) => height(x, d, FREE_COURSE), (x, d) => snowDepth(x, d, FREE_COURSE));
+    view.prime(0, 0);
+    const meshes = view.group.children.filter(c => c.name === 'buildings');
+    assert(meshes.length > 0 && meshes.reduce((n, m) => n + m.geometry.attributes.position.count, 0) > 30000, 'the village is drawn');
+    const walls = view.obstacles.filter(o => o.kind === 'WALL STRIKE'), towers = view.obstacles.filter(o => o.kind === 'TOWER STRIKE');
+    assert(walls.length > 100 && towers.length > 10, `solid near the rider: ${walls.length} buildings, ${towers.length} lift towers`);
+    assert(!walls.some(o => insideSolid(o, 0, 0, 0, 2)), 'the station platform itself is clear');
+    const w0 = walls[0];
+    assert(insideSolid(w0, w0.x, w0.d, 1) && !insideSolid(w0, w0.x + w0.r + 3, w0.d, 1) && !insideSolid(w0, w0.x, w0.d, w0.h + 1), 'a building is solid inside its walls, below its roof');
+    // other people ride down the mapped pistes
+    const crowd = view.crowd, start = new Map();
+    for (let i = 0; i < 300; i++) { crowd.update(.1, 0, 0, i * .1); if (i === 50) for (const p of crowd.positions()) start.set(p.piste, p); }
+    const now = crowd.positions();
+    assert(now.length >= 15, `${now.length} skiers and riders around`);
+    assert(now.every(p => { const w = run.world(p.x, p.d), q = sm.nearest(w.e, w.n); return q && q.dist < 2; }), 'everyone is on a mapped piste line');
+    view.dispose();
+    // passport: stations, lifts, vertical and speed fold into goals
+    let pp = { ...EMPTY_PASSPORT, stations: [], lifts: [] };
+    for (const st of ['Verbier – Médran', 'Mont-Fort', 'Verbier – Médran']) [pp] = record(pp, { station: st });
+    [pp] = record(pp, { lift: 'l22', descent: 640, speedKmh: 52 }); [pp] = record(pp, { lift: 'l22', descent: 400, speedKmh: 48 });
+    assert.deepEqual([pp.stations.length, pp.lifts.length, pp.descent, pp.topSpeed], [2, 1, 1040, 52], 'passport counts each station and lift once, adds vertical, keeps the top speed');
+    const gl = goals(pp, r.stations.length, r.lifts.length);
+    assert(gl.find(g => g.name === 'Top of the 4 Vallées').value === 1 && gl.find(g => g.name === 'Thousand-metre day').value === 1000, 'goals reflect the passport');
+    console.log(`Free ride world: ${all.length} real buildings (${all.filter(b => b.registered).length} with GWR floors), ${village.length} around Médran drawn and solid; ${towers.length} lift towers solid; ${now.length} people riding the mapped pistes passed.`);
 }
 
 // ---- runs: real descents along the mapped lines --------------------------------------------------------------------------

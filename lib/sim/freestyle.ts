@@ -31,10 +31,10 @@ export const GRABS: { id: GrabKind; name: string; reach: number; twoHands?: bool
     { id: 'truckdriver', name: 'TRUCK DRIVER', reach: .08, twoHands: true },
 ];
 export type LandingClass = 'STOMPED' | 'CLEAN' | 'UNSTABLE' | 'HEAVY' | 'SCRAPED' | 'HAND DRAG' | 'BUTT CHECK' | 'UNDER-ROTATED' | 'OVER-ROTATED';
-export type CrashKind = 'EDGE CATCH' | 'HARD LANDING' | 'INVERTED LANDING' | 'NOSE DIVE' | 'LOST BALANCE' | 'SPUN OUT' | 'RAIL SLIP' | 'TREE STRIKE' | 'ROCK STRIKE';
+export type CrashKind = 'EDGE CATCH' | 'HARD LANDING' | 'INVERTED LANDING' | 'NOSE DIVE' | 'LOST BALANCE' | 'SPUN OUT' | 'RAIL SLIP' | 'TREE STRIKE' | 'ROCK STRIKE' | 'WALL STRIKE' | 'TOWER STRIKE';
 export type FreestyleEvent =
     | { type: 'takeoff'; kind: 'ollie' | 'nollie' | 'kicker' | 'drop' }
-    | { type: 'landed'; name: string; landing: LandingClass; score: number; air: number; spinDeg: number; inversions: number; grab?: string; grabTime: number }
+    | { type: 'landed'; name: string; landing: LandingClass; score: number; air: number; spinDeg: number; /** measured yaw rotation in the air, deg */ rotationDeg: number; inversions: number; grab?: string; grabTime: number }
     | { type: 'crash'; kind: CrashKind }
     | { type: 'rail'; name: string; time: number; score: number }
     | { type: 'press'; name: string; time: number; score: number };
@@ -198,7 +198,7 @@ export class FreestyleTracker {
         const rep = this.repeats.get(key) ?? 0; this.repeats.set(key, rep + 1);
         const base = 60 + r.spinDeg * 1.1 + r.inversions * 420 + (this.grabUsed ? 120 + Math.min(this.grabTime, 1.5) * 110 : 0);
         const score = Math.round(base * factor * (1 + Math.min(this.airTime, 3) * .12) * Math.max(.3, 1 - rep * .2));
-        events.push({ type: 'landed', name: r.name, landing, score, air: this.airTime, spinDeg: r.spinDeg, inversions: r.inversions, grab: r.grab, grabTime: this.grabTime });
+        events.push({ type: 'landed', name: r.name, landing, score, air: this.airTime, spinDeg: r.spinDeg, rotationDeg: Math.abs(this.spin) * 180 / Math.PI, inversions: r.inversions, grab: r.grab, grabTime: this.grabTime });
     }
 
     /** Trick name from the measured rotation. Spin credit is in completed 180s; partial rotation is never rounded up. */

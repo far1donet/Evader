@@ -5,9 +5,14 @@
  * coordinates, and the ground height. Output: the cable heads (stations and towers), the cable height with sag between
  * them, and both tracks (uphill on the right of travel, downhill on the left).
  *
- * Dimensions are typical values per lift type, not surveyed. The guide asks for estimated clearances to be labelled, and
- * they are: where the mapped pylons alone would let the cable come too close to the ground, a tower is added (flagged
- * `mapped: false`), as a lift engineer would place one on the crest.
+ * Pylons: where the lift is in the Swiss aviation-obstacle register (BAZL; 25 of the 66 lifts, the taller ones), its real
+ * pylons are used, at their registered positions and top elevations (`real: true`), and the OpenStreetMap nodes are ignored.
+ * A registered lift is never given extra towers: if a span would come too close to the ground, its rope is tensioned
+ * (less sag) instead, as on the real single-span cable cars (Mont-Gelé has no pylon at all).
+ *
+ * Otherwise dimensions are typical values per lift type, not surveyed. The guide asks for estimated clearances to be
+ * labelled, and they are: where the mapped pylons alone would let the cable come too close to the ground, a tower is added
+ * (flagged `mapped: false`), as a lift engineer would place one on the crest.
  */
 export type LiftKind = 'chair' | 'gondola' | 'mixed' | 'cablecar' | 'surface';
 export function liftKind(type: string | null | undefined): LiftKind {
@@ -40,7 +45,10 @@ export const LIFT_SPEC: Record<LiftKind, Spec> = {
     surface: { tower: 7, station: 6, clearance: 4.8, gauge: 2.4, sag: .015, speed: [1, 5] },
 };
 
-export type Head = { s: number; x: number; d: number; y: number; ground: number; mapped: boolean; station: boolean };
+export type Head = { s: number; x: number; d: number; y: number; ground: number; mapped: boolean; station: boolean;
+    /** Registered pylon (BAZL). */ real?: boolean; /** Sag multiplier of the span that starts here (1 = typical). */ sag?: number };
+/** Cable below the top of a pylon (sheave trains under the crossarm), m. */
+const SHEAVE: Record<LiftKind, number> = { chair: .8, gondola: 1.0, mixed: 1.0, cablecar: 1.5, surface: .3 };
 export type CablePoint = { x: number; d: number; y: number; ground: number; tx: number; td: number; slope: number };
 
 export class LiftProfile {
@@ -50,7 +58,9 @@ export class LiftProfile {
     readonly heads: Head[] = [];
     private readonly px: number[] = []; private readonly pd: number[] = []; private readonly ps: number[] = [];
     private readonly ground: (x: number, d: number) => number;
-    constructor(points: [number, number][], ground: (x: number, d: number) => number, type: string | null | undefined) {
+    /** True when the pylons come from the BAZL register. */
+    readonly realPylons: boolean;
+    constructor(points: [number, number][], ground: (x: number, d: number) => number, type: string | null | undefined, pylons?: [number, number, number][]) {
         this.ground = ground; this.kind = liftKind(type); this.spec = LIFT_SPEC[this.kind];
         let s = 0;
         points.forEach(([x, d], i) => { if (i) s += Math.hypot(x - this.px[i - 1], d - this.pd[i - 1]); this.px.push(x); this.pd.push(d); this.ps.push(s); });
@@ -59,11 +69,20 @@ export class LiftProfile {
             const p = this.plan(si), g = ground(p.x, p.d);
             return { s: si, x: p.x, d: p.d, y: g + height, ground: g, mapped, station };
         };
+        this.realPylons = !!pylons;
         this.heads.push(head(0, true, true, this.spec.station));
-        for (let i = 1; i < points.length - 1; i++) if (this.ps[i] > 12 && this.ps[i] < s - 12) this.heads.push(head(this.ps[i], true, false, this.spec.tower));
+        if (pylons) for (const [x, d, top] of pylons) {
+            const si = this.nearestS(x, d);
+            if (si <= 12 || si >= s - 12 || this.heads.some(h => Math.abs(h.s - si) < 6)) continue;
+            const h = head(si, true, false, 0);
+            h.y = Math.max(h.ground + 3, top - SHEAVE[this.kind]); h.real = true;
+            this.heads.push(h);
+        }
+        else for (let i = 1; i < points.length - 1; i++) if (this.ps[i] > 12 && this.ps[i] < s - 12) this.heads.push(head(this.ps[i], true, false, this.spec.tower));
         this.heads.push(head(s, true, true, this.spec.station));
+        this.heads.sort((a, b) => a.s - b.s);
         // Add towers where the loaded cable would come closer to the ground than the clearance allows.
-        for (let guard = 0; guard < 60; guard++) {
+        for (let guard = 0; guard < 160; guard++) {
             let worst = 0, at = -1;
             for (let si = 0; si <= s; si += 4) {
                 const p = this.plan(si), need = ground(p.x, p.d) + this.spec.clearance - this.cableY(si);
@@ -71,11 +90,29 @@ export class LiftProfile {
                 if (need > worst && !nearStation) { worst = need; at = si; }
             }
             if (at < 0 || worst < .05) break;
-            const near = this.heads.find(h => !h.station && Math.abs(h.s - at) < 10);
+            if (this.realPylons) {
+                // registered line: tension the span instead of inventing a tower
+                const a = this.span(at);
+                if ((a.sag ?? 1) > 0) { a.sag = Math.max(0, (a.sag ?? 1) * .6 - .05); continue; }
+                // a taut rope is still too low: fall through and add a (labelled) tower
+            }
+            const near = this.heads.find(h => !h.station && !h.real && Math.abs(h.s - at) < 10);
             if (near) near.y += worst + .5;
             else { this.heads.push(head(at, false, false, this.spec.tower)); this.heads.sort((a, b) => a.s - b.s); }
         }
     }
+    /** Arclength of the point of the mapped line nearest to (x, d). */
+    nearestS(x: number, d: number) {
+        let best = Infinity, out = 0;
+        for (let i = 0; i < this.ps.length - 1; i++) {
+            const ax = this.px[i], ad = this.pd[i], dx = this.px[i + 1] - ax, dd = this.pd[i + 1] - ad, L2 = dx * dx + dd * dd || 1e-9;
+            const t = Math.max(0, Math.min(1, ((x - ax) * dx + (d - ad) * dd) / L2)), q = Math.hypot(ax + dx * t - x, ad + dd * t - d);
+            if (q < best) { best = q; out = this.ps[i] + t * (this.ps[i + 1] - this.ps[i]); }
+        }
+        return out;
+    }
+    /** The head at the start of the span containing s. */
+    private span(s: number) { const h = this.heads; let i = 0; while (i < h.length - 2 && h[i + 1].s < s) i++; return h[i]; }
     /** Plan position on the mapped line at arclength s (extrapolated beyond the ends). */
     plan(s: number) {
         const n = this.ps.length - 1;
@@ -91,7 +128,7 @@ export class LiftProfile {
         if (s >= h[h.length - 1].s) return h[h.length - 1].y;
         let i = 0; while (i < h.length - 2 && h[i + 1].s < s) i++;
         const a = h[i], b = h[i + 1], span = b.s - a.s, t = (s - a.s) / span;
-        const sag = this.spec.sag * Math.hypot(span, b.y - a.y);
+        const sag = this.spec.sag * (a.sag ?? 1) * Math.hypot(span, b.y - a.y);
         return a.y + (b.y - a.y) * t - 4 * sag * t * (1 - t);
     }
     /** Cable point on a track: +1 uphill (right of travel), -1 downhill (left), 0 the line itself. */

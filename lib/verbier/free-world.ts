@@ -1,5 +1,8 @@
 import * as T from 'three';
-import { FreeTerrain, loadTilesAround, missingTiles, overviewHeight, treesAround, type Resort, type ResortLift, type MapPiste, type Station, type SnowInfo, type Lift } from './terrain.ts';
+import { forestCover, FreeTerrain, loadTilesAround, missingTiles, overviewHeight, treesAround, loadBuildings, buildingsAround, buildingsLoaded, type Resort, type ResortLift, type MapPiste, type Station, type SnowInfo, type Lift } from './terrain.ts';
+import { buildingMesh, type Solid } from './buildings.ts';
+const SNOW_FAR = new T.Color(0xe8eff8), STONE_FAR = new T.Color(0x596479), FOREST_FAR = new T.Color(0x4a5a50);
+import { Crowd } from './crowd.ts';
 import { snowMaterial, preset } from '../alpine.ts';
 import { makeAlpineForest } from '../alpine-forest.ts';
 import { makeCloudSea } from './cloud-sea.ts';
@@ -37,7 +40,7 @@ export class SurfaceMap {
         t = { off: new Float32Array(CELLS * CELLS).fill(NONE), flags: new Uint8Array(CELLS * CELLS) };
         const e0 = te * 1000, n0 = tn * 1000;
         for (const p of this.byTile.get(k) ?? []) {
-            const groomed = p.klass !== 'itinerary' && p.grooming !== 'ungroomed', half = HALF[p.klass] ?? 18, reach = groomed ? half + 40 : 18;
+            const groomed = p.klass !== 'itinerary' && p.grooming !== 'ungroomed', half = p.half ?? HALF[p.klass] ?? 18, reach = groomed ? half + 40 : 18;
             for (let i = 0; i < p.line.length - 1; i++) {
                 const [ax, ay] = p.line[i], [bx, by] = p.line[i + 1];
                 const c0 = Math.max(0, Math.floor((Math.min(ax, bx) - reach - e0) / CELL)), c1 = Math.min(CELLS - 1, Math.ceil((Math.max(ax, bx) + reach - e0) / CELL));
@@ -89,7 +92,7 @@ export type FreeInfo = { where: string; onPiste: boolean; nearLifts: ResortLift[
 
 export class FreeView {
     readonly group = new T.Group();
-    obstacles: { x: number; d: number; r: number }[] = [];
+    obstacles: ({ x: number; d: number; r: number } | Solid)[] = [];
     private readonly chunkSize = 64; private readonly step: number; private readonly radius: number;
     private readonly chunks = new Map<string, Chunk>();
     private readonly queue: [number, number][] = [];
@@ -119,6 +122,7 @@ export class FreeView {
                 if (position.x > nearBox.x && position.x < nearBox.z && position.z > nearBox.y && position.z < nearBox.w) transformed.y -= 14.0;`);
         };
         this.sea = makeCloudSea(new T.Vector3(0, 0, 0), 1250, 26000); this.group.add(this.sea);
+        this.crowd = new Crowd(resort.pistes, this.e0, this.n0, heightFn, quality); this.group.add(this.crowd.group);
         this.buildHorizon();
     }
     private world(x: number, d: number) { return { e: this.e0 + x, n: this.n0 + d }; }
@@ -127,15 +131,19 @@ export class FreeView {
     prime(x: number, d: number) { this.update(x, d, 0, true); }
 
     /** Stream tiles and rebuild what moved out of range. Cheap when nothing changes. */
-    update(x: number, d: number, _dt: number, all = false) {
+    /** Other skiers and riders on the pistes around (see crowd.ts). */
+    crowd: Crowd;
+    private clock = 0;
+    update(x: number, d: number, dt: number, all = false) {
         this.run.focusX = x;
+        this.clock += dt; this.crowd.update(Math.min(dt, .1), x, d, this.clock);
         const w = this.world(x, d);
         // tiles: start loading 1.6 km ahead, every 200 m moved
         if (!this.loading && Math.hypot(x - this.lastStream.x, d - this.lastStream.y) > 200) {
             this.lastStream.set(x, d);
             if (missingTiles(w.e, w.n, 1600).length) {
                 this.loading = true;
-                loadTilesAround(w.e, w.n, 1600).then(() => { this.loading = false; this.dirtyAll(); this.treeCentre.set(1e9, 1e9); }).catch(() => { this.loading = false; });
+                loadTilesAround(w.e, w.n, 1600).then(() => { this.loading = false; this.dirtyNear(x, d); this.treeCentre.set(1e9, 1e9); }).catch(() => { this.loading = false; });
             }
         }
         // near chunks
@@ -144,18 +152,32 @@ export class FreeView {
         const want: [number, number, number][] = [];
         for (let i = -R; i <= R; i++) for (let j = -R; j <= R; j++) if (!this.chunks.has(`${ci0 + i},${cj0 + j}`)) want.push([ci0 + i, cj0 + j, i * i + j * j]);
         want.sort((a, b) => a[2] - b[2]);
-        const budget = all ? Infinity : 2;
+        // Work within a time budget per frame (about 4 ms) so streaming never stalls a frame; at least one chunk per frame.
+        const t0 = performance.now(), left = () => all || performance.now() - t0 < this.budgetMs;
         let built = 0;
-        for (const [ci, cj] of want) { if (built++ >= budget) break; this.buildChunk(ci, cj); }
-        while (built < budget && this.queue.length) { const [ci, cj] = this.queue.shift()!; if (this.chunks.has(`${ci},${cj}`)) { this.buildChunk(ci, cj); built++; } }
+        for (const [ci, cj] of want) { if (built > 0 && !left()) break; this.buildChunk(ci, cj); built++; }
+        while (left() && this.queue.length) { const [ci, cj] = this.queue.shift()!; if (this.chunks.has(`${ci},${cj}`)) this.buildChunk(ci, cj); }
         this.nearBox.set((ci0 - R) * this.chunkSize + 24, -((cj0 + R + 1) * this.chunkSize) + 24, (ci0 + R + 1) * this.chunkSize - 24, -((cj0 - R) * this.chunkSize) - 24);
         // far mesh, trees, lifts and poles
         if (Math.hypot(x - this.farCentre.x, d - this.farCentre.y) > 2000) this.buildFar(x, d);
-        if (Math.hypot(x - this.treeCentre.x, d - this.treeCentre.y) > 120) this.buildTrees(x, d);
-        if (Math.hypot(x - this.sceneryCentre.x, d - this.sceneryCentre.y) > 350) this.buildScenery(x, d);
+        if (Math.hypot(x - this.treeCentre.x, d - this.treeCentre.y) > 120 && !this.busy.has('trees')) this.job('trees', this.treesJob(x, d));
+        if (Math.hypot(x - this.sceneryCentre.x, d - this.sceneryCentre.y) > 350 && !this.busy.has('scenery')) this.job('scenery', this.sceneryJob(x, d));
+        // background jobs (trees, lifts, poles) continue in small steps with whatever budget is left
+        // (at least one step per frame, so they progress even on a slow device whose budget is used up by chunks)
+        let steps = 0;
+        while (this.jobs.length && (steps++ === 0 || left())) { const j = this.jobs[0]; if (j.gen.next().done) { this.jobs.shift(); this.busy.delete(j.name); } }
         this.sea.position.set(x, 1250, -d);
     }
-    private dirtyAll() { for (const c of this.chunks.values()) this.queue.push([c.ci, c.cj]); }
+    /** Milliseconds per frame the streaming may use (lowered automatically on slow devices by the game). */
+    budgetMs = 4;
+    private jobs: { name: string; gen: Generator<void, void, unknown> }[] = [];
+    private busy = new Set<string>();
+    private job(name: string, gen: Generator<void, void, unknown>) { this.busy.add(name); this.jobs.push({ name, gen }); }
+    /** After a 2 m tile arrives: rebuild the chunks it covers, nearest first. */
+    private dirtyNear(x: number, d: number) {
+        const list = [...this.chunks.values()].sort((a, b) => Math.hypot(a.ci * this.chunkSize - x, a.cj * this.chunkSize - d) - Math.hypot(b.ci * this.chunkSize - x, b.cj * this.chunkSize - d));
+        for (const c of list) this.queue.push([c.ci, c.cj]);
+    }
 
     private buildChunk(ci: number, cj: number) {
         const S = this.chunkSize, st = this.step, n = S / st, x0 = ci * S, d0 = cj * S, h = this.heightFn;
@@ -198,10 +220,17 @@ export class FreeView {
         this.chunks.set(k2, { mesh, ci, cj });
     }
 
-    private colourFor(h: number, slopeCos: number, out: T.Color) {
-        const snow = new T.Color(0xe8eff8), stone = new T.Color(0x596479), forest = new T.Color(0x9fae9f);
+    /**
+     * Far-terrain colour: snow, rock on steep faces, and forest where the aerial imagery found canopy (cover from
+     * forest.bin; outside the tiles with tree data, an estimate from elevation: dense below 1,750 m, none above 2,150 m).
+     * Seen from a distance, snowy conifer forest reads dark green-grey. A little noise breaks up the snow.
+     */
+    private colourFor(h: number, slopeCos: number, out: T.Color, e = 0, n = 0) {
         const rock = (1 - T.MathUtils.smoothstep(slopeCos, .72, .86)) * (.75 + .25 * T.MathUtils.smoothstep(h, 2600, 3000));
-        out.copy(snow).lerp(forest, (1 - T.MathUtils.smoothstep(h, 1500, 2050)) * .55).lerp(stone, rock * .9);
+        let cover = forestCover(e, n);
+        if (cover < 0) cover = (1 - T.MathUtils.smoothstep(h, 1750, 2150)) * .55 * T.MathUtils.smoothstep(slopeCos, .6, .8);
+        const noise = Math.sin(e * .013 + n * .021) * Math.sin(e * .031 - n * .017) * .025;
+        out.copy(SNOW_FAR).multiplyScalar(1 + noise).lerp(FOREST_FAR, Math.min(1, cover) * .82).lerp(STONE_FAR, rock * .9);
         return out;
     }
     /** Coarse terrain to about 6 km around the rider, from the 10 m overview. */
@@ -218,7 +247,7 @@ export class FreeView {
         for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const a = j * (n + 1) + i; idx.push(a, a + 1, a + n + 1, a + 1, a + n + 2, a + n + 1); }
         const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
         const nn = g.attributes.normal;
-        for (let k = 0; k < (n + 1) * (n + 1); k++) this.colourFor(pos[k * 3 + 1], nn.getY(k), c).toArray(col, k * 3);
+        for (let k = 0; k < (n + 1) * (n + 1); k++) { const w = this.world(pos[k * 3], -pos[k * 3 + 2]); this.colourFor(pos[k * 3 + 1], nn.getY(k), c, w.e, w.n).toArray(col, k * 3); }
         g.setAttribute('color', new T.BufferAttribute(col, 3));
         if (this.far) { this.group.remove(this.far); this.far.geometry.dispose(); }
         this.far = new T.Mesh(g, this.farMat); this.far.receiveShadow = true; this.group.add(this.far);
@@ -235,41 +264,80 @@ export class FreeView {
         for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const a = j * (n + 1) + i; idx.push(a, a + 1, a + n + 1, a + 1, a + n + 2, a + n + 1); }
         const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
         const nn = g.attributes.normal;
-        for (let k = 0; k < (n + 1) * (n + 1); k++) this.colourFor(pos[k * 3 + 1], nn.getY(k), c).toArray(col, k * 3);
+        for (let k = 0; k < (n + 1) * (n + 1); k++) { const w = this.world(pos[k * 3], -pos[k * 3 + 2]); this.colourFor(pos[k * 3 + 1], nn.getY(k), c, w.e, w.n).toArray(col, k * 3); }
         g.setAttribute('color', new T.BufferAttribute(col, 3));
         this.horizon = new T.Mesh(g, new T.MeshStandardMaterial({ vertexColors: true, roughness: .95 })); this.group.add(this.horizon);
     }
     /** The nearest trees from the aerial imagery (budget by quality); trees within 150 m are solid. */
-    private buildTrees(x: number, d: number) {
+    private *treesJob(x: number, d: number): Generator<void, void, unknown> {
         this.treeCentre.set(x, d);
         const w = this.world(x, d), budget = preset(this.quality).trees * 2;
         const cand = treesAround(w.e, w.n, 700).map(t => ({ ...t, x: t.e - this.e0, d: t.n - this.n0, r: Math.hypot(t.e - w.e, t.n - w.n) }));
+        yield;
         cand.sort((a, b) => a.r - b.r);
         const keep = cand.slice(0, budget);
+        yield;
+        const placed = keep.map((t, index) => ({ x: t.x, y: this.heightFn(t.x, t.d), d: t.d, height: t.h, index }));
+        yield;
+        const forest = makeAlpineForest(placed);
         if (this.forest) { this.group.remove(this.forest); this.forest.traverse(o => { if (o instanceof T.InstancedMesh) o.dispose(); }); }
-        this.forest = makeAlpineForest(keep.map((t, index) => ({ x: t.x, y: this.heightFn(t.x, t.d), d: t.d, height: t.h, index })));
-        this.group.add(this.forest);
-        this.obstacles = keep.filter(t => t.r < 150).map(t => ({ x: t.x, d: t.d, r: 1.1 }));
+        this.forest = forest; this.group.add(forest);
+        this.treeObstacles = keep.filter(t => t.r < 150).map(t => ({ x: t.x, d: t.d, r: 1.1 }));
+        this.obstacles = [...this.treeObstacles, ...this.solidObstacles];
     }
+    private treeObstacles: { x: number; d: number; r: number }[] = [];
+    private solidObstacles: Solid[] = [];
+    private buildings: T.Mesh[] = [];
     private courseLift(l: ResortLift): Lift {
-        return { id: l.id, name: l.name, type: l.type, osm: l.osm, points: l.points.map(([e, n, z]) => [e - this.e0, n - this.n0, z] as [number, number, number]), occupancy: l.occupancy, capacity: l.capacity, rideS: l.rideS, length: l.length };
+        return { id: l.id, name: l.name, type: l.type, osm: l.osm, points: l.points.map(([e, n, z]) => [e - this.e0, n - this.n0, z] as [number, number, number]), occupancy: l.occupancy, capacity: l.capacity, rideS: l.rideS, length: l.length,
+            pylons: l.pylons?.map(([e, n, top]) => [e - this.e0, n - this.n0, top] as [number, number, number]) };
     }
-    /** Lifts within 2.2 km, and piste marker poles (Swiss colours) within 700 m. */
-    private buildScenery(x: number, d: number) {
+    private towers = new Map<string, Solid[]>();
+    private buildingsReady?: Promise<unknown>;
+    /** Buildings available now? If not, start loading them once and redo the scenery when they arrive (never waits). */
+    private haveBuildings() {
+        if (!buildingsLoaded()) this.buildingsReady ??= loadBuildings().then(() => { this.sceneryCentre.set(1e9, 1e9); }, () => undefined);
+        return buildingsLoaded();
+    }
+    /** Lifts within 2.2 km, buildings within 0.9-2.5 km, and piste marker poles (Swiss colours) within 700 m. */
+    private *sceneryJob(x: number, d: number): Generator<void, void, unknown> {
         this.sceneryCentre.set(x, d);
         const w = this.world(x, d), near = new Set<string>();
         for (const l of this.resort.lifts) {
             if (l.type === 'magic_carpet' || !l.points.some(([e, n]) => Math.hypot(e - w.e, n - w.n) < 2200)) continue;
             near.add(l.id);
-            if (!this.lifts.has(l.id)) { const g = liftScenery(this.courseLift(l), this.heightFn, { vehicles: this.quality !== 'low' }).group; this.lifts.set(l.id, g); this.group.add(g); }
+            if (!this.lifts.has(l.id)) {
+                const { group: g, profile } = liftScenery(this.courseLift(l), this.heightFn, { vehicles: this.quality !== 'low' });
+                this.lifts.set(l.id, g); this.group.add(g);
+                const tr = profile.kind === 'cablecar' ? 1.6 : profile.kind === 'surface' ? .25 : .55;
+                this.towers.set(l.id, profile.heads.filter(h => !h.station).map(h => ({ x: h.x, d: h.d, r: tr + 1, rd: tr + 1, h: h.y - h.ground, ux: 1, ud: 0, hl: tr, hw: tr, kind: 'TOWER STRIKE' })));
+                yield;
+            }
         }
-        for (const [id, g] of this.lifts) if (!near.has(id)) { this.group.remove(g); g.traverse(o => { if (o instanceof T.InstancedMesh) o.dispose(); else if (o instanceof T.Mesh || o instanceof T.LineSegments) o.geometry.dispose(); }); this.lifts.delete(id); }
+        for (const [id, g] of this.lifts) if (!near.has(id)) { this.group.remove(g); g.traverse(o => { if (o instanceof T.InstancedMesh) o.dispose(); else if (o instanceof T.Mesh || o instanceof T.LineSegments) o.geometry.dispose(); }); this.lifts.delete(id); this.towers.delete(id); }
+        // buildings (VECTOR25 + GWR) around the rider, nearest first in slices; solid within 700 m like the lift towers
+        const all = this.haveBuildings();
+        const R = this.quality === 'low' ? 900 : this.quality === 'balanced' ? 1600 : 2500;
+        const list = all ? buildingsAround(w.e, w.n, R).sort((a, b) => Math.hypot(a.e - w.e, a.n - w.n) - Math.hypot(b.e - w.e, b.n - w.n)) : [];
+        const local = (e: number, n: number): [number, number] => [e - this.e0, n - this.n0];
+        const keep = (_x: number, _d: number, b: { e: number; n: number; width: number }) => this.surface.at(b.e, b.n).off > b.width / 2 - 3;
+        const meshes: T.Mesh[] = [], solids: Solid[] = [];
+        for (let i = 0; i < list.length; i += 350) {
+            const m = buildingMesh(list.slice(i, i + 350), local, this.heightFn, { shadows: this.quality !== 'low' && i < 700, keep });
+            m.mesh.updateMatrix(); meshes.push(m.mesh);
+            for (const o of m.solids) if (Math.hypot(o.x - x, o.d - d) < 700) solids.push(o);
+            yield;
+        }
+        for (const m of this.buildings) { this.group.remove(m); m.geometry.dispose(); }
+        this.buildings = meshes; for (const m of meshes) this.group.add(m);
+        this.solidObstacles = [...solids, ...[...this.towers.values()].flat().filter(o => Math.hypot(o.x - x, o.d - d) < 700)];
+        this.obstacles = [...this.treeObstacles, ...this.solidObstacles];
         if (this.poles) { this.group.remove(this.poles); this.poles.traverse(o => { if (o instanceof T.InstancedMesh) o.dispose(); }); }
         this.poles = new T.Group();
         const byColour = new Map<number, T.Matrix4[]>(), m = new T.Object3D();
         for (const p of this.resort.pistes) {
             if (!p.line.some(([e, n]) => Math.hypot(e - w.e, n - w.n) < 700)) continue;
-            const off = p.klass === 'itinerary' ? 0 : (HALF[p.klass] ?? 18) + 1.5;
+            const off = p.klass === 'itinerary' ? 0 : (p.half ?? HALF[p.klass] ?? 18) + 1.5;
             let acc = 0;
             for (let i = 0; i < p.line.length - 1; i++) {
                 const [ax, ay] = p.line[i], [bx, by] = p.line[i + 1], seg = Math.hypot(bx - ax, by - ay); if (!seg) continue;
@@ -297,7 +365,7 @@ export class FreeView {
         const CLASS: Record<string, string> = { blue: 'Blue', red: 'Red', black: 'Black', itinerary: 'Itinerary', park: 'Park', skicross: 'Ski cross' };
         let where = 'Off-piste', onPiste = false;
         if (near) {
-            const half = near.piste.klass === 'itinerary' ? 14 : (HALF[near.piste.klass] ?? 18) + 3, name = near.piste.name ?? 'unnamed piste';
+            const half = near.piste.klass === 'itinerary' ? 14 : (near.piste.half ?? HALF[near.piste.klass] ?? 18) + 3, name = near.piste.name ?? 'unnamed piste';
             if (near.dist < half) { where = `${CLASS[near.piste.klass] ?? 'Piste'} · ${name}`; onPiste = true; }
             else where = `Off-piste · ${name} ${Math.round(near.dist)} m away`;
         }

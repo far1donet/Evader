@@ -46,7 +46,7 @@ const JACKETS = [0x1e2a36, 0xb3532c, 0x2f6b4f, 0xe0dcd2, 0x6b2f3f, 0x2a4f86, 0xd
 /** Towers, ropes, stations and (unless it is the lift being ridden) vehicles spread on the loop. */
 export function liftScenery(lift: Lift, height: (x: number, d: number) => number, opts: { active?: boolean; vehicles?: boolean } = {}) {
     const g = new T.Group(); g.name = `lift-${lift.id ?? lift.name}`;
-    const profile = new LiftProfile(lift.points.map(p => [p[0], p[1]]), height, lift.type);
+    const profile = new LiftProfile(lift.points.map(p => [p[0], p[1]]), height, lift.type, lift.pylons);
     const spec = profile.spec, kind = profile.kind, half = spec.gauge / 2;
     // towers
     // Static parts are merged into one mesh per material (a lift has dozens of towers: one draw call each would be too many).
@@ -148,7 +148,7 @@ export class LiftRide {
 
     constructor(lift: Lift, height: (x: number, d: number) => number, quality = 'high') {
         this.height = height;
-        this.profile = new LiftProfile(lift.points.map(p => [p[0], p[1]]), height, lift.type);
+        this.profile = new LiftProfile(lift.points.map(p => [p[0], p[1]]), height, lift.type, lift.pylons);
         this.kind = this.profile.kind; this.dyn = liftDynamics(lift, this.profile);
         this.models = modelsFor(this.kind, this.dyn.seats, lift.type);
         this.loop = loopLength(this.profile);

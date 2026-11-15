@@ -357,9 +357,13 @@ export function addBootBinding(
     rubber: T.Material,
     fabric: T.Material,
     steel: T.Material,
+    /** When given, the binding (highback, straps, ratchets) goes here and only the boot goes in `boot`, so the boot can
+     * step out of the binding (skating with the rear foot free). */
+    bindingParent?: T.Object3D,
 ) {
     // Small fasteners share a draw call with their matching shell or strap.
-    const parts = new Map<T.Material, T.Mesh[]>();
+    const bootParts = new Map<T.Material, T.Mesh[]>(), bindingParts = new Map<T.Material, T.Mesh[]>();
+    let parts = bootParts;
     const add: AddGearMesh = (geometry, material, _parent, position) => {
         const mesh = new T.Mesh(geometry, material);
         if (position) mesh.position.fromArray(position);
@@ -385,6 +389,7 @@ export function addBootBinding(
     add(bootShell([[-.06, .107, .176, .129], [-.041, .103, .177, .117], [-.018, .095, .174, .103]], 2.6), reinforced, boot);
 
     // The back leans forward and wraps around the heel at the lower mounting points.
+    parts = bindingParts;
     add(bindingPanel((u, v, layer) => {
         const wrap = 1 - u * u;
         return [u * (.116 - v * .031), -.063 + v * (.252 + .038 * wrap),
@@ -424,6 +429,7 @@ export function addBootBinding(
         }
     }
 
+    parts = bootParts;
     const lace = (positions: number[][]) => add(new T.TubeGeometry(
         new T.CatmullRomCurve3(positions.map(point => new T.Vector3(...point as [number, number, number]))), 9, .0028, 5, false,
     ), fabric, boot);
@@ -437,17 +443,17 @@ export function addBootBinding(
             add(new T.BoxGeometry(.027, .008, .014), rubber, boot, [x, -.078, -.138 + lug * .047]);
         }
     }
-    for (const [material, meshes] of parts) {
+    for (const [map, parent] of [[bootParts, boot], [bindingParts, bindingParent ?? boot]] as const) for (const [material, meshes] of map) {
         const geometries = meshes.map(mesh => {
             mesh.updateMatrix();
             return mesh.geometry.applyMatrix4(mesh.matrix);
         });
         const assembled = mergeGeometries(geometries);
         if (assembled) {
-            attach(assembled, material, boot);
+            attach(assembled, material, parent);
             geometries.forEach(geometry => geometry.dispose());
         } else {
-            for (const geometry of geometries) attach(geometry, material, boot);
+            for (const geometry of geometries) attach(geometry, material, parent);
         }
     }
 }

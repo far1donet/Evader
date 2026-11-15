@@ -10,6 +10,29 @@ v0.4 model is still available as **Classic**.
 > browser runs were in a cloud container with a software renderer (about 13–22 FPS), so frame rate and visual quality on
 > your PC are still unmeasured.
 
+## What's new in 1.2
+
+- **Learn to ride:** an interactive tutorial with six steps.
+- **The world is no longer empty:**
+  - 10,758 real buildings;
+  - solid lift towers;
+  - other riders on the pistes;
+  - procedural sound.
+- **More accurate:**
+  - real pylons for 25 lifts;
+  - piste widths measured from the forest;
+  - forest-tinted far slopes.
+- **Riding and animation:**
+  - skating with the rear foot out;
+  - tumbling falls;
+  - a Verbier passport with goals.
+- **Performance and offline:**
+  - automatic resolution and a benchmark (`?bench`);
+  - offline download of the whole resort.
+- **Upkeep:** parallel tests and CI.
+
+What changed and what is still open: [docs/WHATS-NEW-1.2.md](docs/WHATS-NEW-1.2.md).
+
 ## Play on Windows
 
 1. Install **Node.js 24 LTS** (22.6 or newer also works) from nodejs.org.

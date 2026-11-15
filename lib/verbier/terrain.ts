@@ -17,6 +17,8 @@ import { RUNS_META } from './runs-meta.ts';
 export type RunClass = 'blue' | 'red' | 'black' | 'itinerary' | 'park' | 'skicross';
 export type Zone = { d0: number; d1: number; name: string | null; grooming: 'groomed' | 'moguls' | 'ungroomed'; difficulty: string | null; osm: string[] };
 export type Lift = { id?: string; name: string | null; type: string | null; osm: string[]; points: [number, number, number][];
+    /** Real pylons (course x, d, top elevation m) from the BAZL obstacle register, when registered ([] = a single span). */
+    pylons?: [number, number, number][];
     occupancy?: number | null; capacity?: number | null; rideS?: number; length?: number };
 type Grid = { e0: number; n1: number; cell: number; nx: number; ny: number; base: number; scale: number };
 
@@ -26,8 +28,11 @@ export type ResortLift = {
     capacity: number | null; occupancy: number | null; detachable: boolean | null; bubble: boolean | null; heating: boolean | null;
     durationS: number | null; durationSource: string; rideS: number; length: number; vertical: number; bottomZ: number; topZ: number;
     points: [number, number, number][]; osm: string[]; from: string; to: string; note: string | null;
+    /** BAZL pylons: [e, n, top elevation m, height above ground m]; absent when the lift is not in the register. */
+    pylons?: [number, number, number, number][]; pylonSource?: string;
 };
-export type MapPiste = { i: number; name: string | null; ref: string | null; klass: RunClass; grooming: string; line: [number, number][] };
+export type MapPiste = { i: number; name: string | null; ref: string | null; klass: RunClass; grooming: string; line: [number, number][];
+    /** Half-width measured from the gap in the forest (build_widths.py), where the piste runs through trees. */ half?: number; halfSource?: string };
 export type RouteSummary = {
     id: string; name: string; description: string; klass: RunClass; length: number; drop: number; startElevation: number; endElevation: number;
     fromStation: string | null; toStation: string | null; featured: boolean; pistes: number[]; climb: number; line: [number, number][];
@@ -62,7 +67,21 @@ const store = {
     horizon: undefined as Int16Array | undefined,
     tiles: new Map<number, Tile>(),
     shipped: new Map<number, [number, number, number, number]>(),
+    /** Forest cover, 50 m cells over the survey box (0-253 = cover, 254 = no tree data); see build_forest.py. */
+    forest: undefined as Uint8Array | undefined,
 };
+const FOREST_CELL = 50;
+/** Forest cover 0..1 at a world point from the aerial-imagery tree grid; -1 where there is no tree data (unshipped tiles). */
+export function forestCover(e: number, n: number) {
+    const f = store.forest, b = store.resort?.box; if (!f || !b) return -1;
+    const nx = (b.e1 - b.e0) / FOREST_CELL, ny = (b.n1 - b.n0) / FOREST_CELL;
+    const fx = (e - b.e0) / FOREST_CELL - .5, fy = (b.n1 - n) / FOREST_CELL - .5;
+    if (fx < 0 || fy < 0 || fx >= nx - 1 || fy >= ny - 1) return -1;
+    const ix = Math.floor(fx), iy = Math.floor(fy), tx = fx - ix, ty = fy - iy, o = iy * nx + ix;
+    const a = f[o], c = f[o + 1], d = f[o + nx], g = f[o + nx + 1];
+    if (a === 254 || c === 254 || d === 254 || g === 254) return -1;
+    return ((a * (1 - tx) + c * tx) * (1 - ty) + (d * (1 - tx) + g * tx) * ty) / 253;
+}
 const tileKey = (te: number, tn: number) => te * 10000 + tn;
 
 function decodeDeltaRows(bytes: Uint8Array, nx: number, ny: number, byteOffset = 0) {
@@ -174,7 +193,9 @@ export class VerbierRun {
             const pts = l.points.map(([e, n, z]) => { const c = this.toCourse(e, n); return c ? [c.x, c.d, z] as [number, number, number] : null; });
             if (pts.some(p => !p)) continue;
             if (!pts.some(p => Math.abs(p![0] - this.centreX(p![1])) < 2000 && p![1] > -1200 && p![1] < this.length + 1200)) continue;
-            lifts.push({ id: l.id, name: l.name, type: l.type, osm: l.osm, points: pts as [number, number, number][], occupancy: l.occupancy, capacity: l.capacity, rideS: l.rideS, length: l.length });
+            const py = l.pylons?.map(([e, n, top]) => { const c = this.toCourse(e, n); return c ? [c.x, c.d, top] as [number, number, number] : null; });
+            lifts.push({ id: l.id, name: l.name, type: l.type, osm: l.osm, points: pts as [number, number, number][], occupancy: l.occupancy, capacity: l.capacity, rideS: l.rideS, length: l.length,
+                pylons: py && !py.some(p => !p) ? py as [number, number, number][] : undefined });
         }
         const trees: number[] = [];
         if (scan) for (const [k, t] of store.tiles) {
@@ -315,6 +336,7 @@ export function loadResort(): Promise<Resort> {
     return once('resort', async () => {
         const r = await (await fetch(resortUrl('resort.json'))).json() as Resort; setResort(r);
         const [ov, hz] = await Promise.all([fetchBytes('overview.bin', true), fetchBytes('horizon.bin', true)]);
+        store.forest = await fetchBytes('forest.bin', true).catch(() => undefined);
         store.overview = decodeDeltaRows(ov, r.overview.nx, r.overview.ny); store.horizon = decodeDeltaRows(hz, r.horizon.nx, r.horizon.ny);
         return r;
     });
@@ -325,6 +347,7 @@ export function resortSync(): Resort {
     const r = JSON.parse(new TextDecoder().decode(readBytes('resort.json', false))) as Resort; setResort(r);
     store.overview = decodeDeltaRows(readBytes('overview.bin', true), r.overview.nx, r.overview.ny);
     store.horizon = decodeDeltaRows(readBytes('horizon.bin', true), r.horizon.nx, r.horizon.ny);
+    try { store.forest = new Uint8Array(readBytes('forest.bin', true)); } catch { store.forest = undefined; }
     return r;
 }
 export function resortLoaded() { return store.resort && store.overview ? store.resort : undefined; }
@@ -346,7 +369,7 @@ export function loadRun(id: string): Promise<VerbierRun> {
     const have = runs.get(id); if (have) return Promise.resolve(have);
     if (!isBrowser) return Promise.resolve(verbierRun(id));
     return once(`run:${id}`, async () => {
-        await loadResort();
+        await loadResort(); void loadBuildings().catch(() => undefined);
         const doc = await (await fetch(resortUrl(`routes/${id}.json`))).json() as RouteDoc;
         await Promise.all(corridorTiles(doc).filter(k => !store.tiles.has(k)).map(async k => {
             const te = Math.floor(k / 10000), tn = k % 10000; setTile(te, tn, await fetchBytes(`tiles/${te}_${tn}.bin`, true));
@@ -457,7 +480,7 @@ export function loadLift(liftId: string): Promise<VerbierRun> {
     const id = `lift-${liftId}`, have = runs.get(id); if (have) return Promise.resolve(have);
     if (!isBrowser) return Promise.resolve(verbierRun(id));
     return once(`run:${id}`, async () => {
-        const r = await loadResort(), lift = r.lifts.find(l => l.id === liftId);
+        const r = await loadResort(), lift = r.lifts.find(l => l.id === liftId); void loadBuildings().catch(() => undefined);
         if (!lift) throw new Error(`unknown lift ${liftId}`);
         const doc = liftRouteDoc(lift);
         await Promise.all(corridorTiles(doc).filter(k => !store.tiles.has(k)).map(async k => {
@@ -474,3 +497,42 @@ export const RUNS = RUNS_META;
 export function lapseTemperature(elevation: number, villageTemp: number) { return villageTemp - 6.5 * (elevation - 1500) / 1000; }
 /** Overview grid for maps (heights at the cell centres), once loadResort has resolved. */
 export function overviewGrid() { const r = store.resort!; return { meta: r.overview, data: store.overview!, height: (i: number) => r.overview.base + store.overview![i] / r.overview.scale }; }
+
+// ---- buildings (swisstopo VECTOR25 footprints + GWR floors; see tools/verbier/build_buildings.py) ------------------------
+/** A building: centre (LV95), footprint rectangle (length along `angle`, radians from east, anticlockwise), floors, use. */
+export type Building = { e: number; n: number; length: number; width: number; angle: number; floors: number;
+    /** 0 house / chalet, 1 apartments or hotel, 2 large non-residential, 3 hut / barn / garage, 4 church, 5 transport. */ kind: number;
+    /** Floors from the federal register (GWR) rather than typical for the size. */ registered: boolean };
+type BuildingDoc = { e0: number; n0: number; source: string; b: number[] };
+const buildingStore: { list?: Building[]; hash?: Map<number, Building[]> } = {};
+function setBuildings(doc: BuildingDoc) {
+    const list: Building[] = [], hash = new Map<number, Building[]>(), b = doc.b;
+    for (let i = 0; i + 7 < b.length; i += 8) {
+        const x: Building = { e: doc.e0 + b[i] / 10, n: doc.n0 + b[i + 1] / 10, length: b[i + 2] / 10, width: b[i + 3] / 10, angle: b[i + 4] / 10 * Math.PI / 180,
+            floors: b[i + 5], kind: b[i + 6], registered: b[i + 7] === 1 };
+        list.push(x);
+        const k = Math.floor(x.e / 250) * 100000 + Math.floor(x.n / 250);
+        (hash.get(k) ?? hash.set(k, []).get(k)!).push(x);
+    }
+    buildingStore.list = list; buildingStore.hash = hash;
+    return list;
+}
+/** All buildings of the area (about 10,800). */
+export function loadBuildings(): Promise<Building[]> {
+    if (buildingStore.list) return Promise.resolve(buildingStore.list);
+    if (!isBrowser) return Promise.resolve(buildingsSync());
+    return once('buildings', async () => setBuildings(await (await fetch(resortUrl('buildings.json'))).json() as BuildingDoc));
+}
+export function buildingsSync(): Building[] {
+    return buildingStore.list ?? setBuildings(JSON.parse(new TextDecoder().decode(readBytes('buildings.json', false))) as BuildingDoc);
+}
+export const buildingsLoaded = () => !!buildingStore.list;
+/** Buildings whose centre is within `radius` m of (e, n); [] until loaded. */
+export function buildingsAround(e: number, n: number, radius: number): Building[] {
+    const h = buildingStore.hash; if (!h) return [];
+    const out: Building[] = [];
+    for (let i = Math.floor((e - radius) / 250); i <= Math.floor((e + radius) / 250); i++)
+        for (let j = Math.floor((n - radius) / 250); j <= Math.floor((n + radius) / 250); j++)
+            for (const b of h.get(i * 100000 + j) ?? []) if (Math.hypot(b.e - e, b.n - n) < radius) out.push(b);
+    return out;
+}
