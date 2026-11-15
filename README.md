@@ -81,6 +81,13 @@ to the main menu. You can also tap any lift, run or station on the map and trave
 
 At walking pace, tuck (**W**, or tilt the phone forward) to skate out of stations and across flats.
 
+**Free ride** the whole 4 Vallées from **Free ride Verbier** in the menu, or **Free ride from here** at any station:
+- Ride anywhere on the real terrain: pistes, itineraries, off-piste powder, forest.
+- The HUD shows the piste you are on, or how far you are off-piste.
+- Stop at any lift to ride it up and keep going from the top.
+
+See [docs/verbier/FREERIDE.md](docs/verbier/FREERIDE.md).
+
 **Lifts are ridden in the 3D world**, in the right vehicle:
 - **Chairlifts:** you sit down, the bar comes down, and the board rests on the footrest.
 - **Gondolas:** you step in from the platform.

@@ -187,3 +187,11 @@
 .plan-steps li>i{flex:none;width:10px;height:10px;margin-top:4px;border-radius:50%;border:1px solid #ffffff66}
 .plan .text-button{display:flex;align-items:center;gap:6px;margin-top:8px}
 @media(max-width:760px){.lift-hud{flex-direction:column;align-items:stretch;padding:10px}.lift-hud-card strong{font-size:18px}.lift-hud-controls{justify-content:space-between}}
+
+/* ---- free ride ------------------------------------------------------------------------------------------------------- */
+.free-entry{border-color:#ffffff33;background:#ffffff0a}.free-entry svg{color:#e6eff3}
+.free-ride-button{width:100%;justify-content:center;margin:0 0 6px}
+.free-hud{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:6;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;max-width:min(380px,calc(100vw - 180px));padding:12px 14px;border-radius:8px;background:#101e28d0;border:1px solid #ffffff1f;color:#f3f5f4;text-shadow:none}
+.free-hud strong{font-size:15px}.free-hud>span:not(.eyebrow){font-size:12px;color:#cfdde6}
+.free-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.free-actions .drop-button,.free-actions .secondary-button{padding:8px 12px;font-size:13px}
+@media(max-width:760px){.free-hud{top:58px;max-width:calc(100vw - 20px);padding:9px 11px}.free-hud strong{font-size:13px}}

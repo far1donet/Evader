@@ -18,10 +18,11 @@ const km = (m: number) => m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.ro
  * Verbier 4 Vallées resort map: where you are, the lifts you can take from here and the pistes you can ride down.
  * Real geography: swissALTI3D relief, OpenStreetMap piste and lift lines, official station names. 2D and 3D views.
  */
-export default function ResortMap({ station, onStation, onRide, onLift, onJourney, onClose, arrival, onDismissArrival, loading }: {
+export default function ResortMap({ station, onStation, onRide, onLift, onJourney, onFreeRide, onClose, arrival, onDismissArrival, loading }: {
     station: string; onStation: (id: string) => void; onRide: (r: RouteSummary) => void; onClose: () => void;
     /** Ride a lift in the game world (from the current station). */ onLift: (l: ResortLift) => void;
     /** Play a planned sequence of lifts and runs. */ onJourney: (steps: JourneyStep[], destination: string) => void;
+    /** Free ride from the current station: the whole domain, no set line. */ onFreeRide: (station: string) => void;
     arrival: Arrival | null; onDismissArrival: () => void; loading: boolean;
 }) {
     const [resort, setResort] = useState<Resort | null>(null), [err, setErr] = useState('');
@@ -70,6 +71,7 @@ export default function ResortMap({ station, onStation, onRide, onLift, onJourne
             <span className="eyebrow">YOU ARE AT</span>
             <h1 className="station-title">{here.name}</h1>
             <p className="station-meta">{Math.round(here.z).toLocaleString()} m · {here.liftsUp.length} lift{here.liftsUp.length === 1 ? '' : 's'} · {routesFrom.length} run{routesFrom.length === 1 ? '' : 's'} down</p>
+            <button className="drop-button free-ride-button" disabled={loading} onClick={() => { onDismissArrival(); onFreeRide(here.id); }}><Play size={17} />{loading ? 'Loading the mountain…' : 'Free ride from here'}</button>
             {sel && <Detail sel={sel} resort={resort} here={here} stationName={stationName} loading={loading}
                 onClose={() => setSel(null)} onRide={onRide} onLift={l => { onDismissArrival(); setSel(null); onLift(l); }}
                 onJourney={(steps, dest) => { onDismissArrival(); setSel(null); onJourney(steps, dest); }}

@@ -156,7 +156,7 @@ export class VerbierRun {
     /** Trees from the aerial imagery near the route: x, d, estimated height (m), repeated. */
     readonly trees: Float32Array;
     private path?: { e: Float32Array; n: Float32Array; te: Float32Array; tn: Float32Array; s: Float32Array; hash: Map<number, number[]>; levels: Level[] };
-    constructor(doc: RouteDoc) {
+    constructor(doc: RouteDoc, scan = true) {
         this.frame = doc.frame; this.id = doc.id; this.name = doc.name; this.klass = doc.klass; this.length = doc.length;
         this.pisteHalfWidth = doc.halfWidth; this.startElevation = doc.startElevation; this.endElevation = doc.endElevation;
         this.centre = Float32Array.from(doc.centre);
@@ -170,14 +170,14 @@ export class VerbierRun {
         const { centre: _c, path: _p, park, ...rest } = doc;
         // nearby lifts (all mapped points within reach of the course frame) and trees, in course coordinates
         const lifts: Lift[] = [];
-        for (const l of store.resort!.lifts) {
+        if (scan) for (const l of store.resort!.lifts) {
             const pts = l.points.map(([e, n, z]) => { const c = this.toCourse(e, n); return c ? [c.x, c.d, z] as [number, number, number] : null; });
             if (pts.some(p => !p)) continue;
             if (!pts.some(p => Math.abs(p![0] - this.centreX(p![1])) < 2000 && p![1] > -1200 && p![1] < this.length + 1200)) continue;
             lifts.push({ id: l.id, name: l.name, type: l.type, osm: l.osm, points: pts as [number, number, number][], occupancy: l.occupancy, capacity: l.capacity, rideS: l.rideS, length: l.length });
         }
         const trees: number[] = [];
-        for (const [k, t] of store.tiles) {
+        if (scan) for (const [k, t] of store.tiles) {
             const te = Math.floor(k / 10000), tn = k % 10000;
             for (let i = 0; i < t.trees.length; i += 3) {
                 const c = this.toCourse(te * 1000 + t.trees[i] / 2, tn * 1000 + t.trees[i + 1] / 2);
@@ -257,6 +257,8 @@ export class VerbierRun {
         if (z?.grooming === 'ungroomed' || this.klass === 'itinerary') return .42;
         return off > this.pisteHalfWidth + 8 ? .22 : 0;
     }
+    /** Snow on the ground: metres outside the groomed corridor (negative = on it), and whether an ungroomed itinerary is here. */
+    snowAt(x: number, d: number) { return { off: Math.abs(x - this.centreX(d)) - this.pisteHalfWidth, itinerary: this.pisteHalfWidth === 0 }; }
     /** Ground height used by the game: real terrain plus irregular moguls where they belong. */
     height(x: number, d: number) {
         let h = this.terrain(x, d);
@@ -362,6 +364,71 @@ export function verbierRun(id: string): VerbierRun {
     for (const k of corridorTiles(doc)) if (!store.tiles.has(k)) { const te = Math.floor(k / 10000), tn = k % 10000; setTile(te, tn, readBytes(`tiles/${te}_${tn}.bin`, true)); }
     const run = makeRun(doc); runs.set(id, run); return run;
 }
+// ---- free ride: the whole domain ----------------------------------------------------------------------------------------------
+/** Shipped 1 km tiles within `radius` metres of (e, n) that are not in memory yet. */
+export function missingTiles(e: number, n: number, radius: number) {
+    const out: number[] = [];
+    for (let te = Math.floor((e - radius) / 1000); te <= Math.floor((e + radius) / 1000); te++)
+        for (let tn = Math.floor((n - radius) / 1000); tn <= Math.floor((n + radius) / 1000); tn++) {
+            const k = tileKey(te, tn); if (store.shipped.has(k) && !store.tiles.has(k)) out.push(k);
+        }
+    return out;
+}
+/** Load the 2 m tiles within `radius` of (e, n). Resolves with the number of tiles loaded. */
+export async function loadTilesAround(e: number, n: number, radius: number): Promise<number> {
+    const keys = missingTiles(e, n, radius);
+    if (!isBrowser) { for (const k of keys) { const te = Math.floor(k / 10000), tn = k % 10000; setTile(te, tn, readBytes(`tiles/${te}_${tn}.bin`, true)); } return keys.length; }
+    await Promise.all(keys.map(k => once(`tile:${k}`, async () => { const te = Math.floor(k / 10000), tn = k % 10000; if (!store.tiles.has(k)) setTile(te, tn, await fetchBytes(`tiles/${te}_${tn}.bin`, true)); })));
+    return keys.length;
+}
+/** Trees of the loaded tiles within `radius` of (e, n), as world points with heights (m). */
+export function treesAround(e: number, n: number, radius: number) {
+    const out: { e: number; n: number; h: number }[] = [];
+    for (const [k, t] of store.tiles) {
+        const te = Math.floor(k / 10000), tn = k % 10000;
+        if (te * 1000 > e + radius || (te + 1) * 1000 < e - radius || tn * 1000 > n + radius || (tn + 1) * 1000 < n - radius) continue;
+        for (let i = 0; i < t.trees.length; i += 3) {
+            const te2 = te * 1000 + t.trees[i] / 2, tn2 = tn * 1000 + t.trees[i + 1] / 2;
+            if (Math.abs(te2 - e) <= radius && Math.abs(tn2 - n) <= radius) out.push({ e: te2, n: tn2, h: t.trees[i + 2] / 10 });
+        }
+    }
+    return out;
+}
+export type SnowInfo = { off: number; itinerary: boolean; moguls?: boolean };
+/**
+ * The free-ride terrain: the whole survey box in a north-up frame centred on the starting point
+ * (x = metres east, d = metres north of it; the game's z = -d points north). Same snow surface, moguls and materials as the
+ * runs, but the piste corridors come from every mapped piste (see free-world.ts SurfaceMap) instead of one run line.
+ */
+export class FreeTerrain extends VerbierRun {
+    /** Where the rider is (course x), so `centreX` has something sensible to return to code that asks for "the line". */
+    focusX = 0;
+    private readonly snowFn: (e: number, n: number) => SnowInfo;
+    constructor(e0: number, n0: number, snowFn: (e: number, n: number) => SnowInfo) {
+        super({ id: 'free', name: 'FREE RIDE', description: 'The whole 4 Vallées', klass: 'red', length: 1e6, halfWidth: 18, startElevation: 0, endElevation: 0, backtrack: 0,
+            frame: { mode: 'rotated', e0, n0, ue: 0, un: 1 }, path: null, centre: [0, 0], zones: [{ d0: -1e6, d1: 1e6, name: null, grooming: 'groomed', difficulty: null, osm: [] }],
+            park: null, fromStation: null, toStation: null, featured: false, sources: [] }, false);
+        this.snowFn = snowFn;
+    }
+    centreX() { return this.focusX; }
+    terrain(x: number, d: number) { return worldHeight(this.frame.e0 + x, this.frame.n0 + d); }
+    snowAt(x: number, d: number): SnowInfo { return this.snowFn(this.frame.e0 + x, this.frame.n0 + d); }
+    mogulAmplitude(x: number, d: number) {
+        const s = this.snowAt(x, d);
+        if (s.moguls) return s.off < 6 ? .55 : .3;
+        if (s.itinerary) return .42;
+        return s.off > 8 ? .22 : 0;
+    }
+    height(x: number, d: number) {
+        let h = this.terrain(x, d);
+        const amp = this.mogulAmplitude(x, d);
+        if (amp > 0) h += amp * moguls(this.frame.e0 + x, this.frame.n0 + d);
+        return h;
+    }
+}
+/** Register the free-ride terrain as run 'free' (one session at a time). */
+export function setFreeTerrain(t: FreeTerrain) { runs.set('free', t); }
+
 /** Margin of terrain before the bottom and after the top station on a lift course, m. */
 export const LIFT_MARGIN = 160;
 /** A course along a lift line (rotated frame, d uphill from 160 m below the bottom station): the lift ride's scene. */

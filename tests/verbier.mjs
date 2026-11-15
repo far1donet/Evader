@@ -3,12 +3,13 @@
 import assert from 'node:assert/strict';
 import * as T from 'three';
 import { PISTES, LIFTS, ANCHORS, ITINERARIES, SNOWPARK, infrastructureFor, FUN_ZONES } from '../lib/verbier/registry.ts';
-import { verbierRun, moguls, RUNS, resortSync, worldHeight, tileLoaded } from '../lib/verbier/terrain.ts';
+import { verbierRun, moguls, RUNS, resortSync, worldHeight, tileLoaded, loadTilesAround, FreeTerrain, setFreeTerrain } from '../lib/verbier/terrain.ts';
+import { SurfaceMap } from '../lib/verbier/free-world.ts';
 import { curvature } from '../lib/verbier/scenery.ts';
 import { LiftRide } from '../lib/verbier/lift-ride.ts';
 import { planJourney } from '../lib/verbier/journey.ts';
 import { LA_CHAUX_FEATURES } from '../lib/park-jumps.ts';
-import { COURSES, height, snowDepth, SnowGame, center, routeCourse, liftCourse } from '../lib/snow-game.ts';
+import { COURSES, height, snowDepth, SnowGame, center, routeCourse, liftCourse, FREE_COURSE } from '../lib/snow-game.ts';
 import { makeParkRails } from '../lib/park-rails.ts';
 import { IDLE_INTENT } from '../lib/sim/rider-controller.ts';
 import { lineFollower } from '../tools/gamebot.mjs';
@@ -126,6 +127,43 @@ import { lineFollower } from '../tools/gamebot.mjs';
     assert.equal(plan.steps.at(-1).kind, 'lift'); assert.equal(plan.steps.at(-1).lift.name, 'Mont-Fort', 'the last step is the Mont-Fort cable car');
     assert.equal(planJourney(r, st('Verbier – Médran'), st('Le Châble')), null, 'Le Châble cannot be reached on lifts and pistes from above (the gondola only goes up)');
     console.log(`Journeys: Verbier – Médran to Mont-Fort in ${plan.steps.length} connected steps (${plan.steps.map(s => s.kind === 'lift' ? s.lift.name : 'run').join(' > ')}) passed.`);
+}
+
+// ---- free ride: the whole domain, snow from every mapped piste, physics anywhere ---------------------------------------------
+{
+    const r = resortSync(), sm = new SurfaceMap(r);
+    // groomed corridor on a mapped piste, powder away from it, itinerary lines flagged
+    const att = r.pistes.find(p => p.name === 'Attelas'), [ae, an] = att.line[10];
+    assert(sm.at(ae, an).off < 0, 'on the Attelas piste: inside the groomed corridor');
+    assert(sm.at(ae + 90, an + 90).off > 0, 'away from it: off-piste');
+    const it = r.pistes.find(p => p.klass === 'itinerary'); assert(sm.at(...it.line[5]).itinerary, 'itinerary line flagged ungroomed');
+    let rides = 0;
+    for (const name of ['Les Attelas', 'Col des Gentianes', 'Savoleyres', 'Tracouet']) {
+        const st = r.stations.find(s => s.name === name);
+        await loadTilesAround(st.e, st.n, 1600);
+        const run = new FreeTerrain(Math.round(st.e), Math.round(st.n), (e, n) => sm.at(e, n)); setFreeTerrain(run);
+        // the free terrain is the same surface as the shipped tiles (plus moguls off-piste)
+        assert(Math.abs(run.terrain(30, -40) - worldHeight(run.frame.e0 + 30, run.frame.n0 - 40)) < 1e-9, `${name}: free terrain = 2 m tiles`);
+        assert(Math.abs(height(30, -40, FREE_COURSE) - run.height(30, -40)) < 1e-9, `${name}: game height = free terrain`);
+        // a rider dropped at the station rides down the real mountain, wherever the fall line goes
+        const g = Object.create(SnowGame.prototype);
+        Object.assign(g, { course: FREE_COURSE, mode: 'freeride', state: 'ride', x: 0, d: 0, y: 0, vy: 0, speed: 0, heading: 0, spin: 0, flip: 0, airTime: 0, grabTime: 0, ground: true,
+            settings: { physics: 'reality', assistLevel: 'balanced', quality: 'high', volume: 0, assist: false, motion: false, weather: 'clear', fov: 62 },
+            spinInput: 0, spinVelocity: 0, flipVelocity: 0, load: 0, pop: 0, extension: 0, landingImpact: 0, grabKind: 0, grabLocked: -1, time: 0, bailTimer: 0, flowTimer: 0, toastTimer: 0, score: 0, tricks: 0, bails: 0, combo: 1,
+            keys: new Set(), touch: new Set(), repeats: new Map(), railDone: new Set(), railActive: -1, railTime: 0, obstacles: [], gateCount: 0, gateIndex: 0,
+            features: [], recordTimer: 0, frames: [], hudTimer: 0, onHUD: () => {}, onEnd: () => {}, sound: () => {}, onPause: () => {}, rails: [],
+            realityEvents: [], intent: { ...IDLE_INTENT }, keySteer: 0, realityGrab: 0, padLatch: new Set(), renderQ: new T.Quaternion(), prevRenderQ: new T.Quaternion(), replayHasQ: false, crashVisual: 0,
+            stick: { x: 0, y: 0 }, gesture: { enabled: false } });
+        g.freeStart = { x: 0, d: 0, yaw: 0 }; g.freeStart.yaw = g.fallLineYaw(0, 0);
+        g.startReality();
+        const y0 = g.y;
+        g.readIntent = () => { Object.assign(g.intent, IDLE_INTENT, { brake: g.speed > 12 ? .6 : 0, tuck: g.speed < 3 }); return g.intent; };
+        for (let i = 0; i < 120 * 25 && g.state === 'ride'; i++) { g.update(1 / 120); assert(Number.isFinite(g.x + g.y + g.d)); }
+        assert(g.state === 'ride', `${name}: free ride never finishes on its own`);
+        assert(y0 - g.y > 15, `${name}: rides down the real slope (${(y0 - g.y).toFixed(0)} m lower in 25 s)`);
+        rides++;
+    }
+    console.log(`Free ride: snow from every mapped piste (groomed corridors, powder off-piste, itineraries); ${rides} free rides from real stations descend the real terrain passed.`);
 }
 
 // ---- runs: real descents along the mapped lines --------------------------------------------------------------------------

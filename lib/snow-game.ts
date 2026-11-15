@@ -21,6 +21,8 @@ import { liftGroup, poleGroup, skicrossGroup, skicrossShape } from './verbier/sc
 import { SNOW, type SnowMaterial } from './sim/snow.ts';
 import { makeCloudSea } from './verbier/cloud-sea.ts';
 import { LiftRide, type RideFrame } from './verbier/lift-ride.ts';
+import { FreeView, SurfaceMap, type FreeInfo } from './verbier/free-world.ts';
+import { FreeTerrain, setFreeTerrain, resortLoaded } from './verbier/terrain.ts';
 
 /** Snow depth on a real-terrain run: groomed inside the piste width, deeper and varied off-piste, deepest on cold,
  *  north-facing, high slopes; an itinerary is ungroomed everywhere. Depths are game estimates, not measurements. */
@@ -29,7 +31,7 @@ import { LiftRide, type RideFrame } from './verbier/lift-ride.ts';
 export function demSurface(x: number, d: number, c: Course, weather: string): SnowMaterial | undefined {
     const run = verbierRun(c.dem!);
     if (run.mogulAmplitude(x, d) > .2) return SNOW.hardpack;
-    if (Math.abs(x - run.centreX(d)) < run.pisteHalfWidth) return undefined;
+    if (run.snowAt(x, d).off < 0) return undefined;
     const s = run.slopeAt(x, d);
     if (s.deg > 40) return SNOW.icy;
     if (weather !== 'snow' && s.downN < -.35 && s.elevation < 2700) return SNOW.crust;
@@ -37,14 +39,13 @@ export function demSurface(x: number, d: number, c: Course, weather: string): Sn
     return undefined;
 }
 function demSnowDepth(x: number, d: number, c: Course) {
-    const run = verbierRun(c.dem!);
-    const off = Math.abs(x - run.centreX(d)) - run.pisteHalfWidth;
+    const run = verbierRun(c.dem!), snow = run.snowAt(x, d), off = snow.off;
     if (off < 0) return .025;
     const s = run.slopeAt(x, d);
     const north = Math.max(0, s.downN);                     // 1 = faces north (shaded, keeps powder)
     const alt = Math.min(1, Math.max(0, (s.elevation - 1700) / 1200));
     const steep = Math.max(0, 1 - Math.max(0, s.deg - 30) / 15); // very steep faces hold little loose snow
-    const ramp = run.pisteHalfWidth === 0 ? 1 : Math.min(1, off / 8); // itineraries are ungroomed right on the line
+    const ramp = snow.itinerary ? 1 : Math.min(1, off / 8); // itineraries are ungroomed right on the line
     return .025 + ramp * steep * (.08 + .22 * alt + .14 * north);
 }
 export type Mode = 'freeride' | 'slopestyle' | 'time-trial' | 'training';
@@ -81,6 +82,8 @@ export type Look = {
     kit?: RiderKit;
 };
 export type Course = {
+    /** Free ride over the whole domain (no line, no finish): see lib/verbier/free-world.ts. */
+    free?: boolean;
     classicFeatures?: boolean;
     originalKickers?: boolean;
     packedSnow?: boolean;
@@ -107,6 +110,10 @@ const VERBIER_COURSES: Course[] = VERBIER_RUNS.map((r, i) => ({
     rails: r.klass === 'park' ? 4 : 0, seed: 300 + i, dem: r.id, runClass: r.klass as RunClass,
 }));
 /** A playable course for any resort route (station to station along mapped pistes). Load it with loadRun first. */
+/** Free ride over the whole Verbier 4 Vallées domain (start it with SnowGame.startFree). */
+export const FREE_COURSE: Course = { id: 3000, name: 'FREE RIDE', region: 'VERBIER · 4 VALLÉES', subtitle: 'Ride anywhere on the mountain', length: 1e6, drop: 0,
+    difficulty: 'FREE RIDE', spacing: 1e9, rails: 0, seed: 77, dem: 'free', runClass: 'red', free: true };
+let surfaceMap: SurfaceMap | undefined;
 /** The scene for riding a lift: the corridor along its real line (load it with loadLift first). */
 export function liftCourse(l: { id: string; name: string; typeLabel: string; vertical: number; length: number }): Course {
     return { id: 2000, name: l.name.toUpperCase(), region: 'VERBIER · 4 VALLÉES', subtitle: l.typeLabel, length: Math.round(l.length), drop: -l.vertical,
@@ -187,6 +194,10 @@ export type HUD = {
     /** Real-terrain runs: rider altitude (m, from the DEM) and air temperature from the altitude lapse rate (deg C). */
     altitude?: number;
     temperature?: number;
+    /** Free ride: where the rider is (piste name / off-piste), the station nearby and a lift that can be taken here. */
+    where?: string;
+    station?: string;
+    nearLifts?: { id: string; name: string; typeLabel: string }[];
 };
 const clamp = T.MathUtils.clamp;
 /** Air temperature at Verbier village (1,500 m) per weather setting: game assumptions for a winter day. */
@@ -315,6 +326,8 @@ export class SnowGame {
     /** The lift being ridden (state 'lift'), its latest frame, and the callback when the rider has got off at the top. */
     lift?: LiftRide; liftFrame?: RideFrame; liftId?: string; private liftEnded = false; private liftRope?: T.Mesh;
     onLiftEnd: (liftId: string) => void = () => {};
+    /** Free ride: the streamed world, where the session starts (course frame), what the HUD shows, distance ridden. */
+    freeView?: FreeView; freeStart?: { x: number; d: number; yaw: number }; freeInfo?: FreeInfo; private freeInfoTimer = 0; freeDistance = 0; private freeLast?: { x: number; d: number };
     keys = new Set<string>();
     touch = new Set<string>();
     frameId = 0;
@@ -538,6 +551,19 @@ export class SnowGame {
         this.rails = [];
         this.features = [];
         const c = this.course;
+        this.freeView?.dispose(); this.freeView = undefined;
+        if (c.free) {
+            // The whole domain, streamed around the rider (terrain chunks, trees, lifts, poles, cloud sea).
+            const run = verbierRun('free') as FreeTerrain;
+            this.freeView = new FreeView(run, surfaceMap!, resortLoaded()!, this.settings.quality, (x, d) => height(x, d, c), (x, d) => snowDepth(x, d, c));
+            const p = this.freeStart ?? { x: 0, d: 0, yaw: 0 };
+            this.freeView.prime(p.x, p.d);
+            this.obstacles = this.freeView.obstacles;
+            this.world.add(this.freeView.group);
+            this.x = p.x; this.d = p.d; this.y = height(p.x, p.d, c);
+            this.setAtmosphere();
+            return;
+        }
         let seed = c.seed;
         const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
         const detail = preset(this.settings.quality);
@@ -801,7 +827,8 @@ export class SnowGame {
         this.reality = ride;
         // A rider drops in from a standstill with a short push (about 3 m/s); gravity does the rest.
         // Real-terrain runs start on summits and stations where the fall line can point anywhere: face along the mapped line.
-        ride.place(center(2, c), 2, 3, c.dem ? Math.atan2(1, (center(12, c) - center(2, c)) / 10) : undefined);
+        if (c.free) { const p = this.freeStart ?? { x: 0, d: 0, yaw: 0 }; ride.place(p.x, p.d, 1.5, p.yaw); }
+        else ride.place(center(2, c), 2, 3, c.dem ? Math.atan2(1, (center(12, c) - center(2, c)) / 10) : undefined);
         this.syncReality(1 / 120);
         this.prevRenderQ.copy(this.renderQ);
         this.feedback = this.mode === 'training'
@@ -899,7 +926,7 @@ export class SnowGame {
         if (k === 'Space')
             this.jumpReleased = true;
     } }
-    resetMarker() { if (this.reality) { this.powder?.clear(); this.boardTracks?.breakTrail(); this.reality.place(center(this.d, this.course), this.d, 3); this.syncReality(1 / 120); this.prevRenderQ.copy(this.renderQ); this.previous = undefined; this.combo = 1; this.bails++; this.toast('Line reset'); return; } this.powder?.clear(); this.boardTracks?.breakTrail(); this.parkFlight = undefined; this.edgeAngle = 0; this.skidAngle = 0; this.x = center(this.d, this.course); this.y = height(this.x, this.d, this.course); this.vy = 0; this.ground = true; this.heading = 0; this.spin = 0; this.flip = 0; this.speed = 10; this.combo = 1; this.railActive = -1; this.bails++; this.jumpPending = false; this.load = 0; this.spinVelocity = 0; this.flipVelocity = 0; this.previous = undefined; this.toast('Line reset'); }
+    resetMarker() { if (this.reality) { this.powder?.clear(); this.boardTracks?.breakTrail(); if (this.course.free) this.reality.place(this.x, this.d, 2, this.fallLineYaw(this.x, this.d)); else this.reality.place(center(this.d, this.course), this.d, 3); this.syncReality(1 / 120); this.prevRenderQ.copy(this.renderQ); this.previous = undefined; this.combo = 1; this.bails++; this.toast('Line reset'); return; } this.powder?.clear(); this.boardTracks?.breakTrail(); this.parkFlight = undefined; this.edgeAngle = 0; this.skidAngle = 0; this.x = center(this.d, this.course); this.y = height(this.x, this.d, this.course); this.vy = 0; this.ground = true; this.heading = 0; this.spin = 0; this.flip = 0; this.speed = 10; this.combo = 1; this.railActive = -1; this.bails++; this.jumpPending = false; this.load = 0; this.spinVelocity = 0; this.flipVelocity = 0; this.previous = undefined; this.toast('Line reset'); }
     prepareJump() { if (this.ground && this.state === 'ride' && this.bailTimer <= 0) {
         this.jumpPending = true;
         this.jumpReleased = false;
@@ -1047,7 +1074,9 @@ export class SnowGame {
         this.cameraMode = 0;
     }
     setReplayTime(t: number) { const time = clamp(t, 0, this.run?.time || 0); if (time !== this.replayTime) this.powder?.clear(); this.replayTime = time; }
-    getHUD(): HUD { return { speed: Math.round(this.speed * 3.6), score: this.score, time: this.time, distance: Math.round(this.d), progress: this.d / this.course.length, combo: this.combo, trick: this.toastTimer > 0 ? this.trick : '', trickScore: this.trickScore, feedback: this.feedback, air: !this.ground, gates: this.gateCount, totalGates: this.features.length , ...(this.course.dem ? { altitude: Math.round(this.y), temperature: Math.round(lapseTemperature(this.y, VILLAGE_TEMP[this.settings.weather] ?? -6)) } : {}) }; }
+    getHUD(): HUD { return { speed: Math.round(this.speed * 3.6), score: this.score, time: this.time, distance: Math.round(this.d), progress: this.d / this.course.length, combo: this.combo, trick: this.toastTimer > 0 ? this.trick : '', trickScore: this.trickScore, feedback: this.feedback, air: !this.ground, gates: this.gateCount, totalGates: this.features.length , ...(this.course.dem ? { altitude: Math.round(this.y), temperature: Math.round(lapseTemperature(this.y, VILLAGE_TEMP[this.settings.weather] ?? -6)) } : {}),
+        ...(this.course.free ? { distance: Math.round(this.freeDistance), progress: 0, where: this.freeInfo?.where, station: this.freeInfo?.station?.name,
+            nearLifts: this.freeInfo?.nearLifts.map(l => ({ id: l.id, name: l.name, typeLabel: l.typeLabel })) } : {}) }; }
     tick = () => { this.frameId = requestAnimationFrame(this.tick); const dt = Math.min(this.clock.getDelta(), .10); if (this.suspended) return; if (this.state === 'ride') {
         this.physicsAccumulator += dt;
         let substeps = 0;
@@ -1060,7 +1089,7 @@ export class SnowGame {
         }
     }
     else
-        this.physicsAccumulator = 0; if (this.state === 'lift') this.updateLift(dt); if (this.state === 'replay')
+        this.physicsAccumulator = 0; if (this.state === 'lift') this.updateLift(dt); if (this.freeView && (this.state === 'ride' || this.state === 'pause' || this.state === 'menu')) this.updateFree(dt); if (this.state === 'replay')
         this.updateReplay(dt);
         const inspectingGear = this.state === 'garage' && this.garageHost;
         if (inspectingGear) {
@@ -1346,7 +1375,7 @@ export class SnowGame {
             this.onHUD(this.getHUD());
             this.hudTimer = 0;
         }
-        if (this.d >= this.course.length - 10 || this.time > (this.reality ? 600 : 240))
+        if (!this.course.free && (this.d >= this.course.length - 10 || this.time > (this.reality ? 600 : 240)))
             this.finish();
     }
     /** Rider intent from keyboard, touch and gamepad (Reality physics). Input expresses intent; the simulation decides. */
@@ -1627,6 +1656,45 @@ export class SnowGame {
         sun.position.copy(this.rider.position).add(this.settings.weather === 'dusk' ? DUSK_LIGHT : DAYLIGHT);
         sun.target.position.copy(this.rider.position);
         sun.target.updateMatrixWorld();
+    }
+    // ---- free ride --------------------------------------------------------------------------------------------------------
+    /** Downhill direction at a point, as the yaw that place() expects (board pointing down the fall line). */
+    fallLineYaw(x: number, d: number) {
+        const c = this.course, gx = height(x + 2, d, c) - height(x - 2, d, c), gd = height(x, d + 2, c) - height(x, d - 2, c);
+        // downhill = -gradient in (x, d), i.e. world (x, z) = (-gx, +gd); the sim's yaw turns +x toward -z: yaw = atan2(-wz, wx)
+        return Math.atan2(-gd, -gx);
+    }
+    /**
+     * Free ride from a point of the domain (LV95). The resort and the 2 m tiles around the point must be loaded
+     * (loadResort, loadTilesAround). The world streams around the rider from there on; nothing ends the ride but the
+     * player (a lift, the map, the menu).
+     */
+    startFree(e: number, n: number, mode: Mode = 'freeride') {
+        const r = resortLoaded(); if (!r) throw new Error('resort not loaded');
+        surfaceMap ??= new SurfaceMap(r);
+        const sm = surfaceMap, run = new FreeTerrain(Math.round(e), Math.round(n), (we, wn) => sm.at(we, wn));
+        setFreeTerrain(run);
+        this.lift?.dispose(); this.lift = undefined;
+        this.freeStart = { x: e - Math.round(e), d: n - Math.round(n), yaw: 0 };
+        this.course = FREE_COURSE;            // so that height() below reads the free terrain
+        this.freeStart.yaw = this.fallLineYaw(this.freeStart.x, this.freeStart.d);
+        this.setCourse(FREE_COURSE);
+        this.freeDistance = 0; this.freeInfoTimer = 0; this.freeLast = undefined;
+        this.suspended = false;
+        this.start(mode);
+        this.freeInfo = this.freeView?.info(this.x, this.d, 0);
+    }
+    /** World position (LV95) of the rider in free ride. */
+    freeWorld() { const run = this.freeView?.run; return run ? run.world(this.x, this.d) : undefined; }
+    private updateFree(dt: number) {
+        const v = this.freeView!;
+        v.update(this.x, this.d, dt);
+        this.obstacles = v.obstacles;
+        const step = this.freeLast ? Math.hypot(this.x - this.freeLast.x, this.d - this.freeLast.d) : 0;
+        if (this.state === 'ride' && step < 20) this.freeDistance += step;
+        this.freeLast = { x: this.x, d: this.d };
+        this.freeInfoTimer -= dt;
+        if (this.freeInfoTimer <= 0) { this.freeInfoTimer = .3; this.freeInfo = v.info(this.x, this.d, this.speed); }
     }
     // ---- lifts ----------------------------------------------------------------------------------------------------------
     /** Ride a lift in the game world. The course must be liftCourse(lift) and its terrain loaded (loadLift). */
