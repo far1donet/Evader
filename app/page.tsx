@@ -1,54 +1,202 @@
 'use client';
-import {useEffect,useRef,useState} from 'react';
-import {Map as MapIcon,CableCar,Mountain,Settings2,Shirt,Flag,Play,Pause,RotateCcw,Camera,Volume2,Maximize,Check,ChevronLeft,ChevronRight,Gamepad2,Keyboard,MousePointer2,Film,Trophy,Timer,Compass,SlidersHorizontal,X,Info,GraduationCap} from 'lucide-react';
-import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from '@/components/ui/select';
-import {Slider} from '@/components/ui/slider';
-import {Switch} from '@/components/ui/switch';
-import {Tabs,TabsList,TabsTrigger,TabsContent} from '@/components/ui/tabs';
-import {EMPTY_PASSPORT,goals,loadPassport,record,savePassport,type Passport} from '@/lib/passport';
-import {SnowGame,COURSES,routeCourse,liftCourse,type BenchResult,type Course,type Settings,type Look,type RiderKit,type HUD,type Run,type Mode} from '@/lib/snow-game';
-import type {GearView} from '@/lib/gear-preview';
-import {BOARDS,type BoardCategory} from '@/lib/sim/boards';
-import {GRABS} from '@/lib/sim/freestyle';
-import {isRunLoaded,loadRun,loadLift,loadResort,loadTilesAround,verbierRun,resortLoaded,resortUrl,type RouteSummary,type ResortLift} from '@/lib/verbier/terrain';
-import type {JourneyStep} from '@/lib/verbier/journey';
-import ResortMap,{type Arrival} from '@/components/resort/ResortMap';
-const defaults:Settings={physics:'reality',assistLevel:'balanced',board:'all-mountain',stance:'regular',padDeadzone:.12,padCurve:1.5,padSensitivity:1,invertLean:false,diagnostics:false,quality:'extreme',renderScale:1,autoLand:true,volume:.3,assist:false,motion:true,weather:'clear',fov:62};
-const initial:HUD={speed:0,score:0,time:0,distance:0,progress:0,combo:1,trick:'',trickScore:0,feedback:'',air:false,gates:0,totalGates:0};
-const outfits: Record<RiderKit, { name: string; jacket: string; board: string }> = {
-    ochre: {name:'Ochre', jacket:'#ab7029', board:'#c58e42'},
-    shadow: {name:'Shadow', jacket:'#1b1b24', board:'#788194'},
-    alpine: {name:'Alpine', jacket:'#2f322f', board:'#c58e42'},
+import { useEffect, useRef, useState } from 'react';
+import {
+    Map as MapIcon,
+    CableCar,
+    Mountain,
+    Settings2,
+    Shirt,
+    Flag,
+    Play,
+    Pause,
+    RotateCcw,
+    Camera,
+    Volume2,
+    Maximize,
+    Check,
+    ChevronLeft,
+    ChevronRight,
+    Gamepad2,
+    Keyboard,
+    MousePointer2,
+    Film,
+    Trophy,
+    Timer,
+    Compass,
+    SlidersHorizontal,
+    X,
+    Info,
+    GraduationCap,
+} from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { EMPTY_PASSPORT, goals, loadPassport, record, savePassport, type Passport } from '@/lib/passport';
+import {
+    SnowGame,
+    COURSES,
+    routeCourse,
+    liftCourse,
+    type BenchResult,
+    type Course,
+    type Settings,
+    type Look,
+    type RiderKit,
+    type HUD,
+    type Run,
+    type Mode,
+} from '@/lib/snow-game';
+import type { GearView } from '@/lib/gear-preview';
+import { BOARDS, type BoardCategory } from '@/lib/sim/boards';
+import { GRABS } from '@/lib/sim/freestyle';
+import {
+    isRunLoaded,
+    loadRun,
+    loadLift,
+    loadResort,
+    loadTilesAround,
+    verbierRun,
+    resortLoaded,
+    resortUrl,
+    type RouteSummary,
+    type ResortLift,
+} from '@/lib/verbier/terrain';
+import type { JourneyStep } from '@/lib/verbier/journey';
+import ResortMap, { type Arrival } from '@/components/resort/ResortMap';
+const defaults: Settings = {
+    physics: 'reality',
+    assistLevel: 'balanced',
+    board: 'all-mountain',
+    stance: 'regular',
+    padDeadzone: 0.12,
+    padCurve: 1.5,
+    padSensitivity: 1,
+    invertLean: false,
+    diagnostics: false,
+    quality: 'extreme',
+    renderScale: 1,
+    autoLand: true,
+    volume: 0.3,
+    assist: false,
+    motion: true,
+    weather: 'clear',
+    fov: 62,
 };
-const defaultLook: Look = {kit:'ochre', jacket:outfits.ochre.jacket, board:outfits.ochre.board};
+const initial: HUD = {
+    speed: 0,
+    score: 0,
+    time: 0,
+    distance: 0,
+    progress: 0,
+    combo: 1,
+    trick: '',
+    trickScore: 0,
+    feedback: '',
+    air: false,
+    gates: 0,
+    totalGates: 0,
+};
+const outfits: Record<RiderKit, { name: string; jacket: string; board: string }> = {
+    ochre: { name: 'Ochre', jacket: '#ab7029', board: '#c58e42' },
+    shadow: { name: 'Shadow', jacket: '#1b1b24', board: '#788194' },
+    alpine: { name: 'Alpine', jacket: '#2f322f', board: '#c58e42' },
+};
+const defaultLook: Look = { kit: 'ochre', jacket: outfits.ochre.jacket, board: outfits.ochre.board };
 const jackets = [
-    ['Ochre',outfits.ochre.jacket], ['Shadow',outfits.shadow.jacket], ['Charcoal',outfits.alpine.jacket], ['Emerald','#18ac75'],
-    ['Ember','#ec6b47'], ['Snow','#d8e8ef'], ['Glacier','#58b6bd'], ['Violet','#8878b8'], ['Acid lime','#d7fa65'],
+    ['Ochre', outfits.ochre.jacket],
+    ['Shadow', outfits.shadow.jacket],
+    ['Charcoal', outfits.alpine.jacket],
+    ['Emerald', '#18ac75'],
+    ['Ember', '#ec6b47'],
+    ['Snow', '#d8e8ef'],
+    ['Glacier', '#58b6bd'],
+    ['Violet', '#8878b8'],
+    ['Acid lime', '#d7fa65'],
 ];
 const boards = [
-    ['Ochre',outfits.ochre.board], ['Slate',outfits.shadow.board], ['Snow','#e7eaee'], ['Carbon','#20282e'], ['Glacier','#87d0ea'], ['Ember','#ee7d60'], ['Acid lime','#d7fa65'],
+    ['Ochre', outfits.ochre.board],
+    ['Slate', outfits.shadow.board],
+    ['Snow', '#e7eaee'],
+    ['Carbon', '#20282e'],
+    ['Glacier', '#87d0ea'],
+    ['Ember', '#ee7d60'],
+    ['Acid lime', '#d7fa65'],
 ];
-const gearViews: [GearView, string][] = [['rider','Rider'],['headwear','Headwear'],['deck','Deck & bindings'],['base','Base']];
+const gearViews: [GearView, string][] = [
+    ['rider', 'Rider'],
+    ['headwear', 'Headwear'],
+    ['deck', 'Deck & bindings'],
+    ['base', 'Base'],
+];
 function restoreLook(value: unknown): Look {
     if (!value || typeof value !== 'object') return defaultLook;
-    const {jacket: savedJacket, board: savedBoard, kit} = value as Partial<Look>;
-    const oldTints: Record<string,string> = {'#bd822c':outfits.ochre.jacket,'#25272b':outfits.shadow.jacket,'#383b40':outfits.alpine.jacket};
+    const { jacket: savedJacket, board: savedBoard, kit } = value as Partial<Look>;
+    const oldTints: Record<string, string> = { '#bd822c': outfits.ochre.jacket, '#25272b': outfits.shadow.jacket, '#383b40': outfits.alpine.jacket };
     const jacket = savedJacket && (oldTints[savedJacket] ?? savedJacket);
-    const board = kit==='shadow' && savedJacket==='#25272b' && savedBoard==='#e7eaee' ? outfits.shadow.board : savedBoard;
-    if (!jacket || !board || !jackets.some(([,color])=>color===jacket) || !boards.some(([,color])=>color===board)) return defaultLook;
+    const board = kit === 'shadow' && savedJacket === '#25272b' && savedBoard === '#e7eaee' ? outfits.shadow.board : savedBoard;
+    if (!jacket || !board || !jackets.some(([, color]) => color === jacket) || !boards.some(([, color]) => color === board)) return defaultLook;
     const oldDefault = !kit && board === '#d7fa65' && (jacket === '#18ac75' || jacket === '#d7fa65');
     if (oldDefault) return defaultLook;
-    return {jacket, board, kit:kit==='shadow'||kit==='alpine'?kit:'ochre'};
+    return { jacket, board, kit: kit === 'shadow' || kit === 'alpine' ? kit : 'ochre' };
 }
-type Screen='menu'|'ride'|'pause'|'result'|'replay'|'resort'|'lift';
-type Panel='ride'|'career'|'garage'|'studio'|'settings'|'creator'|'about';
-const modes:{id:Mode;name:string;description:string;icon:typeof Compass}[]=[{id:'freeride',name:'Free ride',description:'Your mountain. Your line.',icon:Compass},{id:'slopestyle',name:'Slopestyle',description:'Link tricks. Build your score.',icon:Trophy},{id:'time-trial',name:'Time trial',description:'Hit the gates. Beat your best.',icon:Timer},{id:'training',name:'Training',description:'Practice with landing assists.',icon:Flag}];
-const fmt=(t:number)=>`${Math.floor(t/60).toString().padStart(2,'0')}:${Math.floor(t%60).toString().padStart(2,'0')}.${Math.floor((t%1)*10)}`;
-function Choice({value,onChange,items,label}:{value:string;onChange:(v:string)=>void;items:[string,string][];label:string}){return <Select value={value} onValueChange={onChange}><SelectTrigger aria-label={label} className="choice"><SelectValue/></SelectTrigger><SelectContent>{items.map(([v,n])=><SelectItem key={v} value={v}>{n}</SelectItem>)}</SelectContent></Select>}
+type Screen = 'menu' | 'ride' | 'pause' | 'result' | 'replay' | 'resort' | 'lift';
+type Panel = 'ride' | 'career' | 'garage' | 'studio' | 'settings' | 'creator' | 'about';
+const modes: { id: Mode; name: string; description: string; icon: typeof Compass }[] = [
+    { id: 'freeride', name: 'Free ride', description: 'Your mountain. Your line.', icon: Compass },
+    { id: 'slopestyle', name: 'Slopestyle', description: 'Link tricks. Build your score.', icon: Trophy },
+    { id: 'time-trial', name: 'Time trial', description: 'Hit the gates. Beat your best.', icon: Timer },
+    { id: 'training', name: 'Training', description: 'Practice with landing assists.', icon: Flag },
+];
+const fmt = (t: number) =>
+    `${Math.floor(t / 60)
+        .toString()
+        .padStart(2, '0')}:${Math.floor(t % 60)
+        .toString()
+        .padStart(2, '0')}.${Math.floor((t % 1) * 10)}`;
+function Choice({ value, onChange, items, label }: { value: string; onChange: (v: string) => void; items: [string, string][]; label: string }) {
+    return (
+        <Select value={value} onValueChange={onChange}>
+            <SelectTrigger aria-label={label} className="choice">
+                <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+                {items.map(([v, n]) => (
+                    <SelectItem key={v} value={v}>
+                        {n}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
+    );
+}
 /** Fullscreen and landscape lock where the browser allows it (installed apps, Android Chrome). Silently ignored elsewhere. */
-function goFullscreen(){try{const el=document.documentElement as HTMLElement&{webkitRequestFullscreen?:()=>void};const done=()=>{try{(screen.orientation as ScreenOrientation&{lock?:(o:string)=>Promise<void>}).lock?.('landscape').catch(()=>{});}catch{}};if(document.fullscreenElement){document.exitFullscreen?.().catch(()=>{});return;}if(el.requestFullscreen)el.requestFullscreen({navigationUI:'hide'}).then(done).catch(()=>{});else el.webkitRequestFullscreen?.();}catch{}}
+function goFullscreen() {
+    try {
+        const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
+        const done = () => {
+            try {
+                (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('landscape').catch(() => {});
+            } catch {}
+        };
+        if (document.fullscreenElement) {
+            document.exitFullscreen?.().catch(() => {});
+            return;
+        }
+        if (el.requestFullscreen)
+            el.requestFullscreen({ navigationUI: 'hide' })
+                .then(done)
+                .catch(() => {});
+        else el.webkitRequestFullscreen?.();
+    } catch {}
+}
 /** iPhone (iOS 13+) asks for motion access; must be called inside a tap. Android needs nothing. */
-function requestTiltPermission(){try{const D=(window as unknown as {DeviceOrientationEvent?:{requestPermission?:()=>Promise<string>}}).DeviceOrientationEvent;D?.requestPermission?.().catch(()=>{});}catch{}}
+function requestTiltPermission() {
+    try {
+        const D = (window as unknown as { DeviceOrientationEvent?: { requestPermission?: () => Promise<string> } }).DeviceOrientationEvent;
+        D?.requestPermission?.().catch(() => {});
+    } catch {}
+}
 /**
  * Tilt-to-carve + touch gestures, no buttons. Tilt is read from deviceorientation (beta/gamma), turned into the world
  * "up" direction in screen coordinates, and compared with the phone's pose when the run started (calibration), so any
@@ -56,199 +204,2176 @@ function requestTiltPermission(){try{const D=(window as unknown as {DeviceOrient
  * away = nose pressure / tuck, toward you = speed check. Touch: hold = crouch, lift = pop; drag while holding = spin
  * wind (sideways) and flip throw (up = back); touching in the air = grab (left / right half, two fingers).
  */
-function TiltGestures({game,sensitivity,invert,onUnavailable}:{game:SnowGame;sensitivity:number;invert:boolean;onUnavailable:()=>void}){
- const pointers=useRef(new Map<number,{x0:number;y0:number;x:number;y:number}>());
- useEffect(()=>{
-  game.gesture.enabled=true;
-  let base:{ux:number;a:number}|null=null,got=false,steer=0,lean=0;
-  const angle=()=>{const o=(screen.orientation?.angle??(window as unknown as {orientation?:number}).orientation??0) as number;return o*Math.PI/180;};
-  const onTilt=(e:DeviceOrientationEvent)=>{
-   if(e.beta==null||e.gamma==null)return;got=true;
-   const b=e.beta*Math.PI/180,g=e.gamma*Math.PI/180;
-   // world up in device coordinates, then rotated into screen coordinates
-   const dx=-Math.cos(b)*Math.sin(g),dy=Math.sin(b),dz=Math.cos(b)*Math.cos(g),t=angle();
-   const ux=dx*Math.cos(t)-dy*Math.sin(t),uy=dx*Math.sin(t)+dy*Math.cos(t),a=Math.atan2(uy,dz);
-   if(!base){base={ux,a};}
-   const full=Math.sin(sensitivity*Math.PI/180);
-   const sTarget=(invert?1:-1)*(ux-base.ux)/full, lTarget=(base.a-a)/(20*Math.PI/180);
-   steer+=.45*(sTarget-steer);lean+=.35*(lTarget-lean);
-   const dz2=(v:number,d:number)=>Math.abs(v)<d?0:(v-Math.sign(v)*d)/(1-d);
-   game.setTilt(dz2(Math.max(-1,Math.min(1,steer)),.06),dz2(Math.max(-1,Math.min(1,lean)),.12));
-  };
-  const recalibrate=()=>{base=null;};
-  window.addEventListener('deviceorientation',onTilt);
-  window.addEventListener('evader-recalibrate',recalibrate);
-  const check=window.setTimeout(()=>{if(!got)onUnavailable();},2500);
-  return()=>{window.removeEventListener('deviceorientation',onTilt);window.removeEventListener('evader-recalibrate',recalibrate);window.clearTimeout(check);game.gesture.enabled=false;game.setGesture(0,0,0,1);game.setTilt(0,0);};
- },[game,sensitivity,invert,onUnavailable]);
- function sync(){const ps=[...pointers.current.values()];if(!ps.length){game.setGesture(0,0,0,1);return;}const p=ps[0],k=70,dead=12;const dx=p.x-p.x0,dy=p.y-p.y0;const sh=(v:number)=>Math.abs(v)<dead?0:(v-Math.sign(v)*dead)/k;game.setGesture(ps.length,sh(dx),sh(-dy),p.x0<window.innerWidth/2?-1:1);}
- return <div className="gesture-layer" aria-label="Touch to jump, spin, flip and grab" onPointerDown={e=>{e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);pointers.current.set(e.pointerId,{x0:e.clientX,y0:e.clientY,x:e.clientX,y:e.clientY});navigator.vibrate?.(6);sync();}} onPointerMove={e=>{const p=pointers.current.get(e.pointerId);if(p){p.x=e.clientX;p.y=e.clientY;sync();}}} onPointerUp={e=>{pointers.current.delete(e.pointerId);sync();}} onPointerCancel={e=>{pointers.current.delete(e.pointerId);sync();}} onContextMenu={e=>e.preventDefault()}/>;
+function TiltGestures({ game, sensitivity, invert, onUnavailable }: { game: SnowGame; sensitivity: number; invert: boolean; onUnavailable: () => void }) {
+    const pointers = useRef(new Map<number, { x0: number; y0: number; x: number; y: number }>());
+    useEffect(() => {
+        game.gesture.enabled = true;
+        let base: { ux: number; a: number } | null = null,
+            got = false,
+            steer = 0,
+            lean = 0;
+        const angle = () => {
+            const o = (screen.orientation?.angle ?? (window as unknown as { orientation?: number }).orientation ?? 0) as number;
+            return (o * Math.PI) / 180;
+        };
+        const onTilt = (e: DeviceOrientationEvent) => {
+            if (e.beta == null || e.gamma == null) return;
+            got = true;
+            const b = (e.beta * Math.PI) / 180,
+                g = (e.gamma * Math.PI) / 180;
+            // world up in device coordinates, then rotated into screen coordinates
+            const dx = -Math.cos(b) * Math.sin(g),
+                dy = Math.sin(b),
+                dz = Math.cos(b) * Math.cos(g),
+                t = angle();
+            const ux = dx * Math.cos(t) - dy * Math.sin(t),
+                uy = dx * Math.sin(t) + dy * Math.cos(t),
+                a = Math.atan2(uy, dz);
+            if (!base) {
+                base = { ux, a };
+            }
+            const full = Math.sin((sensitivity * Math.PI) / 180);
+            const sTarget = ((invert ? 1 : -1) * (ux - base.ux)) / full,
+                lTarget = (base.a - a) / ((20 * Math.PI) / 180);
+            steer += 0.45 * (sTarget - steer);
+            lean += 0.35 * (lTarget - lean);
+            const dz2 = (v: number, d: number) => (Math.abs(v) < d ? 0 : (v - Math.sign(v) * d) / (1 - d));
+            game.setTilt(dz2(Math.max(-1, Math.min(1, steer)), 0.06), dz2(Math.max(-1, Math.min(1, lean)), 0.12));
+        };
+        const recalibrate = () => {
+            base = null;
+        };
+        window.addEventListener('deviceorientation', onTilt);
+        window.addEventListener('evader-recalibrate', recalibrate);
+        const check = window.setTimeout(() => {
+            if (!got) onUnavailable();
+        }, 2500);
+        return () => {
+            window.removeEventListener('deviceorientation', onTilt);
+            window.removeEventListener('evader-recalibrate', recalibrate);
+            window.clearTimeout(check);
+            game.gesture.enabled = false;
+            game.setGesture(0, 0, 0, 1);
+            game.setTilt(0, 0);
+        };
+    }, [game, sensitivity, invert, onUnavailable]);
+    function sync() {
+        const ps = [...pointers.current.values()];
+        if (!ps.length) {
+            game.setGesture(0, 0, 0, 1);
+            return;
+        }
+        const p = ps[0],
+            k = 70,
+            dead = 12;
+        const dx = p.x - p.x0,
+            dy = p.y - p.y0;
+        const sh = (v: number) => (Math.abs(v) < dead ? 0 : (v - Math.sign(v) * dead) / k);
+        game.setGesture(ps.length, sh(dx), sh(-dy), p.x0 < window.innerWidth / 2 ? -1 : 1);
+    }
+    return (
+        <div
+            className="gesture-layer"
+            aria-label="Touch to jump, spin, flip and grab"
+            onPointerDown={e => {
+                e.preventDefault();
+                e.currentTarget.setPointerCapture(e.pointerId);
+                pointers.current.set(e.pointerId, { x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY });
+                navigator.vibrate?.(6);
+                sync();
+            }}
+            onPointerMove={e => {
+                const p = pointers.current.get(e.pointerId);
+                if (p) {
+                    p.x = e.clientX;
+                    p.y = e.clientY;
+                    sync();
+                }
+            }}
+            onPointerUp={e => {
+                pointers.current.delete(e.pointerId);
+                sync();
+            }}
+            onPointerCancel={e => {
+                pointers.current.delete(e.pointerId);
+                sync();
+            }}
+            onContextMenu={e => e.preventDefault()}
+        />
+    );
 }
 /** Analog thumb-stick: x = lean onto the toe/heel edge (turn), y = fore-aft pressure (up = nose). Follows the thumb. */
-function TouchStick({onMove}:{onMove:(x:number,y:number)=>void}){
- const base=useRef<HTMLDivElement>(null),knob=useRef<HTMLDivElement>(null),origin=useRef<{x:number;y:number;id:number}|null>(null);
- const R=52;
- function move(cx:number,cy:number){const o=origin.current;if(!o)return;let dx=cx-o.x,dy=cy-o.y;const m=Math.hypot(dx,dy);if(m>R){dx*=R/m;dy*=R/m;}if(knob.current)knob.current.style.transform=`translate(${dx}px,${dy}px)`;const dead=.12,nx=dx/R,ny=-dy/R,mag=Math.hypot(nx,ny);if(mag<dead){onMove(0,0);return;}const k=(mag-dead)/(1-dead)/mag;onMove(nx*k,ny*k);}
- function end(){origin.current=null;if(knob.current)knob.current.style.transform='';onMove(0,0);}
- return <div ref={base} className="touch-stick" aria-label="Steer and lean" onPointerDown={e=>{e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);const r=e.currentTarget.getBoundingClientRect();origin.current={x:r.left+r.width/2,y:r.top+r.height/2,id:e.pointerId};move(e.clientX,e.clientY);}} onPointerMove={e=>{if(origin.current?.id===e.pointerId)move(e.clientX,e.clientY);}} onPointerUp={end} onPointerCancel={end} onContextMenu={e=>e.preventDefault()}><div ref={knob} className="touch-knob"/><span>STEER · LEAN</span></div>;
+function TouchStick({ onMove }: { onMove: (x: number, y: number) => void }) {
+    const base = useRef<HTMLDivElement>(null),
+        knob = useRef<HTMLDivElement>(null),
+        origin = useRef<{ x: number; y: number; id: number } | null>(null);
+    const R = 52;
+    function move(cx: number, cy: number) {
+        const o = origin.current;
+        if (!o) return;
+        let dx = cx - o.x,
+            dy = cy - o.y;
+        const m = Math.hypot(dx, dy);
+        if (m > R) {
+            dx *= R / m;
+            dy *= R / m;
+        }
+        if (knob.current) knob.current.style.transform = `translate(${dx}px,${dy}px)`;
+        const dead = 0.12,
+            nx = dx / R,
+            ny = -dy / R,
+            mag = Math.hypot(nx, ny);
+        if (mag < dead) {
+            onMove(0, 0);
+            return;
+        }
+        const k = (mag - dead) / (1 - dead) / mag;
+        onMove(nx * k, ny * k);
+    }
+    function end() {
+        origin.current = null;
+        if (knob.current) knob.current.style.transform = '';
+        onMove(0, 0);
+    }
+    return (
+        <div
+            ref={base}
+            className="touch-stick"
+            aria-label="Steer and lean"
+            onPointerDown={e => {
+                e.preventDefault();
+                e.currentTarget.setPointerCapture(e.pointerId);
+                const r = e.currentTarget.getBoundingClientRect();
+                origin.current = { x: r.left + r.width / 2, y: r.top + r.height / 2, id: e.pointerId };
+                move(e.clientX, e.clientY);
+            }}
+            onPointerMove={e => {
+                if (origin.current?.id === e.pointerId) move(e.clientX, e.clientY);
+            }}
+            onPointerUp={end}
+            onPointerCancel={end}
+            onContextMenu={e => e.preventDefault()}
+        >
+            <div ref={knob} className="touch-knob" />
+            <span>STEER · LEAN</span>
+        </div>
+    );
 }
-export default function Home(){
- const [loadingTerrain,setLoadingTerrain]=useState(false),[tiltBlocked,setTiltBlocked]=useState(false),[coarse,setCoarse]=useState(false),[gestureHelp,setGestureHelp]=useState(false);
- useEffect(()=>{try{setCoarse(matchMedia('(pointer:coarse)').matches);}catch{}},[]);
- const gearHost = useRef<HTMLDivElement>(null);
- const gearDrag = useRef<{ id:number; x:number } | null>(null);
- const [gearView, setGearView] = useState<GearView>('rider');
- const host=useRef<HTMLDivElement>(null);const game=useRef<SnowGame|null>(null);const [ready,setReady]=useState(false),[error,setError]=useState(''),[screen,setScreen]=useState<Screen>('menu'),[panel,setPanel]=useState<Panel>('ride'),[course,setCourse]=useState(0),[mode,setMode]=useState<Mode>('freeride'),[settings,setSettings]=useState(defaults),[look,setLook]=useState<Look>(defaultLook),[hud,setHud]=useState(initial),[lastRun,setLastRun]=useState<Run|null>(null),[history,setHistory]=useState<Omit<Run,'frames'>[]>([]),[result,setResult]=useState<Run|null>(null),[replayT,setReplayT]=useState(0),[replayPlaying,setReplayPlaying]=useState(true),[photo,setPhoto]=useState(false),[saved,setSaved]=useState(true),[notification,setNotification]=useState(''),[customSpacing,setCustomSpacing]=useState(155),[customRails,setCustomRails]=useState(7),[customActive,setCustomActive]=useState(false);
- const c=COURSES[course];const historyRef=useRef(history);historyRef.current=history;
- const onTiltUnavailable=useRef(()=>{setTiltBlocked(true);setNotification('Tilt is blocked here, so on-screen buttons are on. Install the app version for tilt.');window.setTimeout(()=>setNotification(''),5000);}).current;
- const [resortStation,setResortStationState]=useState('');const [arrival,setArrival]=useState<Arrival|null>(null);const arriveRef=useRef<((run:Run)=>void)|null>(null);
- useEffect(()=>{try{setResortStationState(localStorage.getItem('evader-station-v1')??'');}catch{}},[]);
- function setResortStation(id:string){setResortStationState(id);try{localStorage.setItem('evader-station-v1',id);}catch{}}
- /** The lift station a real-terrain run ends at: its mapped end station, else the nearest station with a lift up. */
- function endStation(c:Course){const r=resortLoaded();if(!r||!c.dem)return '';const run=verbierRun(c.dem);if(run.h.toStation)return run.h.toStation;const w=run.world(run.centreX(run.length),run.length);let best='',bd=Infinity;for(const s of r.stations){if(!s.liftsUp.length)continue;const d=Math.hypot(s.e-w.e,s.n-w.n);if(d<bd){bd=d;best=s.id;}}return best;}
- const [liftSpeed,setLiftSpeedState]=useState(4),[liftNow,setLiftNow]=useState<ResortLift|null>(null),[liftHud,setLiftHud]=useState<ReturnType<SnowGame['liftStatus']>>(undefined),[journeyView,setJourneyView]=useState<{steps:JourneyStep[];i:number;dest:string}|null>(null);
- const journeyRef=useRef<{steps:JourneyStep[];i:number;dest:string}|null>(null),liftEndRef=useRef<(l:ResortLift)=>void>(()=>{});
- useEffect(()=>{try{const v=Number(localStorage.getItem('evader-lift-speed-v1'));if([1,4,16].includes(v))setLiftSpeedState(v);}catch{}},[]);
- function setLiftSpeed(v:number){setLiftSpeedState(v);game.current?.setLiftSpeed(v);try{localStorage.setItem('evader-lift-speed-v1',String(v));}catch{}}
- useEffect(()=>{if(screen!=='lift')return;const id=setInterval(()=>setLiftHud(game.current?.liftStatus()),200);return()=>clearInterval(id);},[screen]);
- const stationName=(id:string|null|undefined)=>resortLoaded()?.stations.find(s=>s.id===id)?.name??'the station';
- /** Get on a lift in the game world: load its corridor, then board, ride and get off at the top. */
- async function rideLift(l:ResortLift){setLoadingTerrain(true);try{await loadLift(l.id);}catch{notice('Could not load the lift. Check the connection and try again.');return;}finally{setLoadingTerrain(false);}
-  const g=game.current;if(!g)return;setArrival(null);g.suspended=false;g.onLiftEnd=()=>{stamp({lift:l.id},true);liftEndRef.current(l);};g.startLift(l.id,liftCourse(l),liftSpeed);setLiftNow(l);setLiftHud(g.liftStatus());setScreen('lift');}
- const freeAfterLift=useRef(false);
- /** Free ride from a station: load the mountain around it, then ride anywhere. */
- async function startFreeAt(stationId:string){setLoadingTerrain(true);try{const r=await loadResort();const st=r.stations.find(s=>s.id===stationId&&(s.routesFrom.length||s.liftsUp.length))??r.stations.find(s=>s.name==='Les Attelas')!;
-  await loadTilesAround(st.e,st.n,1000);const g=game.current;if(!g)return;setArrival(null);journeyRef.current=null;setJourneyView(null);setResortStation(st.id);g.startFree(st.e,st.n);setMode('freeride');setScreen('ride');setHud(initial);setResult(null);requestTiltPermission();}
-  catch{notice('Could not load the mountain. Check the connection and try again.');}finally{setLoadingTerrain(false);}}
- /** The station nearest to the free rider (to open the map or continue from). */
- function nearestStation(){const w=game.current?.freeWorld(),r=resortLoaded();if(!w||!r)return resortStation;let best=resortStation,bd=Infinity;for(const s of r.stations){const d=Math.hypot(s.e-w.e,s.n-w.n);if(d<bd){bd=d;best=s.id;}}return best;}
- function freeToMap(){setResortStation(nearestStation());if(game.current){game.current.menu();game.current.suspended=true;}setScreen('resort');}
- function freeTakeLift(id:string){const l=resortLoaded()?.lifts.find(x=>x.id===id);if(!l)return;freeAfterLift.current=true;rideLift(l);}
- const [passport,setPassport]=useState<Passport>(EMPTY_PASSPORT);const passRef=useRef({p:EMPTY_PASSPORT,distance:0,descent:0,saveAt:0});
- useEffect(()=>{const p=loadPassport();passRef.current.p=p;setPassport(p);},[]);
- function stamp(s:Parameters<typeof record>[1],saveNow=false){const r=passRef.current,[q,changed]=record(r.p,s);if(!changed)return;r.p=q;if(saveNow||Date.now()>r.saveAt){r.saveAt=Date.now()+4000;savePassport(q);setPassport(q);}}
- useEffect(()=>{if(screen!=='ride'||!game.current?.course.free)return;const r=passRef.current;if(hud.distance<r.distance||(hud.descent??0)<r.descent){r.distance=0;r.descent=0;}
-  const dd=hud.distance-r.distance,de=(hud.descent??0)-r.descent;r.distance=hud.distance;r.descent=hud.descent??0;stamp({station:hud.station,distance:dd,descent:de,speedKmh:hud.speed},!!hud.station&&!r.p.stations.includes(hud.station));},[hud]); // eslint-disable-line react-hooks/exhaustive-deps
- const resortCounts={stations:resortLoaded()?.stations.length??74,lifts:resortLoaded()?.lifts.length??66};
- const [tutorialDone,setTutorialDone]=useState(false);
- useEffect(()=>{try{setTutorialDone(localStorage.getItem('evader-tutorial-v1')==='done');}catch{}},[]);
- async function startTutorialRide(){await startFreeAt('s36');game.current?.startTutorial();}
- function endTutorial(finished:boolean){game.current?.endTutorial();if(finished){setTutorialDone(true);try{localStorage.setItem('evader-tutorial-v1','done');}catch{}passRef.current.p={...passRef.current.p,tutorial:true};savePassport(passRef.current.p);setPassport(passRef.current.p);}}
- useEffect(()=>{if(hud.tutorial?.finished&&!tutorialDone){setTutorialDone(true);try{localStorage.setItem('evader-tutorial-v1','done');}catch{}passRef.current.p={...passRef.current.p,tutorial:true};savePassport(passRef.current.p);setPassport(passRef.current.p);}},[hud.tutorial?.finished,tutorialDone]);
- const [offline,setOffline]=useState<{done:number;total:number;failed:number}|null>(null);
- async function downloadOffline(){if(!('caches' in window)){notice('This browser cannot store files for offline play');return;}
-  const r=await loadResort();const files=['resort.json','overview.bin','horizon.bin','forest.bin','buildings.json',...r.tiles.map(([te,tn])=>`tiles/${te}_${tn}.bin`),...r.routes.map(x=>`routes/${x.id}.json`)];
-  const c=await caches.open('evader-resort-v1');let done=0,failed=0;setOffline({done,total:files.length,failed});
-  for(let i=0;i<files.length;i+=6)await Promise.all(files.slice(i,i+6).map(async f=>{const url=new URL(resortUrl(f),location.href).href;try{const res=await fetch(url,{cache:'no-cache'});if(res.ok)await c.put(url,res);else failed++;}catch{failed++;}done++;setOffline({done,total:files.length,failed});}));
-  notice(failed?`${failed} files could not be saved; try again online`:'Verbier saved for offline play');}
- const [bench,setBench]=useState<BenchResult|'running'|null>(null);
- async function runBenchmark(){const r=await loadResort();const st=r.stations.find(s=>s.name==='Les Attelas')!;setBench('running');await startFreeAt(st.id);game.current?.startBenchmark(40,res=>{setBench(res);home();});}
- useEffect(()=>{if(ready&&new URLSearchParams(location.search).has('bench'))runBenchmark();},[ready]); // eslint-disable-line react-hooks/exhaustive-deps
- function runStep(st:JourneyStep){if(st.kind==='lift')rideLift(st.lift);else rideRoute(st.route);}
- function startJourney(steps:JourneyStep[],dest:string){if(!steps.length){setResortStation(dest);return;}journeyRef.current={steps,i:0,dest};setJourneyView({steps,i:0,dest});runStep(steps[0]);}
- /** After a lift or a run: the next step of the journey, or the map at the station reached. */
- function stepDone(at:string,summary:{title:string;detail:string;onReplay?:()=>void;eyebrow?:string}){setResortStation(at);const j=journeyRef.current;
-  if(j&&j.i+1<j.steps.length){j.i++;setJourneyView({...j});runStep(j.steps[j.i]);return;}
-  const finished=journeyRef.current;journeyRef.current=null;setJourneyView(null);if(game.current){game.current.menu();game.current.suspended=true;}setArrival(finished&&finished.steps.length>1?{...summary,eyebrow:`ARRIVED · ${finished.steps.length} STEPS`}:summary);setScreen('resort');}
- liftEndRef.current=(l:ResortLift)=>freeAfterLift.current?(freeAfterLift.current=false,void startFreeAt(l.to)):stepDone(l.to,{eyebrow:'OFF THE LIFT',title:`You got off at ${stationName(l.to)}`,detail:`${l.name} · ${l.typeLabel.toLowerCase()} from ${stationName(l.from)} · ${Math.round(l.rideS/60)} min real ride time, +${l.vertical} m.`});
- function leaveLift(){freeAfterLift.current=false;const l=liftNow;journeyRef.current=null;setJourneyView(null);if(game.current){game.current.menu();game.current.suspended=true;}if(l)setResortStation(l.from);setScreen('resort');}
- arriveRef.current=(run:Run)=>{const id=endStation(run.course),st=resortLoaded()?.stations.find(s=>s.id===id);if(!id){setScreen('result');return;}stepDone(id,{title:`${run.course.name}`,detail:`${run.score.toLocaleString()} points · ${fmt(run.time)} · ${run.tricks} tricks · ${run.bails} bails. You are at ${st?.name??'the lift station'}.`,onReplay:()=>{setArrival(null);if(game.current)game.current.suspended=false;replay(run);}});};
- function openResort(){if(game.current){game.current.menu();game.current.suspended=true;}setScreen('resort');}
- function closeResort(){if(game.current)game.current.suspended=false;setArrival(null);setScreen('menu');setPanel('ride');}
- async function rideRoute(r:RouteSummary){const c=routeCourse(r);if(!(await withTerrain(c)))return;setArrival(null);if(game.current)game.current.suspended=false;game.current?.setCourse(c);start('freeride');}
- function notice(t:string){setNotification(t);window.setTimeout(()=>setNotification(''),3600);}
- function store(key:string,data:unknown){try{localStorage.setItem(key,JSON.stringify(data));setSaved(true);}catch{setSaved(false);}}
- useEffect(()=>{let active=true;try{if('serviceWorker' in navigator&&window.top===window&&location.protocol!=='file:'&&!location.pathname.startsWith('/_next'))navigator.serviceWorker.register('./sw.js').catch(()=>{});}catch{}let s=defaults,l=defaultLook;try{if(matchMedia('(pointer:coarse)').matches){s={...defaults,quality:'balanced',renderScale:.85,fov:66};setSettings(s);}}catch{}try{const data=JSON.parse(localStorage.getItem('evader-profile-v1')||'null');if(data){s={...defaults,...data.settings};l=restoreLook(data.look);setSettings(s);setLook(l);}const runs=JSON.parse(localStorage.getItem('evader-runs-v1')||'[]');if(Array.isArray(runs))setHistory(runs.filter(r=>r.course&&typeof r.score==='number').slice(0,30));const replay=JSON.parse(localStorage.getItem('evader-replay-v1')||'null');if(replay?.frames?.length&&replay?.course)setLastRun(replay);}catch{setSaved(false);}
- try{const g=new SnowGame(host.current!,s,l,setHud,run=>{if(!active)return;setResult(run);setLastRun(run);if(run.course.dem&&arriveRef.current)arriveRef.current(run);else setScreen('result');const {frames,...summary}=run;const all=[summary,...historyRef.current].slice(0,30);setHistory(all);store('evader-runs-v1',all);store('evader-replay-v1',run);},()=>setScreen('pause'));game.current=g;if(new URLSearchParams(location.search).has('debug'))(window as unknown as {evaderDebug?:SnowGame}).evaderDebug=g;setReady(true);}catch(e){setError('Your browser could not start 3D graphics. Enable hardware acceleration, or try a recent Chrome, Edge, Safari or Firefox browser.');console.error(e);}return()=>{active=false;game.current?.dispose();game.current=null;};},[]);
- useEffect(()=>{if(!ready)return;game.current?.setSettings(settings);game.current?.setLook(look);store('evader-profile-v1',{settings,look});},[settings,look,ready]);
- useEffect(()=>{
-    if (ready) game.current?.setGarageHost(panel === 'garage' && screen === 'menu' ? gearHost.current ?? undefined : undefined);
- },[panel,screen,ready]);
- useEffect(()=>{if(screen!=='replay')return;const id=setInterval(()=>{const g=game.current;if(g){setReplayT(g.replayTime);setReplayPlaying(g.replayPlaying);}},100);return()=>clearInterval(id);},[screen]);
- useEffect(()=>{if(!ready||!document.modelContext?.registerTool)return;const life=new AbortController();const ctx=document.modelContext;for(const tool of [{name:'read_evader_run',description:'Read the current snowboarding run state.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:false},execute:()=>({state:game.current?.state,course:game.current?.course.name,...game.current?.getHUD()})},{name:'start_evader_run',description:'Start a new run on a selected mountain, discarding the current unfinished run.',inputSchema:{type:'object',properties:{course:{type:'integer',minimum:0,maximum:COURSES.length-1},mode:{type:'string',enum:modes.map(m=>m.id)}},required:['course','mode'],additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:false},execute:async(input:unknown)=>{const v=input as {course:number;mode:Mode};if(!Number.isInteger(v.course)||!COURSES[v.course]||!modes.some(m=>m.id===v.mode))throw new Error('Choose a valid course and mode.');setCourse(v.course);setMode(v.mode);if(!(await withTerrain(COURSES[v.course])))throw new Error('Terrain could not be loaded.');game.current?.setCourse(COURSES[v.course]);game.current?.start(v.mode);setScreen('ride');return{started:true,course:COURSES[v.course].name,mode:v.mode};}}]){Promise.resolve(ctx.registerTool(tool,{signal:life.signal})).catch(()=>{});}return()=>life.abort();},[ready]);
- function start(m:Mode=mode){requestTiltPermission();window.dispatchEvent(new Event('evader-recalibrate'));setGestureHelp(true);window.setTimeout(()=>setGestureHelp(false),6500);game.current?.start(m);setMode(m);setScreen('ride');setHud(initial);setResult(null);}
- function home(){game.current?.menu();setScreen('menu');setPanel('ride');setPhoto(false);}
- /** Real-terrain courses fetch their terrain file (0.3-2 MB) the first time they are chosen. */
- async function withTerrain(c:Course){if(!c.dem||isRunLoaded(c.dem))return true;setLoadingTerrain(true);try{await loadRun(c.dem);return true;}catch{notice('Could not load the terrain for '+c.name+'. Check the connection and try again.');return false;}finally{setLoadingTerrain(false);}}
- async function selectCourse(i:number){setCourse(i);setCustomActive(false);if(!(await withTerrain(COURSES[i])))return;game.current?.setCourse(COURSES[i]);}
- function showPanel(p:Panel){setPanel(p);if(game.current)game.current.state=p==='garage'?'garage':'menu';}
- async function replay(r=lastRun){if(!r)return;if(!(await withTerrain(r.course)))return;game.current?.replay(r);setScreen('replay');setReplayT(0);setPhoto(false);}
- function capture(){const data=game.current?.capture();if(!data)return;const a=document.createElement('a');a.href=data;a.download=`EVADER-${Date.now()}.png`;a.click();notice('Photo saved');}
- const challenges=[{name:'First tracks',detail:'Finish your first mountain run',complete:history.length>0,target:0},{name:'Park apprentice',detail:'Score 3,000 points in one run',complete:history.some(r=>r.score>=3000),target:3000},{name:'Clean lines',detail:'Finish a run without a bail',complete:history.some(r=>r.bails===0),target:0},{name:'Freestyle rider',detail:'Land 10 tricks in a single run',complete:history.some(r=>r.tricks>=10),target:0},{name:'Mountain master',detail:'Score 10,000 in slopestyle',complete:history.some(r=>r.mode==='slopestyle'&&r.score>=10000),target:10000},{name:'Gate keeper',detail:'Clear every gate in time trial',complete:history.some(r=>r.mode==='time-trial'&&r.gates===r.totalGates),target:0}];
- const level=1+Math.floor(history.reduce((s,r)=>s+r.score,0)/10000);const best=Math.max(0,...history.filter(r=>r.course.id===course&&r.mode===mode).map(r=>r.score));const validTimes=history.filter(r=>r.course.id===course&&r.mode==='time-trial'&&r.gates===r.totalGates).map(r=>r.time);const bestTime=validTimes.length?Math.min(...validTimes):0;
- return <main className={`evader screen-${screen} ${panel==='garage'?'garage-view':''}`}>
- <div ref={host} className="world"/>{error&&<div className="graphics-error"><Mountain size={36}/><h1>Mountain unavailable</h1><p>{error}</p></div>}
- {!error&&<><div className="vignette"/><div className="grain"/>
- {screen==='menu'&&<>
- <header className="menu-header"><div className="brand"><Mountain size={23}/><span>EVADER</span><span className="build">ALPINE EDITION / 04</span></div><div className="rider-profile"><span className="avatar">E</span><div><strong>LOCAL RIDER</strong><span>LEVEL {level} · {challenges.filter(x=>x.complete).length}/6 CHALLENGES</span></div></div></header>
- <div className="menu-layout"><aside className="menu-left"><div className="wordmark">EVADER<span className="wordmark-dot">.</span></div><p className="brand-subtitle">RIDE THE LINE. OWN THE MOUNTAIN.</p><button className="resort-entry" onClick={openResort} disabled={!ready}><MapIcon size={19}/><span><strong>Verbier resort map</strong><small>Real lifts · 2D / 3D · runs station to station</small></span></button><button className="resort-entry free-entry" onClick={()=>startFreeAt(resortStation)} disabled={!ready||loadingTerrain}><Mountain size={19}/><span><strong>{loadingTerrain?'Loading the mountain…':'Free ride Verbier'}</strong><small>The whole 4 Vallées · go anywhere · take any lift</small></span></button><button className="resort-entry tutorial-entry" onClick={startTutorialRide} disabled={!ready||loadingTerrain}><GraduationCap size={19}/><span><strong>Learn to ride</strong><small>Six steps on the real Les Ruinettes pistes{tutorialDone?' · done ✓':''}</small></span></button><nav aria-label="Main menu">{([{id:'ride',name:'Ride the mountain',icon:Mountain},{id:'career',name:'Career challenges',icon:Flag},{id:'garage',name:'Rider & board',icon:Shirt},{id:'creator',name:'Park builder',icon:SlidersHorizontal},{id:'studio',name:'Replay studio',icon:Film},{id:'settings',name:'Settings',icon:Settings2}] as const).map(n=><button key={n.id} onClick={()=>showPanel(n.id)} className={panel===n.id?'selected':''}><n.icon size={19}/><span>{n.name}</span><span className="nav-index">0{['ride','career','garage','creator','studio','settings'].indexOf(n.id)+1}</span></button>)}</nav><button className="about-btn" onClick={()=>showPanel('about')}><Info size={15}/> About this build</button></aside>
- <section className={`menu-panel panel-${panel}`} aria-label={panel==='ride'?'Ride setup':panel}>
- {panel==='ride'&&<><div className="location-head"><span className="eyebrow">{customActive?'YOUR CUSTOM PARK':c.region}</span><span className="terrain-mark">{c.id===2?'◆◆':c.id===1?'●':'◆'}</span></div><h1>{customActive?'YOUR PARK':c.name.split(' ').map((n,i)=><span key={i}>{n} </span>)}</h1><div className="location-details"><span>{(c.length/1000).toFixed(1)} <small>KM LINE</small></span><span>{c.drop} <small>M VERTICAL</small></span><span>{c.difficulty}</span></div><div className="weather-line"><span className="weather-icon">{settings.weather==='clear'?'☀':settings.weather==='snow'?'❄':'◒'}</span>{settings.weather==='clear'?'Clear skies':settings.weather==='snow'?'Snowfall':'Alpine dusk'}<span> −8°C</span></div><div className="mode-choices" aria-label="Game mode">{modes.map(m=><button key={m.id} onClick={()=>setMode(m.id)} className={mode===m.id?'active':''}><m.icon size={18}/><span>{m.name}</span></button>)}</div><p className="mode-description">{modes.find(m=>m.id===mode)?.description} {mode==='time-trial'?<span>{bestTime?`BEST VALID TIME ${fmt(bestTime)}`:'CLEAR EVERY GATE FOR A VALID TIME'}</span>:best>0&&<span>PERSONAL BEST {best.toLocaleString()}</span>}</p><button disabled={!ready||loadingTerrain} className="drop-button" onClick={()=>start()}><Play size={18} fill="currentColor"/>{!ready?'PREPARING MOUNTAIN…':loadingTerrain?'LOADING TERRAIN…':'DROP IN'}</button><p className="drop-help">Keyboard, gamepad or touch. No lift ticket needed.</p></>}
- {panel==='career'&&<><span className="eyebrow">FROM FIRST TRACKS TO FIRST PLACE</span><h1 className="panel-title">MAKE YOUR<br/>MARK.</h1><section className="passport"><h2>Verbier passport</h2><div className="result-stats"><div><span>STATIONS</span><strong>{passport.stations.length}</strong></div><div><span>LIFTS</span><strong>{passport.lifts.length}</strong></div><div><span>VERTICAL</span><strong>{Math.round(passport.descent).toLocaleString()} m</strong></div><div><span>TOP SPEED</span><strong>{Math.round(passport.topSpeed)} km/h</strong></div></div><div className="goal-list">{goals(passport,resortCounts.stations,resortCounts.lifts).map(g=><div key={g.name} className={g.value>=g.target?'goal done':'goal'}><div><strong>{g.value>=g.target&&<Check size={14}/>} {g.name}</strong><p>{g.detail}</p></div><div className="goal-bar"><div style={{width:`${Math.min(100,100*g.value/g.target)}%`}}/></div><small>{g.target>1?`${g.value.toLocaleString()} / ${g.target.toLocaleString()} ${g.unit}`:g.value>=g.target?'done':'not yet'}</small></div>)}</div><p className="drop-help">Counted in free ride and on lift rides, saved on this device.</p></section><div className="challenge-list">{challenges.map((ch,i)=><div key={ch.name} className={ch.complete?'challenge done':'challenge'}><span className="challenge-number">{ch.complete?<Check size={18}/>:String(i+1).padStart(2,'0')}</span><div><strong>{ch.name}</strong><p>{ch.detail}</p></div></div>)}</div><button className="drop-button" onClick={()=>start('slopestyle')} disabled={!ready}><Play size={18}/>Start a slopestyle run</button></>}
- {panel==='garage'&&<div className="gear-editor">
-   <div className="gear-inspector">
-     <div className="gear-tabs" role="group" aria-label="Inspect equipment">
-       {gearViews.map(([view,label])=><button key={view} aria-pressed={gearView===view} onClick={()=>{setGearView(view);game.current?.setGearView(view);}}>{label}</button>)}
-     </div>
-     <div className="gear-preview" ref={gearHost}
-       onPointerDown={e=>{if(e.button!==0)return; e.currentTarget.setPointerCapture(e.pointerId); gearDrag.current={id:e.pointerId,x:e.clientX};}}
-       onPointerMove={e=>{const drag=gearDrag.current;if(drag?.id!==e.pointerId)return;game.current?.rotateGearView((e.clientX-drag.x)*.012);drag.x=e.clientX;}}
-       onLostPointerCapture={()=>{gearDrag.current=null;}}>
-     </div>
-     <div className="gear-rotate" role="group" aria-label="Rotate model">
-       <button className="icon-button" aria-label="Rotate model left" onClick={()=>game.current?.rotateGearView(-Math.PI/4)}><ChevronLeft size={18}/></button>
-       <span>Drag to rotate</span>
-       <button className="icon-button" aria-label="Rotate model right" onClick={()=>game.current?.rotateGearView(Math.PI/4)}><ChevronRight size={18}/></button>
-     </div>
-   </div>
-   <div className="gear-options">
-     <h1 className="panel-title">Rider &amp; board</h1>
-     <p className="section-label">OUTFIT</p>
-     <div className="gear-kits" role="group" aria-label="Outfit">
-       {(Object.keys(outfits) as RiderKit[]).map(kit=>{
-         const {name,jacket,board}=outfits[kit];
-         return <button key={kit} aria-pressed={(look.kit??'ochre')===kit} onClick={()=>setLook({kit,jacket,board})}><i style={{background:jacket}}/>{name}</button>;
-       })}
-     </div>
-     <p className="section-label">JACKET COLOR</p>
-     <div className="swatches">{jackets.map(([name,color])=><button key={color} aria-label={`${name} jacket`} aria-pressed={look.jacket===color} style={{background:color}} className={look.jacket===color?'active':''} onClick={()=>setLook({...look,jacket:color})}>{look.jacket===color&&<Check/>}</button>)}</div>
-     <p className="section-label">BOARD FINISH</p>
-     <div className="swatches">{boards.map(([name,color])=><button key={color} aria-label={`${name} board`} aria-pressed={look.board===color} style={{background:color}} className={look.board===color?'active':''} onClick={()=>setLook({...look,board:color})}>{look.board===color&&<Check/>}</button>)}</div>
-     <div className="gear-info"><span>{BOARDS[(settings.board??'all-mountain') as BoardCategory].name.toUpperCase()} · {Math.round(BOARDS[(settings.board??'all-mountain') as BoardCategory].waist*1000)/10} CM WAIST · {Math.round(BOARDS[(settings.board??'all-mountain') as BoardCategory].stanceWidth*100)} CM STANCE</span></div>
-     <button className="drop-button" onClick={()=>showPanel('ride')}><Check size={18}/>Ready to ride</button>
-   </div>
- </div>}
- {panel==='creator'&&<><span className="eyebrow">BUILD A DIFFERENT LINE</span><h1 className="panel-title">SHAPE YOUR<br/>PLAYGROUND.</h1><p className="panel-copy">Tune the kicker spacing and rail count on Northline Park. Your layout becomes the rideable course.</p><div className="setting"><label htmlFor="spacing">Kicker spacing <strong>{customSpacing} m</strong></label><Slider id="spacing" value={[customSpacing]} min={90} max={280} step={5} onValueChange={([v])=>setCustomSpacing(v)} aria-label="Kicker spacing"/></div><div className="setting"><label>Rail features <strong>{customRails}</strong></label><Slider value={[customRails]} min={0} max={12} step={1} onValueChange={([v])=>setCustomRails(v)} aria-label="Rail features"/></div><button className="drop-button" disabled={!ready} onClick={()=>{const custom={...COURSES[1],name:'YOUR CUSTOM PARK',spacing:customSpacing,rails:customRails,seed:77};game.current?.setCourse(custom);setCourse(1);setCustomActive(true);showPanel('ride');notice('Your park is ready');}}><Mountain size={18}/>Build & preview park</button><p className="drop-help">Local session layout · no online publishing</p></>}
- {panel==='studio'&&<><span className="eyebrow">EVERY LINE TELLS A STORY</span><h1 className="panel-title">RUN IT<br/>BACK.</h1>{lastRun?<><div className="run-summary"><span>{lastRun.course.name}</span><strong>{lastRun.score.toLocaleString()} <small>PTS</small></strong><p>{lastRun.tricks} tricks · {lastRun.bails} bails · {fmt(lastRun.time)}</p></div><button className="drop-button" onClick={()=>replay()}><Play size={18}/>Watch last run</button><p className="panel-copy">Scrub your line, change the camera, or pause for a photo. Your most recent replay is saved on this device.</p></>:<div className="empty-studio"><Film size={40}/><h2>Your first line is waiting.</h2><p>Finish a run to unlock the replay studio.</p><button className="drop-button" onClick={()=>showPanel('ride')}>Choose a mountain</button></div>}</>}
- {panel==='settings'&&<><span className="eyebrow">FIND YOUR COMFORT ZONE</span><h1 className="panel-title">YOUR WAY<br/>DOWN.</h1><Tabs defaultValue="ride"><TabsList className="settings-tabs"><TabsTrigger value="ride">Riding</TabsTrigger><TabsTrigger value="graphics">Graphics</TabsTrigger><TabsTrigger value="controls">Controls</TabsTrigger></TabsList><TabsContent value="ride"><div className="setting"><label>Physics model</label><Choice label="Physics model" value={settings.physics??'classic'} onChange={v=>setSettings({...settings,physics:v as 'reality'|'classic'})} items={[['reality','Reality (beta) · rigid-body board on snow, 960 Hz'],['classic','Classic · original v0.4 model, 120 Hz']]}/><p className="drop-help">Reality: speed, turns, pops, spins and landings come only from gravity, snow contact and your body. Takes effect on the next run.</p></div><div className="setting"><label>Assist level</label><Choice label="Assist level" value={settings.assistLevel??'balanced'} onChange={v=>setSettings({...settings,assistLevel:v as 'authentic'|'balanced'|'beginner'})} items={[['authentic','Authentic · no landing help, strict crash limits'],['balanced','Balanced · landing levelling, stronger rider reflexes'],['beginner','Beginner · forgiving limits, leading-edge guard']]}/><p className="drop-help">Reality only. Assists strengthen the rider's own reflexes; they never switch physics off.</p></div><div className="setting"><label>Stance</label><Choice label="Stance" value={settings.stance??'regular'} onChange={v=>setSettings({...settings,stance:v as 'regular'|'goofy'})} items={[['regular','Regular · left foot forward'],['goofy','Goofy · right foot forward']]}/></div><div className="setting"><label>Snowboard</label><Choice label="Snowboard" value={settings.board??'all-mountain'} onChange={v=>setSettings({...settings,board:v as BoardCategory})} items={(Object.keys(BOARDS) as BoardCategory[]).map(k=>[k,`${BOARDS[k].name} · waist ${(BOARDS[k].waist*100).toFixed(1)} cm · sidecut ${BOARDS[k].sidecutRadius} m`] as [string,string])}/><p className="drop-help">Dimensions are typical catalogue ranges, not a specific product. Changes the board's contact, sidecut and inertia.</p></div><div className="toggle-setting"><div><strong>Automatic park landings</strong><p>Classic physics only. Guide centered takeoffs onto the downslope when your approach speed allows.</p></div><Switch checked={settings.autoLand} onCheckedChange={v=>setSettings({...settings,autoLand:v})} aria-label="Automatic park landings"/></div><div className="toggle-setting"><div><strong>Landing assist</strong><p>Classic physics only. Correct small errors up to 32°. Sideways and inverted landings still bail.</p></div><Switch checked={settings.assist} onCheckedChange={v=>setSettings({...settings,assist:v})} aria-label="Landing assist"/></div><div className="toggle-setting"><div><strong>Dynamic field of view</strong><p>Widen the camera as you pick up speed.</p></div><Switch checked={settings.motion} onCheckedChange={v=>setSettings({...settings,motion:v})} aria-label="Dynamic field of view"/></div><div className="setting"><label>Sound volume <strong>{Math.round(settings.volume*100)}%</strong></label><Slider value={[settings.volume]} min={0} max={1} step={.05} onValueChange={([v])=>setSettings({...settings,volume:v})} aria-label="Sound volume"/></div></TabsContent><TabsContent value="graphics"><div className="setting"><label>Graphics quality</label><Choice label="Graphics quality" value={settings.quality} onChange={v=>setSettings({...settings,quality:v})} items={ [['cinematic','Cinematic · 8K shadows, densest terrain and forest (image quality first)'],['extreme','Extreme · dense terrain / 4K shadows'],['ultra','Ultra · detailed terrain / 4K shadows'],['high','High · shadows + sharp rendering'],['balanced','Balanced · lighter rendering'],['low','Low · no shadows']]}/></div><div className="setting"><label>Render resolution <strong>{Math.round((settings.renderScale??1)*100)}%</strong></label><Slider value={[settings.renderScale??1]} min={.75} max={2} step={.05} onValueChange={([v])=>setSettings({...settings,renderScale:v})} aria-label="Render resolution"/><p className="drop-help">Start at 100%. Raise for sharper edges; lower for more FPS. Graphics settings never change the physics.</p></div><div className="toggle-setting"><div><strong>Automatic resolution</strong><p>Lower the resolution when frames get slow (under about 38 fps), raise it again when there is room.</p></div><Switch checked={settings.autoResolution!==false} onCheckedChange={v=>setSettings({...settings,autoResolution:v})} aria-label="Automatic resolution"/></div><div className="setting"><label>Offline</label><button className="secondary-button" disabled={!!offline&&offline.done<offline.total} onClick={()=>downloadOffline()}>{offline&&offline.done<offline.total?`Saving… ${offline.done} / ${offline.total}`:offline?'Saved · update the offline copy':'Download Verbier for offline play'}</button><p className="drop-help">About 40 MB: the terrain of the whole 4 Vallées, every run, the buildings and the forest. Afterwards the installed app rides anywhere without a connection.</p></div><div className="setting"><label>Benchmark</label><button className="secondary-button" disabled={!ready||loadingTerrain} onClick={()=>runBenchmark()}>Run the 40 s free-ride benchmark</button><p className="drop-help">Rides the real Verbier terrain from Les Attelas with an automatic rider and reports average FPS, 1% lows, the worst frame and your GPU. Send me the result.</p></div><div className="toggle-setting"><div><strong>Performance & hardware diagnostics</strong><p>FPS, 1% lows, frame-time graph, draw calls, physics cost and what your browser reports about the GPU.</p></div><Switch checked={!!settings.diagnostics} onCheckedChange={v=>setSettings({...settings,diagnostics:v})} aria-label="Diagnostics overlay"/></div><div className="setting"><label>Mountain atmosphere</label><Choice label="Weather" value={settings.weather} onChange={v=>setSettings({...settings,weather:v})} items={ [['clear','Clear skies'],['dusk','Alpine dusk'],['snow','Snowfall']]}/></div><div className="setting"><label>Field of view <strong>{settings.fov}°</strong></label><Slider value={[settings.fov]} min={45} max={85} step={1} onValueChange={([v])=>setSettings({...settings,fov:v})} aria-label="Field of view"/></div></TabsContent><TabsContent value="controls"><div className="setting"><label>Phone controls</label><Choice label="Phone controls" value={settings.phoneControls??'tilt'} onChange={v=>{setTiltBlocked(false);setSettings({...settings,phoneControls:v as 'tilt'|'buttons'});}} items={[['tilt','Tilt + touch gestures · no buttons'],['buttons','Thumb-stick + buttons']]}/><p className="drop-help">Tilt the phone to carve (calibrated to how you hold it when the run starts). Hold the screen to crouch, lift to jump; drag while holding to spin (sideways) or flip (up = back, down = front); touch in the air to grab (left half Indy, right half Melon, two fingers Truck Driver); tilt back to slow down, forward to tuck.</p></div><div className="setting"><label>Tilt for a full edge <strong>{settings.tiltSensitivity??22}°</strong></label><Slider value={[settings.tiltSensitivity??22]} min={10} max={40} step={1} onValueChange={([v])=>setSettings({...settings,tiltSensitivity:v})} aria-label="Tilt sensitivity"/></div><div className="toggle-setting"><div><strong>Invert tilt steering</strong><p>Use this if tilting right turns you left.</p></div><Switch checked={!!settings.invertTilt} onCheckedChange={v=>setSettings({...settings,invertTilt:v})} aria-label="Invert tilt steering"/></div><p className="drop-help">Reality physics · keyboard</p><div className="controls-list">{[['A / D or ← / →','Lean onto the heel / toe edge to turn'],['W or ↑','Tuck (less air drag, no thrust); at walking pace: skate (push with the back foot) out of stations and across flats'],['S or ↓','Speed check / stop (heelside; hold F for toeside)'],['F / Z','Pressure forward / back (presses, nollie set-up, level the board in the air)'],['SPACE','Hold to crouch, release to pop (ollie; nollie with F held)'],['Q / E (hold while crouched)','Wind the shoulders; the pop unwinds them into a spin'],['X / V','Throw back / forward at takeoff'],['SHIFT','Grab (counts only once the hand reaches the board)'],['1–9, 0, -, =, ]',GRABS.map(g=>g.name.toLowerCase()).join(' · ')],['R','Reset to the centre of your line'],['C / ESC','Change camera / pause']].map(([k,v])=><div key={k}><kbd>{k}</kbd><span>{v}</span></div>)}</div><p className="drop-help">Gamepad (standard layout): left stick X edge / steer, left stick Y pressure fore-aft · right stick X shoulders (hold during the crouch to wind a spin) · right stick Y flip throw · RT or A crouch / pop · LT speed check · LB or RB grab · D-pad ← → choose grab · D-pad ↑ camera · Y tuck · View reset · Menu pause.</p><div className="setting"><label>Stick dead zone <strong>{Math.round((settings.padDeadzone??.12)*100)}%</strong></label><Slider value={[settings.padDeadzone??.12]} min={0} max={.35} step={.01} onValueChange={([v])=>setSettings({...settings,padDeadzone:v})} aria-label="Stick dead zone"/></div><div className="setting"><label>Stick response curve <strong>{(settings.padCurve??1.5).toFixed(1)}</strong></label><Slider value={[settings.padCurve??1.5]} min={1} max={3} step={.1} onValueChange={([v])=>setSettings({...settings,padCurve:v})} aria-label="Stick response curve"/></div><div className="setting"><label>Stick sensitivity <strong>{Math.round((settings.padSensitivity??1)*100)}%</strong></label><Slider value={[settings.padSensitivity??1]} min={.5} max={1.5} step={.05} onValueChange={([v])=>setSettings({...settings,padSensitivity:v})} aria-label="Stick sensitivity"/></div><div className="toggle-setting"><div><strong>Invert fore-aft pressure</strong><p>Pull the left stick back to press the nose.</p></div><Switch checked={!!settings.invertLean} onCheckedChange={v=>setSettings({...settings,invertLean:v})} aria-label="Invert fore-aft pressure"/></div><p className="drop-help">Classic physics · keyboard</p><div className="controls-list">{[['A / D or ← / →','Carve left / right'],['W / S or ↑ / ↓','Tuck / brake'],['SPACE','Hold to load · release to pop'],['Q / E','Spin in the air'],['X / V','Backflip / frontflip'],['1 / 2 / 3','Select Indy / Mute / Melon'],['SHIFT','Hold selected grab'],['R','Reset'],['C / ESC','Camera / pause']].map(([k,v])=><div key={'c'+k}><kbd>{k}</kbd><span>{v}</span></div>)}</div></TabsContent></Tabs><div className="settings-save"><Check size={15}/>{saved?'Saved on this device':'Storage unavailable · session only'}</div></>}
- {panel==='about'&&<><span className="eyebrow">EVADER / FIRST PLAYABLE</span><h1 className="panel-title">A MOUNTAIN<br/>TO BUILD ON.</h1><p className="panel-copy">An independent snowboarding prototype based on the EVADER game design blueprint. All destinations and equipment are fictional.</p><p className="panel-copy">This build includes three mountain courses, four solo modes, a park layout builder, color customization, local progression, gamepad and touch input, and replay photos.</p><p className="panel-copy">The blueprint’s online ranked competition, multiplayer, cloud progression, open-world resorts, detailed character creator and native console / mobile apps are future development work. This browser build requires WebGL 2.</p><p className="drop-help">Progress stays in this browser on this device. No real-world snow or temperature data.</p></>}
- </section></div>
- {panel==='ride'&&<div className="destination-strip"><div className="strip-label">CHOOSE YOUR<br/><strong>NEXT DESCENT</strong></div>{COURSES.map((mountain,i)=><button className={course===i&&!customActive?'destination selected':'destination'} key={mountain.id} onClick={()=>selectCourse(i)}><span className="destination-number">0{i+1}</span><div><strong>{mountain.name}</strong><span>{mountain.difficulty} · {(mountain.length/1000).toFixed(1)} KM</span></div><div className="destination-peak"><Mountain size={35} strokeWidth={1}/></div>{course===i&&!customActive&&<span className="destination-selected">SELECTED</span>}</button>)}</div>}
- <footer className="menu-footer"><span><Keyboard size={15}/> KEYBOARD</span><span><Gamepad2 size={17}/> GAMEPAD</span><span><MousePointer2 size={15}/> TOUCH</span><span className="save-status">{saved?'LOCAL SAVE ENABLED':'SESSION ONLY'}<span className="footer-divider">/</span> LOCAL BUILD 0.4</span></footer>
- </>}
- {(screen==='ride'||screen==='pause')&&<><header className="ride-top"><div><span className="mini-brand">EVADER</span><span className="ride-course">{game.current?.course.name}</span><span className="ride-mode">{mode.replace('-',' ').toUpperCase()}</span></div><button className="icon-button fullscreen-btn" aria-label="Fullscreen" onClick={goFullscreen}><Maximize size={18}/></button><button className="icon-button pause-btn" aria-label="Pause game" onClick={()=>{if(game.current)game.current.state='pause';setScreen('pause');}}><Pause size={19}/></button></header><div className="hud-score"><span>RUN SCORE</span><strong>{hud.score.toLocaleString()}</strong><span className="combo-value">×{hud.combo.toFixed(1)} <small>FLOW</small></span></div><div className="hud-progress"><span>{fmt(hud.time)}</span><div className="progress-track"><div style={{width:`${hud.progress*100}%`}}/></div><span>{game.current?.course.free?`${hud.distance.toLocaleString()} M RIDDEN`:`${hud.distance} / ${Math.round(game.current?.course.length??0)} M`}</span>{hud.altitude!=null&&<p className="hud-altitude">{hud.altitude.toLocaleString()} M · {hud.temperature}°C</p>}{mode==='time-trial'&&<p>{hud.gates} / {hud.totalGates} GATES</p>}</div>{game.current?.course.free&&<div className="free-hud"><span className="eyebrow">FREE RIDE</span><strong>{hud.where??'Finding your line…'}</strong>{hud.station&&<span>At {hud.station}{hud.nearLifts?.length?'':' · stop at a lift to get on'}</span>}<div className="free-actions">{hud.nearLifts?.map(l=><button key={l.id} className="drop-button" onClick={()=>freeTakeLift(l.id)}><CableCar size={16}/>Take {l.name} <small>{l.typeLabel.toLowerCase()}</small></button>)}<button className="secondary-button" onClick={freeToMap}><MapIcon size={15}/>Map</button></div></div>}{hud.tutorial&&<div className="tutorial-card">{hud.tutorial.finished?<><span className="eyebrow">TUTORIAL COMPLETE</span><strong>You can carve, stop, skate, ollie, spin and take lifts.</strong><span>The whole 4 Vallées is open: ride anywhere, or open the map.</span><div className="free-actions"><button className="drop-button" onClick={()=>endTutorial(true)}>Keep riding</button></div></>:<><span className="eyebrow">TUTORIAL {hud.tutorial.step} / {hud.tutorial.total}</span><strong>{hud.tutorial.title}</strong><span>{coarse?hud.tutorial.phone:hud.tutorial.keys}</span><small className="tutorial-goal">{hud.tutorial.goal}</small><div className="progress-track"><div style={{width:`${Math.round(hud.tutorial.progress*100)}%`}}/></div><div className="free-actions"><button className="secondary-button" onClick={()=>game.current?.tutorial?.skip()}>Skip step</button><button className="text-button" onClick={()=>endTutorial(false)}>End tutorial</button></div></>}</div>}<div className="hud-speed"><strong>{hud.speed}</strong><span>KM/H</span><div className="speed-bars">{Array.from({length:12},(_,i)=><i key={i} className={hud.speed>i*9?'lit':''}/>)}</div></div>{hud.trick&&<div className={`trick-toast ${hud.trickScore===0?'neutral':''}`}><span>{hud.feedback}</span><strong>{hud.trick}</strong>{hud.trickScore>0&&<b>+{hud.trickScore.toLocaleString()}</b>}</div>}<div className="ride-hints"><span><kbd>A</kbd><kbd>D</kbd> CARVE</span><span><kbd>SPACE</kbd> LOAD / POP</span><span><kbd>Q</kbd><kbd>E</kbd> SPIN</span><span><kbd>SHIFT</kbd> GRAB</span><span><kbd>X</kbd><kbd>V</kbd> FLIP</span></div>{screen==='ride'&&<div className="rotate-hint">↻ Turn your phone sideways for the best view</div>}{screen==='ride'&&coarse&&(settings.phoneControls??'tilt')==='tilt'&&!tiltBlocked&&game.current&&<TiltGestures game={game.current} sensitivity={settings.tiltSensitivity??22} invert={!!settings.invertTilt} onUnavailable={onTiltUnavailable}/>}{screen==='ride'&&coarse&&(settings.phoneControls??'tilt')==='tilt'&&!tiltBlocked&&game.current&&gestureHelp&&<div className="gesture-help"><strong>Tilt to carve</strong><span>Hold the screen to crouch · lift to jump</span><span>Drag sideways while holding = spin · up / down = flip</span><span>Touch in the air = grab · tilt back = slow down · tilt forward on flats = skate</span></div>}{screen==='ride'&&!(coarse&&(settings.phoneControls??'tilt')==='tilt'&&!tiltBlocked&&game.current)&&<div className="touch-controls"><TouchStick onMove={(x,y)=>game.current?.setStick(x,y)}/><div className="touch-tricks">{(settings.physics==='reality'?[['KeyQ','⟲'],['KeyE','⟳'],['ShiftLeft','Grab'],['KeyW','Tuck'],['KeyS','Stop'],['Space','Pop']]:[['KeyQ','Spin'],['ShiftLeft','Grab'],['KeyS','Brake'],['KeyX','Flip'],['KeyW','Tuck'],['Space','Jump']]).map(([key,label])=><button key={key} aria-label={label==='⟲'?'Spin left':label==='⟳'?'Spin right':label} className={key==='Space'?'jump-touch':''} onPointerDown={e=>{e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);game.current?.press(key,true);navigator.vibrate?.(8);}} onPointerUp={()=>game.current?.press(key,false)} onPointerCancel={()=>game.current?.press(key,false)} onContextMenu={e=>e.preventDefault()}>{label}</button>)}</div></div>}</>}
- {screen==='pause'&&<div className="overlay"><div className="pause-panel"><span className="eyebrow">TAKE A BREATH</span><h1>ON HOLD.</h1><button className="drop-button" onClick={()=>{window.dispatchEvent(new Event('evader-recalibrate'));game.current?.resume();setScreen('ride');}}><Play size={18}/>Resume ride</button><button className="secondary-button" onClick={()=>start()}><RotateCcw size={17}/>Restart run</button>{game.current?.course.dem&&<button className="secondary-button" onClick={game.current?.course.free?freeToMap:openResort}><MapIcon size={17}/>Resort map</button>}<button className="secondary-button" onClick={home}><Mountain size={17}/>Back to mountain menu</button><p>Hold SPACE, release to pop · Q / E spin · 1 / 2 / 3 grab style · SHIFT grab · X / V flip</p></div></div>}
- {screen==='result'&&result&&<div className="overlay result-overlay"><div className="results"><span className="eyebrow">{result.course.name} / {result.mode.replace('-',' ')}</span><h1>LINE<br/><span>COMPLETE.</span></h1><div className="result-score"><strong>{result.mode==='time-trial'?fmt(result.time):result.score.toLocaleString()}</strong><span>{result.mode==='time-trial'?(result.gates===result.totalGates?'VALID TIME':'MISSED GATES'):'POINTS'}</span></div><div className="result-stats"><div><span>TIME</span><strong>{fmt(result.time)}</strong></div><div><span>TRICKS</span><strong>{result.tricks}</strong></div><div><span>BAILS</span><strong>{result.bails}</strong></div>{result.mode==='time-trial'&&<div><span>GATES</span><strong>{result.gates}/{result.totalGates}</strong></div>}</div><p className="result-note">{result.mode==='time-trial'&&result.gates<result.totalGates?'Missed gates: complete every gate for the Gate keeper challenge.':result.bails===0?'Clean from first turn to finish. That’s a line worth remembering.':'Every run is a new chance to find your line.'}</p><div className="result-actions"><button className="drop-button" onClick={()=>start()}><RotateCcw size={18}/>Ride again</button><button className="secondary-button" onClick={()=>replay(result)}><Film size={18}/>Replay & photo</button><button className="text-button" onClick={home}>Choose another mountain</button></div><span className="settings-save"><Check size={15}/>{saved?'Run saved on this device':'Storage unavailable · run kept for this session'}</span></div></div>}
- {bench==='running'&&<div className="bench-running">BENCHMARK · 40 s automatic free ride · keep this tab in front</div>}{bench&&bench!=='running'&&<div className="overlay bench-overlay"><div className="pause-panel"><span className="eyebrow">BENCHMARK</span>{<><h1>{bench.avgFps} FPS</h1><div className="result-stats"><div><span>1% LOW</span><strong>{bench.low1Fps}</strong></div><div><span>WORST FRAME</span><strong>{bench.worstMs} ms</strong></div><div><span>RESOLUTION</span><strong>{bench.resolution}</strong></div></div><p className="bench-gpu">{bench.gpu} · {bench.quality} · auto scale {bench.autoScale}</p><button className="drop-button" onClick={()=>{navigator.clipboard?.writeText(JSON.stringify(bench)).then(()=>notice('Benchmark copied')).catch(()=>{});}}>Copy the results</button><button className="text-button" onClick={()=>setBench(null)}>Close</button></>}</div></div>}
- {screen==='lift'&&liftNow&&<div className="lift-hud">
-  <div className="lift-hud-card">
-   <span className="eyebrow">{liftNow.typeLabel.toUpperCase()} · {({wait:'WAIT AT THE LOADING POINT',board:'GETTING ON',depart:'LEAVING THE STATION',ride:'RIDING UP',arrive:'ARRIVING',alight:'GETTING OFF',done:'AT THE TOP'} as Record<string,string>)[liftHud?.phase??'wait']}</span>
-   <strong>{liftNow.name}</strong>
-   <span className="lift-hud-route">{stationName(liftNow.from)} → {stationName(liftNow.to)}</span>
-   <div className="progress-track"><div style={{width:`${(liftHud?.progress??0)*100}%`}}/></div>
-   <span className="lift-hud-stats">{(liftHud?.elevation??liftNow.bottomZ).toLocaleString()} m · {liftHud?.kmh??0} km/h · {Math.floor((liftHud?.remainingReal??liftNow.rideS)/60)}:{String((liftHud?.remainingReal??liftNow.rideS)%60).padStart(2,'0')} real time left</span>
-   {journeyView&&<span className="lift-hud-journey">Step {journeyView.i+1} of {journeyView.steps.length} to {stationName(journeyView.dest)}{journeyView.steps[journeyView.i+1]?` · next: ${journeyView.steps[journeyView.i+1].kind==='lift'?(journeyView.steps[journeyView.i+1] as {lift:ResortLift}).lift.name:'ride down'}`:''}</span>}
-  </div>
-  <div className="lift-hud-controls" role="group" aria-label="Lift ride speed">
-   {[1,4,16].map(v=><button key={v} aria-pressed={liftSpeed===v} onClick={()=>setLiftSpeed(v)}>×{v}</button>)}
-   <button onClick={()=>game.current?.skipLift()}>Skip</button>
-   <button aria-label="Change camera" onClick={()=>{if(game.current)game.current.cameraMode=(game.current.cameraMode+1)%3;}}><Camera size={15}/></button>
-   <button onClick={leaveLift}>Map</button>
-  </div>
- </div>}
- {screen==='resort'&&<ResortMap station={resortStation} onStation={setResortStation} onRide={rideRoute} onLift={rideLift} onJourney={startJourney} onFreeRide={startFreeAt} onClose={closeResort} arrival={arrival} onDismissArrival={()=>setArrival(null)} loading={loadingTerrain}/>}
- {screen==='replay'&&lastRun&&<><header className="replay-header"><button className="secondary-button" onClick={home}><ChevronLeft size={18}/>Mountain menu</button><span className="mini-brand">{photo?'PHOTO MODE':'REPLAY STUDIO'}</span><button className="icon-button" aria-label="Save photo" onClick={capture}><Camera size={20}/></button></header><div className="replay-bottom"><div className="replay-controls"><button className="icon-button" aria-label={replayPlaying?'Pause replay':'Play replay'} onClick={()=>{if(game.current){game.current.replayPlaying=!game.current.replayPlaying;setReplayPlaying(game.current.replayPlaying);}}}>{replayPlaying?<Pause size={18}/>:<Play size={18}/>}</button><span>{fmt(replayT)}</span><Slider value={[replayT]} max={lastRun.time} step={.05} min={0} onValueChange={([v])=>{game.current?.setReplayTime(v);setReplayT(v);}} aria-label="Replay timeline"/><span>{fmt(lastRun.time)}</span></div><div className="photo-actions"><button className="secondary-button" onClick={()=>{if(game.current)game.current.cameraMode=(game.current.cameraMode+1)%3;}}><Camera size={17}/>Change camera</button><button className={`secondary-button ${photo?'active':''}`} onClick={()=>{if(game.current){game.current.photo=!photo;game.current.replayPlaying=false;}setPhoto(!photo);}}>{photo?'Exit photo mode':'Photo mode'}</button>{photo&&<><button className="icon-button" aria-label="Orbit left" onClick={()=>{if(game.current)game.current.photoAngle-=.35;}}><ChevronLeft/></button><button className="icon-button" aria-label="Orbit right" onClick={()=>{if(game.current)game.current.photoAngle+=.35;}}><ChevronRight/></button><button className="secondary-button" onClick={capture}>Save photo</button></>}</div></div></>}
- {notification&&<div className="notification" role="status"><Check size={18}/>{notification}</div>}
- </>}
- </main>;
+export default function Home() {
+    const [loadingTerrain, setLoadingTerrain] = useState(false),
+        [tiltBlocked, setTiltBlocked] = useState(false),
+        [coarse, setCoarse] = useState(false),
+        [gestureHelp, setGestureHelp] = useState(false);
+    useEffect(() => {
+        try {
+            setCoarse(matchMedia('(pointer:coarse)').matches);
+        } catch {}
+    }, []);
+    const gearHost = useRef<HTMLDivElement>(null);
+    const gearDrag = useRef<{ id: number; x: number } | null>(null);
+    const [gearView, setGearView] = useState<GearView>('rider');
+    const host = useRef<HTMLDivElement>(null);
+    const game = useRef<SnowGame | null>(null);
+    const [ready, setReady] = useState(false),
+        [error, setError] = useState(''),
+        [screen, setScreen] = useState<Screen>('menu'),
+        [panel, setPanel] = useState<Panel>('ride'),
+        [course, setCourse] = useState(0),
+        [mode, setMode] = useState<Mode>('freeride'),
+        [settings, setSettings] = useState(defaults),
+        [look, setLook] = useState<Look>(defaultLook),
+        [hud, setHud] = useState(initial),
+        [lastRun, setLastRun] = useState<Run | null>(null),
+        [history, setHistory] = useState<Omit<Run, 'frames'>[]>([]),
+        [result, setResult] = useState<Run | null>(null),
+        [replayT, setReplayT] = useState(0),
+        [replayPlaying, setReplayPlaying] = useState(true),
+        [photo, setPhoto] = useState(false),
+        [saved, setSaved] = useState(true),
+        [notification, setNotification] = useState(''),
+        [customSpacing, setCustomSpacing] = useState(155),
+        [customRails, setCustomRails] = useState(7),
+        [customActive, setCustomActive] = useState(false);
+    const c = COURSES[course];
+    const historyRef = useRef(history);
+    historyRef.current = history;
+    const onTiltUnavailable = useRef(() => {
+        setTiltBlocked(true);
+        setNotification('Tilt is blocked here, so on-screen buttons are on. Install the app version for tilt.');
+        window.setTimeout(() => setNotification(''), 5000);
+    }).current;
+    const [resortStation, setResortStationState] = useState('');
+    const [arrival, setArrival] = useState<Arrival | null>(null);
+    const arriveRef = useRef<((run: Run) => void) | null>(null);
+    useEffect(() => {
+        try {
+            setResortStationState(localStorage.getItem('evader-station-v1') ?? '');
+        } catch {}
+    }, []);
+    function setResortStation(id: string) {
+        setResortStationState(id);
+        try {
+            localStorage.setItem('evader-station-v1', id);
+        } catch {}
+    }
+    /** The lift station a real-terrain run ends at: its mapped end station, else the nearest station with a lift up. */
+    function endStation(c: Course) {
+        const r = resortLoaded();
+        if (!r || !c.dem) return '';
+        const run = verbierRun(c.dem);
+        if (run.h.toStation) return run.h.toStation;
+        const w = run.world(run.centreX(run.length), run.length);
+        let best = '',
+            bd = Infinity;
+        for (const s of r.stations) {
+            if (!s.liftsUp.length) continue;
+            const d = Math.hypot(s.e - w.e, s.n - w.n);
+            if (d < bd) {
+                bd = d;
+                best = s.id;
+            }
+        }
+        return best;
+    }
+    const [liftSpeed, setLiftSpeedState] = useState(4),
+        [liftNow, setLiftNow] = useState<ResortLift | null>(null),
+        [liftHud, setLiftHud] = useState<ReturnType<SnowGame['liftStatus']>>(undefined),
+        [journeyView, setJourneyView] = useState<{ steps: JourneyStep[]; i: number; dest: string } | null>(null);
+    const journeyRef = useRef<{ steps: JourneyStep[]; i: number; dest: string } | null>(null),
+        liftEndRef = useRef<(l: ResortLift) => void>(() => {});
+    useEffect(() => {
+        try {
+            const v = Number(localStorage.getItem('evader-lift-speed-v1'));
+            if ([1, 4, 16].includes(v)) setLiftSpeedState(v);
+        } catch {}
+    }, []);
+    function setLiftSpeed(v: number) {
+        setLiftSpeedState(v);
+        game.current?.setLiftSpeed(v);
+        try {
+            localStorage.setItem('evader-lift-speed-v1', String(v));
+        } catch {}
+    }
+    useEffect(() => {
+        if (screen !== 'lift') return;
+        const id = setInterval(() => setLiftHud(game.current?.liftStatus()), 200);
+        return () => clearInterval(id);
+    }, [screen]);
+    const stationName = (id: string | null | undefined) => resortLoaded()?.stations.find(s => s.id === id)?.name ?? 'the station';
+    /** Get on a lift in the game world: load its corridor, then board, ride and get off at the top. */
+    async function rideLift(l: ResortLift) {
+        setLoadingTerrain(true);
+        try {
+            await loadLift(l.id);
+        } catch {
+            notice('Could not load the lift. Check the connection and try again.');
+            return;
+        } finally {
+            setLoadingTerrain(false);
+        }
+        const g = game.current;
+        if (!g) return;
+        setArrival(null);
+        g.suspended = false;
+        g.onLiftEnd = () => {
+            stamp({ lift: l.id }, true);
+            liftEndRef.current(l);
+        };
+        g.startLift(l.id, liftCourse(l), liftSpeed);
+        setLiftNow(l);
+        setLiftHud(g.liftStatus());
+        setScreen('lift');
+    }
+    const freeAfterLift = useRef(false);
+    /** Free ride from a station: load the mountain around it, then ride anywhere. */
+    async function startFreeAt(stationId: string) {
+        setLoadingTerrain(true);
+        try {
+            const r = await loadResort();
+            const st = r.stations.find(s => s.id === stationId && (s.routesFrom.length || s.liftsUp.length)) ?? r.stations.find(s => s.name === 'Les Attelas')!;
+            await loadTilesAround(st.e, st.n, 1000);
+            const g = game.current;
+            if (!g) return;
+            setArrival(null);
+            journeyRef.current = null;
+            setJourneyView(null);
+            setResortStation(st.id);
+            g.startFree(st.e, st.n);
+            setMode('freeride');
+            setScreen('ride');
+            setHud(initial);
+            setResult(null);
+            requestTiltPermission();
+        } catch {
+            notice('Could not load the mountain. Check the connection and try again.');
+        } finally {
+            setLoadingTerrain(false);
+        }
+    }
+    /** The station nearest to the free rider (to open the map or continue from). */
+    function nearestStation() {
+        const w = game.current?.freeWorld(),
+            r = resortLoaded();
+        if (!w || !r) return resortStation;
+        let best = resortStation,
+            bd = Infinity;
+        for (const s of r.stations) {
+            const d = Math.hypot(s.e - w.e, s.n - w.n);
+            if (d < bd) {
+                bd = d;
+                best = s.id;
+            }
+        }
+        return best;
+    }
+    function freeToMap() {
+        setResortStation(nearestStation());
+        if (game.current) {
+            game.current.menu();
+            game.current.suspended = true;
+        }
+        setScreen('resort');
+    }
+    function freeTakeLift(id: string) {
+        const l = resortLoaded()?.lifts.find(x => x.id === id);
+        if (!l) return;
+        freeAfterLift.current = true;
+        rideLift(l);
+    }
+    const [passport, setPassport] = useState<Passport>(EMPTY_PASSPORT);
+    const passRef = useRef({ p: EMPTY_PASSPORT, distance: 0, descent: 0, saveAt: 0 });
+    useEffect(() => {
+        const p = loadPassport();
+        passRef.current.p = p;
+        setPassport(p);
+    }, []);
+    function stamp(s: Parameters<typeof record>[1], saveNow = false) {
+        const r = passRef.current,
+            [q, changed] = record(r.p, s);
+        if (!changed) return;
+        r.p = q;
+        if (saveNow || Date.now() > r.saveAt) {
+            r.saveAt = Date.now() + 4000;
+            savePassport(q);
+            setPassport(q);
+        }
+    }
+    useEffect(() => {
+        if (screen !== 'ride' || !game.current?.course.free) return;
+        const r = passRef.current;
+        if (hud.distance < r.distance || (hud.descent ?? 0) < r.descent) {
+            r.distance = 0;
+            r.descent = 0;
+        }
+        const dd = hud.distance - r.distance,
+            de = (hud.descent ?? 0) - r.descent;
+        r.distance = hud.distance;
+        r.descent = hud.descent ?? 0;
+        stamp({ station: hud.station, distance: dd, descent: de, speedKmh: hud.speed }, !!hud.station && !r.p.stations.includes(hud.station));
+    }, [hud]); // eslint-disable-line react-hooks/exhaustive-deps
+    const resortCounts = { stations: resortLoaded()?.stations.length ?? 74, lifts: resortLoaded()?.lifts.length ?? 66 };
+    const [tutorialDone, setTutorialDone] = useState(false);
+    useEffect(() => {
+        try {
+            setTutorialDone(localStorage.getItem('evader-tutorial-v1') === 'done');
+        } catch {}
+    }, []);
+    async function startTutorialRide() {
+        await startFreeAt('s36');
+        game.current?.startTutorial();
+    }
+    function endTutorial(finished: boolean) {
+        game.current?.endTutorial();
+        if (finished) {
+            setTutorialDone(true);
+            try {
+                localStorage.setItem('evader-tutorial-v1', 'done');
+            } catch {}
+            passRef.current.p = { ...passRef.current.p, tutorial: true };
+            savePassport(passRef.current.p);
+            setPassport(passRef.current.p);
+        }
+    }
+    useEffect(() => {
+        if (hud.tutorial?.finished && !tutorialDone) {
+            setTutorialDone(true);
+            try {
+                localStorage.setItem('evader-tutorial-v1', 'done');
+            } catch {}
+            passRef.current.p = { ...passRef.current.p, tutorial: true };
+            savePassport(passRef.current.p);
+            setPassport(passRef.current.p);
+        }
+    }, [hud.tutorial?.finished, tutorialDone]);
+    const [offline, setOffline] = useState<{ done: number; total: number; failed: number } | null>(null);
+    async function downloadOffline() {
+        if (!('caches' in window)) {
+            notice('This browser cannot store files for offline play');
+            return;
+        }
+        const r = await loadResort();
+        const files = [
+            'resort.json',
+            'overview.bin',
+            'horizon.bin',
+            'forest.bin',
+            'buildings.json',
+            ...r.tiles.map(([te, tn]) => `tiles/${te}_${tn}.bin`),
+            ...r.routes.map(x => `routes/${x.id}.json`),
+        ];
+        const c = await caches.open('evader-resort-v1');
+        let done = 0,
+            failed = 0;
+        setOffline({ done, total: files.length, failed });
+        for (let i = 0; i < files.length; i += 6)
+            await Promise.all(
+                files.slice(i, i + 6).map(async f => {
+                    const url = new URL(resortUrl(f), location.href).href;
+                    try {
+                        const res = await fetch(url, { cache: 'no-cache' });
+                        if (res.ok) await c.put(url, res);
+                        else failed++;
+                    } catch {
+                        failed++;
+                    }
+                    done++;
+                    setOffline({ done, total: files.length, failed });
+                }),
+            );
+        notice(failed ? `${failed} files could not be saved; try again online` : 'Verbier saved for offline play');
+    }
+    const [bench, setBench] = useState<BenchResult | 'running' | null>(null);
+    async function runBenchmark() {
+        const r = await loadResort();
+        const st = r.stations.find(s => s.name === 'Les Attelas')!;
+        setBench('running');
+        await startFreeAt(st.id);
+        game.current?.startBenchmark(40, res => {
+            setBench(res);
+            home();
+        });
+    }
+    useEffect(() => {
+        if (ready && new URLSearchParams(location.search).has('bench')) runBenchmark();
+    }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
+    function runStep(st: JourneyStep) {
+        if (st.kind === 'lift') rideLift(st.lift);
+        else rideRoute(st.route);
+    }
+    function startJourney(steps: JourneyStep[], dest: string) {
+        if (!steps.length) {
+            setResortStation(dest);
+            return;
+        }
+        journeyRef.current = { steps, i: 0, dest };
+        setJourneyView({ steps, i: 0, dest });
+        runStep(steps[0]);
+    }
+    /** After a lift or a run: the next step of the journey, or the map at the station reached. */
+    function stepDone(at: string, summary: { title: string; detail: string; onReplay?: () => void; eyebrow?: string }) {
+        setResortStation(at);
+        const j = journeyRef.current;
+        if (j && j.i + 1 < j.steps.length) {
+            j.i++;
+            setJourneyView({ ...j });
+            runStep(j.steps[j.i]);
+            return;
+        }
+        const finished = journeyRef.current;
+        journeyRef.current = null;
+        setJourneyView(null);
+        if (game.current) {
+            game.current.menu();
+            game.current.suspended = true;
+        }
+        setArrival(finished && finished.steps.length > 1 ? { ...summary, eyebrow: `ARRIVED · ${finished.steps.length} STEPS` } : summary);
+        setScreen('resort');
+    }
+    liftEndRef.current = (l: ResortLift) =>
+        freeAfterLift.current
+            ? ((freeAfterLift.current = false), void startFreeAt(l.to))
+            : stepDone(l.to, {
+                  eyebrow: 'OFF THE LIFT',
+                  title: `You got off at ${stationName(l.to)}`,
+                  detail: `${l.name} · ${l.typeLabel.toLowerCase()} from ${stationName(l.from)} · ${Math.round(l.rideS / 60)} min real ride time, +${l.vertical} m.`,
+              });
+    function leaveLift() {
+        freeAfterLift.current = false;
+        const l = liftNow;
+        journeyRef.current = null;
+        setJourneyView(null);
+        if (game.current) {
+            game.current.menu();
+            game.current.suspended = true;
+        }
+        if (l) setResortStation(l.from);
+        setScreen('resort');
+    }
+    arriveRef.current = (run: Run) => {
+        const id = endStation(run.course),
+            st = resortLoaded()?.stations.find(s => s.id === id);
+        if (!id) {
+            setScreen('result');
+            return;
+        }
+        stepDone(id, {
+            title: `${run.course.name}`,
+            detail: `${run.score.toLocaleString()} points · ${fmt(run.time)} · ${run.tricks} tricks · ${run.bails} bails. You are at ${st?.name ?? 'the lift station'}.`,
+            onReplay: () => {
+                setArrival(null);
+                if (game.current) game.current.suspended = false;
+                replay(run);
+            },
+        });
+    };
+    function openResort() {
+        if (game.current) {
+            game.current.menu();
+            game.current.suspended = true;
+        }
+        setScreen('resort');
+    }
+    function closeResort() {
+        if (game.current) game.current.suspended = false;
+        setArrival(null);
+        setScreen('menu');
+        setPanel('ride');
+    }
+    async function rideRoute(r: RouteSummary) {
+        const c = routeCourse(r);
+        if (!(await withTerrain(c))) return;
+        setArrival(null);
+        if (game.current) game.current.suspended = false;
+        game.current?.setCourse(c);
+        start('freeride');
+    }
+    function notice(t: string) {
+        setNotification(t);
+        window.setTimeout(() => setNotification(''), 3600);
+    }
+    function store(key: string, data: unknown) {
+        try {
+            localStorage.setItem(key, JSON.stringify(data));
+            setSaved(true);
+        } catch {
+            setSaved(false);
+        }
+    }
+    useEffect(() => {
+        let active = true;
+        try {
+            if ('serviceWorker' in navigator && window.top === window && location.protocol !== 'file:' && !location.pathname.startsWith('/_next'))
+                navigator.serviceWorker.register('./sw.js').catch(() => {});
+        } catch {}
+        let s = defaults,
+            l = defaultLook;
+        try {
+            if (matchMedia('(pointer:coarse)').matches) {
+                s = { ...defaults, quality: 'balanced', renderScale: 0.85, fov: 66 };
+                setSettings(s);
+            }
+        } catch {}
+        try {
+            const data = JSON.parse(localStorage.getItem('evader-profile-v1') || 'null');
+            if (data) {
+                s = { ...defaults, ...data.settings };
+                l = restoreLook(data.look);
+                setSettings(s);
+                setLook(l);
+            }
+            const runs = JSON.parse(localStorage.getItem('evader-runs-v1') || '[]');
+            if (Array.isArray(runs)) setHistory(runs.filter(r => r.course && typeof r.score === 'number').slice(0, 30));
+            const replay = JSON.parse(localStorage.getItem('evader-replay-v1') || 'null');
+            if (replay?.frames?.length && replay?.course) setLastRun(replay);
+        } catch {
+            setSaved(false);
+        }
+        try {
+            const g = new SnowGame(
+                host.current!,
+                s,
+                l,
+                setHud,
+                run => {
+                    if (!active) return;
+                    setResult(run);
+                    setLastRun(run);
+                    if (run.course.dem && arriveRef.current) arriveRef.current(run);
+                    else setScreen('result');
+                    const { frames, ...summary } = run;
+                    const all = [summary, ...historyRef.current].slice(0, 30);
+                    setHistory(all);
+                    store('evader-runs-v1', all);
+                    store('evader-replay-v1', run);
+                },
+                () => setScreen('pause'),
+            );
+            game.current = g;
+            if (new URLSearchParams(location.search).has('debug')) (window as unknown as { evaderDebug?: SnowGame }).evaderDebug = g;
+            setReady(true);
+        } catch (e) {
+            setError('Your browser could not start 3D graphics. Enable hardware acceleration, or try a recent Chrome, Edge, Safari or Firefox browser.');
+            console.error(e);
+        }
+        return () => {
+            active = false;
+            game.current?.dispose();
+            game.current = null;
+        };
+    }, []);
+    useEffect(() => {
+        if (!ready) return;
+        game.current?.setSettings(settings);
+        game.current?.setLook(look);
+        store('evader-profile-v1', { settings, look });
+    }, [settings, look, ready]);
+    useEffect(() => {
+        if (ready) game.current?.setGarageHost(panel === 'garage' && screen === 'menu' ? (gearHost.current ?? undefined) : undefined);
+    }, [panel, screen, ready]);
+    useEffect(() => {
+        if (screen !== 'replay') return;
+        const id = setInterval(() => {
+            const g = game.current;
+            if (g) {
+                setReplayT(g.replayTime);
+                setReplayPlaying(g.replayPlaying);
+            }
+        }, 100);
+        return () => clearInterval(id);
+    }, [screen]);
+    useEffect(() => {
+        if (!ready || !document.modelContext?.registerTool) return;
+        const life = new AbortController();
+        const ctx = document.modelContext;
+        for (const tool of [
+            {
+                name: 'read_evader_run',
+                description: 'Read the current snowboarding run state.',
+                inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+                annotations: { readOnlyHint: true, untrustedContentHint: false },
+                execute: () => ({ state: game.current?.state, course: game.current?.course.name, ...game.current?.getHUD() }),
+            },
+            {
+                name: 'start_evader_run',
+                description: 'Start a new run on a selected mountain, discarding the current unfinished run.',
+                inputSchema: {
+                    type: 'object',
+                    properties: { course: { type: 'integer', minimum: 0, maximum: COURSES.length - 1 }, mode: { type: 'string', enum: modes.map(m => m.id) } },
+                    required: ['course', 'mode'],
+                    additionalProperties: false,
+                },
+                annotations: { readOnlyHint: false, untrustedContentHint: false },
+                execute: async (input: unknown) => {
+                    const v = input as { course: number; mode: Mode };
+                    if (!Number.isInteger(v.course) || !COURSES[v.course] || !modes.some(m => m.id === v.mode))
+                        throw new Error('Choose a valid course and mode.');
+                    setCourse(v.course);
+                    setMode(v.mode);
+                    if (!(await withTerrain(COURSES[v.course]))) throw new Error('Terrain could not be loaded.');
+                    game.current?.setCourse(COURSES[v.course]);
+                    game.current?.start(v.mode);
+                    setScreen('ride');
+                    return { started: true, course: COURSES[v.course].name, mode: v.mode };
+                },
+            },
+        ]) {
+            Promise.resolve(ctx.registerTool(tool, { signal: life.signal })).catch(() => {});
+        }
+        return () => life.abort();
+    }, [ready]);
+    function start(m: Mode = mode) {
+        requestTiltPermission();
+        window.dispatchEvent(new Event('evader-recalibrate'));
+        setGestureHelp(true);
+        window.setTimeout(() => setGestureHelp(false), 6500);
+        game.current?.start(m);
+        setMode(m);
+        setScreen('ride');
+        setHud(initial);
+        setResult(null);
+    }
+    function home() {
+        game.current?.menu();
+        setScreen('menu');
+        setPanel('ride');
+        setPhoto(false);
+    }
+    /** Real-terrain courses fetch their terrain file (0.3-2 MB) the first time they are chosen. */
+    async function withTerrain(c: Course) {
+        if (!c.dem || isRunLoaded(c.dem)) return true;
+        setLoadingTerrain(true);
+        try {
+            await loadRun(c.dem);
+            return true;
+        } catch {
+            notice('Could not load the terrain for ' + c.name + '. Check the connection and try again.');
+            return false;
+        } finally {
+            setLoadingTerrain(false);
+        }
+    }
+    async function selectCourse(i: number) {
+        setCourse(i);
+        setCustomActive(false);
+        if (!(await withTerrain(COURSES[i]))) return;
+        game.current?.setCourse(COURSES[i]);
+    }
+    function showPanel(p: Panel) {
+        setPanel(p);
+        if (game.current) game.current.state = p === 'garage' ? 'garage' : 'menu';
+    }
+    async function replay(r = lastRun) {
+        if (!r) return;
+        if (!(await withTerrain(r.course))) return;
+        game.current?.replay(r);
+        setScreen('replay');
+        setReplayT(0);
+        setPhoto(false);
+    }
+    function capture() {
+        const data = game.current?.capture();
+        if (!data) return;
+        const a = document.createElement('a');
+        a.href = data;
+        a.download = `EVADER-${Date.now()}.png`;
+        a.click();
+        notice('Photo saved');
+    }
+    const challenges = [
+        { name: 'First tracks', detail: 'Finish your first mountain run', complete: history.length > 0, target: 0 },
+        { name: 'Park apprentice', detail: 'Score 3,000 points in one run', complete: history.some(r => r.score >= 3000), target: 3000 },
+        { name: 'Clean lines', detail: 'Finish a run without a bail', complete: history.some(r => r.bails === 0), target: 0 },
+        { name: 'Freestyle rider', detail: 'Land 10 tricks in a single run', complete: history.some(r => r.tricks >= 10), target: 0 },
+        {
+            name: 'Mountain master',
+            detail: 'Score 10,000 in slopestyle',
+            complete: history.some(r => r.mode === 'slopestyle' && r.score >= 10000),
+            target: 10000,
+        },
+        {
+            name: 'Gate keeper',
+            detail: 'Clear every gate in time trial',
+            complete: history.some(r => r.mode === 'time-trial' && r.gates === r.totalGates),
+            target: 0,
+        },
+    ];
+    const level = 1 + Math.floor(history.reduce((s, r) => s + r.score, 0) / 10000);
+    const best = Math.max(0, ...history.filter(r => r.course.id === course && r.mode === mode).map(r => r.score));
+    const validTimes = history.filter(r => r.course.id === course && r.mode === 'time-trial' && r.gates === r.totalGates).map(r => r.time);
+    const bestTime = validTimes.length ? Math.min(...validTimes) : 0;
+    return (
+        <main className={`evader screen-${screen} ${panel === 'garage' ? 'garage-view' : ''}`}>
+            <div ref={host} className="world" />
+            {error && (
+                <div className="graphics-error">
+                    <Mountain size={36} />
+                    <h1>Mountain unavailable</h1>
+                    <p>{error}</p>
+                </div>
+            )}
+            {!error && (
+                <>
+                    <div className="vignette" />
+                    <div className="grain" />
+                    {screen === 'menu' && (
+                        <>
+                            <header className="menu-header">
+                                <div className="brand">
+                                    <Mountain size={23} />
+                                    <span>EVADER</span>
+                                    <span className="build">ALPINE EDITION / 04</span>
+                                </div>
+                                <div className="rider-profile">
+                                    <span className="avatar">E</span>
+                                    <div>
+                                        <strong>LOCAL RIDER</strong>
+                                        <span>
+                                            LEVEL {level} · {challenges.filter(x => x.complete).length}/6 CHALLENGES
+                                        </span>
+                                    </div>
+                                </div>
+                            </header>
+                            <div className="menu-layout">
+                                <aside className="menu-left">
+                                    <div className="wordmark">
+                                        EVADER<span className="wordmark-dot">.</span>
+                                    </div>
+                                    <p className="brand-subtitle">RIDE THE LINE. OWN THE MOUNTAIN.</p>
+                                    <button className="resort-entry" onClick={openResort} disabled={!ready}>
+                                        <MapIcon size={19} />
+                                        <span>
+                                            <strong>Verbier resort map</strong>
+                                            <small>Real lifts · 2D / 3D · runs station to station</small>
+                                        </span>
+                                    </button>
+                                    <button className="resort-entry free-entry" onClick={() => startFreeAt(resortStation)} disabled={!ready || loadingTerrain}>
+                                        <Mountain size={19} />
+                                        <span>
+                                            <strong>{loadingTerrain ? 'Loading the mountain…' : 'Free ride Verbier'}</strong>
+                                            <small>The whole 4 Vallées · go anywhere · take any lift</small>
+                                        </span>
+                                    </button>
+                                    <button className="resort-entry tutorial-entry" onClick={startTutorialRide} disabled={!ready || loadingTerrain}>
+                                        <GraduationCap size={19} />
+                                        <span>
+                                            <strong>Learn to ride</strong>
+                                            <small>Six steps on the real Les Ruinettes pistes{tutorialDone ? ' · done ✓' : ''}</small>
+                                        </span>
+                                    </button>
+                                    <nav aria-label="Main menu">
+                                        {(
+                                            [
+                                                { id: 'ride', name: 'Ride the mountain', icon: Mountain },
+                                                { id: 'career', name: 'Career challenges', icon: Flag },
+                                                { id: 'garage', name: 'Rider & board', icon: Shirt },
+                                                { id: 'creator', name: 'Park builder', icon: SlidersHorizontal },
+                                                { id: 'studio', name: 'Replay studio', icon: Film },
+                                                { id: 'settings', name: 'Settings', icon: Settings2 },
+                                            ] as const
+                                        ).map(n => (
+                                            <button key={n.id} onClick={() => showPanel(n.id)} className={panel === n.id ? 'selected' : ''}>
+                                                <n.icon size={19} />
+                                                <span>{n.name}</span>
+                                                <span className="nav-index">
+                                                    0{['ride', 'career', 'garage', 'creator', 'studio', 'settings'].indexOf(n.id) + 1}
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </nav>
+                                    <button className="about-btn" onClick={() => showPanel('about')}>
+                                        <Info size={15} /> About this build
+                                    </button>
+                                </aside>
+                                <section className={`menu-panel panel-${panel}`} aria-label={panel === 'ride' ? 'Ride setup' : panel}>
+                                    {panel === 'ride' && (
+                                        <>
+                                            <div className="location-head">
+                                                <span className="eyebrow">{customActive ? 'YOUR CUSTOM PARK' : c.region}</span>
+                                                <span className="terrain-mark">{c.id === 2 ? '◆◆' : c.id === 1 ? '●' : '◆'}</span>
+                                            </div>
+                                            <h1>{customActive ? 'YOUR PARK' : c.name.split(' ').map((n, i) => <span key={i}>{n} </span>)}</h1>
+                                            <div className="location-details">
+                                                <span>
+                                                    {(c.length / 1000).toFixed(1)} <small>KM LINE</small>
+                                                </span>
+                                                <span>
+                                                    {c.drop} <small>M VERTICAL</small>
+                                                </span>
+                                                <span>{c.difficulty}</span>
+                                            </div>
+                                            <div className="weather-line">
+                                                <span className="weather-icon">
+                                                    {settings.weather === 'clear' ? '☀' : settings.weather === 'snow' ? '❄' : '◒'}
+                                                </span>
+                                                {settings.weather === 'clear' ? 'Clear skies' : settings.weather === 'snow' ? 'Snowfall' : 'Alpine dusk'}
+                                                <span> −8°C</span>
+                                            </div>
+                                            <div className="mode-choices" aria-label="Game mode">
+                                                {modes.map(m => (
+                                                    <button key={m.id} onClick={() => setMode(m.id)} className={mode === m.id ? 'active' : ''}>
+                                                        <m.icon size={18} />
+                                                        <span>{m.name}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <p className="mode-description">
+                                                {modes.find(m => m.id === mode)?.description}{' '}
+                                                {mode === 'time-trial' ? (
+                                                    <span>{bestTime ? `BEST VALID TIME ${fmt(bestTime)}` : 'CLEAR EVERY GATE FOR A VALID TIME'}</span>
+                                                ) : (
+                                                    best > 0 && <span>PERSONAL BEST {best.toLocaleString()}</span>
+                                                )}
+                                            </p>
+                                            <button disabled={!ready || loadingTerrain} className="drop-button" onClick={() => start()}>
+                                                <Play size={18} fill="currentColor" />
+                                                {!ready ? 'PREPARING MOUNTAIN…' : loadingTerrain ? 'LOADING TERRAIN…' : 'DROP IN'}
+                                            </button>
+                                            <p className="drop-help">Keyboard, gamepad or touch. No lift ticket needed.</p>
+                                        </>
+                                    )}
+                                    {panel === 'career' && (
+                                        <>
+                                            <span className="eyebrow">FROM FIRST TRACKS TO FIRST PLACE</span>
+                                            <h1 className="panel-title">
+                                                MAKE YOUR
+                                                <br />
+                                                MARK.
+                                            </h1>
+                                            <section className="passport">
+                                                <h2>Verbier passport</h2>
+                                                <div className="result-stats">
+                                                    <div>
+                                                        <span>STATIONS</span>
+                                                        <strong>{passport.stations.length}</strong>
+                                                    </div>
+                                                    <div>
+                                                        <span>LIFTS</span>
+                                                        <strong>{passport.lifts.length}</strong>
+                                                    </div>
+                                                    <div>
+                                                        <span>VERTICAL</span>
+                                                        <strong>{Math.round(passport.descent).toLocaleString()} m</strong>
+                                                    </div>
+                                                    <div>
+                                                        <span>TOP SPEED</span>
+                                                        <strong>{Math.round(passport.topSpeed)} km/h</strong>
+                                                    </div>
+                                                </div>
+                                                <div className="goal-list">
+                                                    {goals(passport, resortCounts.stations, resortCounts.lifts).map(g => (
+                                                        <div key={g.name} className={g.value >= g.target ? 'goal done' : 'goal'}>
+                                                            <div>
+                                                                <strong>
+                                                                    {g.value >= g.target && <Check size={14} />} {g.name}
+                                                                </strong>
+                                                                <p>{g.detail}</p>
+                                                            </div>
+                                                            <div className="goal-bar">
+                                                                <div style={{ width: `${Math.min(100, (100 * g.value) / g.target)}%` }} />
+                                                            </div>
+                                                            <small>
+                                                                {g.target > 1
+                                                                    ? `${g.value.toLocaleString()} / ${g.target.toLocaleString()} ${g.unit}`
+                                                                    : g.value >= g.target
+                                                                      ? 'done'
+                                                                      : 'not yet'}
+                                                            </small>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <p className="drop-help">Counted in free ride and on lift rides, saved on this device.</p>
+                                            </section>
+                                            <div className="challenge-list">
+                                                {challenges.map((ch, i) => (
+                                                    <div key={ch.name} className={ch.complete ? 'challenge done' : 'challenge'}>
+                                                        <span className="challenge-number">
+                                                            {ch.complete ? <Check size={18} /> : String(i + 1).padStart(2, '0')}
+                                                        </span>
+                                                        <div>
+                                                            <strong>{ch.name}</strong>
+                                                            <p>{ch.detail}</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <button className="drop-button" onClick={() => start('slopestyle')} disabled={!ready}>
+                                                <Play size={18} />
+                                                Start a slopestyle run
+                                            </button>
+                                        </>
+                                    )}
+                                    {panel === 'garage' && (
+                                        <div className="gear-editor">
+                                            <div className="gear-inspector">
+                                                <div className="gear-tabs" role="group" aria-label="Inspect equipment">
+                                                    {gearViews.map(([view, label]) => (
+                                                        <button
+                                                            key={view}
+                                                            aria-pressed={gearView === view}
+                                                            onClick={() => {
+                                                                setGearView(view);
+                                                                game.current?.setGearView(view);
+                                                            }}
+                                                        >
+                                                            {label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                <div
+                                                    className="gear-preview"
+                                                    ref={gearHost}
+                                                    onPointerDown={e => {
+                                                        if (e.button !== 0) return;
+                                                        e.currentTarget.setPointerCapture(e.pointerId);
+                                                        gearDrag.current = { id: e.pointerId, x: e.clientX };
+                                                    }}
+                                                    onPointerMove={e => {
+                                                        const drag = gearDrag.current;
+                                                        if (drag?.id !== e.pointerId) return;
+                                                        game.current?.rotateGearView((e.clientX - drag.x) * 0.012);
+                                                        drag.x = e.clientX;
+                                                    }}
+                                                    onLostPointerCapture={() => {
+                                                        gearDrag.current = null;
+                                                    }}
+                                                ></div>
+                                                <div className="gear-rotate" role="group" aria-label="Rotate model">
+                                                    <button
+                                                        className="icon-button"
+                                                        aria-label="Rotate model left"
+                                                        onClick={() => game.current?.rotateGearView(-Math.PI / 4)}
+                                                    >
+                                                        <ChevronLeft size={18} />
+                                                    </button>
+                                                    <span>Drag to rotate</span>
+                                                    <button
+                                                        className="icon-button"
+                                                        aria-label="Rotate model right"
+                                                        onClick={() => game.current?.rotateGearView(Math.PI / 4)}
+                                                    >
+                                                        <ChevronRight size={18} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div className="gear-options">
+                                                <h1 className="panel-title">Rider &amp; board</h1>
+                                                <p className="section-label">OUTFIT</p>
+                                                <div className="gear-kits" role="group" aria-label="Outfit">
+                                                    {(Object.keys(outfits) as RiderKit[]).map(kit => {
+                                                        const { name, jacket, board } = outfits[kit];
+                                                        return (
+                                                            <button
+                                                                key={kit}
+                                                                aria-pressed={(look.kit ?? 'ochre') === kit}
+                                                                onClick={() => setLook({ kit, jacket, board })}
+                                                            >
+                                                                <i style={{ background: jacket }} />
+                                                                {name}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                                <p className="section-label">JACKET COLOR</p>
+                                                <div className="swatches">
+                                                    {jackets.map(([name, color]) => (
+                                                        <button
+                                                            key={color}
+                                                            aria-label={`${name} jacket`}
+                                                            aria-pressed={look.jacket === color}
+                                                            style={{ background: color }}
+                                                            className={look.jacket === color ? 'active' : ''}
+                                                            onClick={() => setLook({ ...look, jacket: color })}
+                                                        >
+                                                            {look.jacket === color && <Check />}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                <p className="section-label">BOARD FINISH</p>
+                                                <div className="swatches">
+                                                    {boards.map(([name, color]) => (
+                                                        <button
+                                                            key={color}
+                                                            aria-label={`${name} board`}
+                                                            aria-pressed={look.board === color}
+                                                            style={{ background: color }}
+                                                            className={look.board === color ? 'active' : ''}
+                                                            onClick={() => setLook({ ...look, board: color })}
+                                                        >
+                                                            {look.board === color && <Check />}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                <div className="gear-info">
+                                                    <span>
+                                                        {BOARDS[(settings.board ?? 'all-mountain') as BoardCategory].name.toUpperCase()} ·{' '}
+                                                        {Math.round(BOARDS[(settings.board ?? 'all-mountain') as BoardCategory].waist * 1000) / 10} CM WAIST ·{' '}
+                                                        {Math.round(BOARDS[(settings.board ?? 'all-mountain') as BoardCategory].stanceWidth * 100)} CM STANCE
+                                                    </span>
+                                                </div>
+                                                <button className="drop-button" onClick={() => showPanel('ride')}>
+                                                    <Check size={18} />
+                                                    Ready to ride
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {panel === 'creator' && (
+                                        <>
+                                            <span className="eyebrow">BUILD A DIFFERENT LINE</span>
+                                            <h1 className="panel-title">
+                                                SHAPE YOUR
+                                                <br />
+                                                PLAYGROUND.
+                                            </h1>
+                                            <p className="panel-copy">
+                                                Tune the kicker spacing and rail count on Northline Park. Your layout becomes the rideable course.
+                                            </p>
+                                            <div className="setting">
+                                                <label htmlFor="spacing">
+                                                    Kicker spacing <strong>{customSpacing} m</strong>
+                                                </label>
+                                                <Slider
+                                                    id="spacing"
+                                                    value={[customSpacing]}
+                                                    min={90}
+                                                    max={280}
+                                                    step={5}
+                                                    onValueChange={([v]) => setCustomSpacing(v)}
+                                                    aria-label="Kicker spacing"
+                                                />
+                                            </div>
+                                            <div className="setting">
+                                                <label>
+                                                    Rail features <strong>{customRails}</strong>
+                                                </label>
+                                                <Slider
+                                                    value={[customRails]}
+                                                    min={0}
+                                                    max={12}
+                                                    step={1}
+                                                    onValueChange={([v]) => setCustomRails(v)}
+                                                    aria-label="Rail features"
+                                                />
+                                            </div>
+                                            <button
+                                                className="drop-button"
+                                                disabled={!ready}
+                                                onClick={() => {
+                                                    const custom = {
+                                                        ...COURSES[1],
+                                                        name: 'YOUR CUSTOM PARK',
+                                                        spacing: customSpacing,
+                                                        rails: customRails,
+                                                        seed: 77,
+                                                    };
+                                                    game.current?.setCourse(custom);
+                                                    setCourse(1);
+                                                    setCustomActive(true);
+                                                    showPanel('ride');
+                                                    notice('Your park is ready');
+                                                }}
+                                            >
+                                                <Mountain size={18} />
+                                                Build & preview park
+                                            </button>
+                                            <p className="drop-help">Local session layout · no online publishing</p>
+                                        </>
+                                    )}
+                                    {panel === 'studio' && (
+                                        <>
+                                            <span className="eyebrow">EVERY LINE TELLS A STORY</span>
+                                            <h1 className="panel-title">
+                                                RUN IT
+                                                <br />
+                                                BACK.
+                                            </h1>
+                                            {lastRun ? (
+                                                <>
+                                                    <div className="run-summary">
+                                                        <span>{lastRun.course.name}</span>
+                                                        <strong>
+                                                            {lastRun.score.toLocaleString()} <small>PTS</small>
+                                                        </strong>
+                                                        <p>
+                                                            {lastRun.tricks} tricks · {lastRun.bails} bails · {fmt(lastRun.time)}
+                                                        </p>
+                                                    </div>
+                                                    <button className="drop-button" onClick={() => replay()}>
+                                                        <Play size={18} />
+                                                        Watch last run
+                                                    </button>
+                                                    <p className="panel-copy">
+                                                        Scrub your line, change the camera, or pause for a photo. Your most recent replay is saved on this
+                                                        device.
+                                                    </p>
+                                                </>
+                                            ) : (
+                                                <div className="empty-studio">
+                                                    <Film size={40} />
+                                                    <h2>Your first line is waiting.</h2>
+                                                    <p>Finish a run to unlock the replay studio.</p>
+                                                    <button className="drop-button" onClick={() => showPanel('ride')}>
+                                                        Choose a mountain
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                    {panel === 'settings' && (
+                                        <>
+                                            <span className="eyebrow">FIND YOUR COMFORT ZONE</span>
+                                            <h1 className="panel-title">
+                                                YOUR WAY
+                                                <br />
+                                                DOWN.
+                                            </h1>
+                                            <Tabs defaultValue="ride">
+                                                <TabsList className="settings-tabs">
+                                                    <TabsTrigger value="ride">Riding</TabsTrigger>
+                                                    <TabsTrigger value="graphics">Graphics</TabsTrigger>
+                                                    <TabsTrigger value="controls">Controls</TabsTrigger>
+                                                </TabsList>
+                                                <TabsContent value="ride">
+                                                    <div className="setting">
+                                                        <label>Physics model</label>
+                                                        <Choice
+                                                            label="Physics model"
+                                                            value={settings.physics ?? 'classic'}
+                                                            onChange={v => setSettings({ ...settings, physics: v as 'reality' | 'classic' })}
+                                                            items={[
+                                                                ['reality', 'Reality (beta) · rigid-body board on snow, 960 Hz'],
+                                                                ['classic', 'Classic · original v0.4 model, 120 Hz'],
+                                                            ]}
+                                                        />
+                                                        <p className="drop-help">
+                                                            Reality: speed, turns, pops, spins and landings come only from gravity, snow contact and your body.
+                                                            Takes effect on the next run.
+                                                        </p>
+                                                    </div>
+                                                    <div className="setting">
+                                                        <label>Assist level</label>
+                                                        <Choice
+                                                            label="Assist level"
+                                                            value={settings.assistLevel ?? 'balanced'}
+                                                            onChange={v =>
+                                                                setSettings({ ...settings, assistLevel: v as 'authentic' | 'balanced' | 'beginner' })
+                                                            }
+                                                            items={[
+                                                                ['authentic', 'Authentic · no landing help, strict crash limits'],
+                                                                ['balanced', 'Balanced · landing levelling, stronger rider reflexes'],
+                                                                ['beginner', 'Beginner · forgiving limits, leading-edge guard'],
+                                                            ]}
+                                                        />
+                                                        <p className="drop-help">
+                                                            Reality only. Assists strengthen the rider's own reflexes; they never switch physics off.
+                                                        </p>
+                                                    </div>
+                                                    <div className="setting">
+                                                        <label>Stance</label>
+                                                        <Choice
+                                                            label="Stance"
+                                                            value={settings.stance ?? 'regular'}
+                                                            onChange={v => setSettings({ ...settings, stance: v as 'regular' | 'goofy' })}
+                                                            items={[
+                                                                ['regular', 'Regular · left foot forward'],
+                                                                ['goofy', 'Goofy · right foot forward'],
+                                                            ]}
+                                                        />
+                                                    </div>
+                                                    <div className="setting">
+                                                        <label>Snowboard</label>
+                                                        <Choice
+                                                            label="Snowboard"
+                                                            value={settings.board ?? 'all-mountain'}
+                                                            onChange={v => setSettings({ ...settings, board: v as BoardCategory })}
+                                                            items={(Object.keys(BOARDS) as BoardCategory[]).map(
+                                                                k =>
+                                                                    [
+                                                                        k,
+                                                                        `${BOARDS[k].name} · waist ${(BOARDS[k].waist * 100).toFixed(1)} cm · sidecut ${BOARDS[k].sidecutRadius} m`,
+                                                                    ] as [string, string],
+                                                            )}
+                                                        />
+                                                        <p className="drop-help">
+                                                            Dimensions are typical catalogue ranges, not a specific product. Changes the board's contact,
+                                                            sidecut and inertia.
+                                                        </p>
+                                                    </div>
+                                                    <div className="toggle-setting">
+                                                        <div>
+                                                            <strong>Automatic park landings</strong>
+                                                            <p>
+                                                                Classic physics only. Guide centered takeoffs onto the downslope when your approach speed
+                                                                allows.
+                                                            </p>
+                                                        </div>
+                                                        <Switch
+                                                            checked={settings.autoLand}
+                                                            onCheckedChange={v => setSettings({ ...settings, autoLand: v })}
+                                                            aria-label="Automatic park landings"
+                                                        />
+                                                    </div>
+                                                    <div className="toggle-setting">
+                                                        <div>
+                                                            <strong>Landing assist</strong>
+                                                            <p>
+                                                                Classic physics only. Correct small errors up to 32°. Sideways and inverted landings still bail.
+                                                            </p>
+                                                        </div>
+                                                        <Switch
+                                                            checked={settings.assist}
+                                                            onCheckedChange={v => setSettings({ ...settings, assist: v })}
+                                                            aria-label="Landing assist"
+                                                        />
+                                                    </div>
+                                                    <div className="toggle-setting">
+                                                        <div>
+                                                            <strong>Dynamic field of view</strong>
+                                                            <p>Widen the camera as you pick up speed.</p>
+                                                        </div>
+                                                        <Switch
+                                                            checked={settings.motion}
+                                                            onCheckedChange={v => setSettings({ ...settings, motion: v })}
+                                                            aria-label="Dynamic field of view"
+                                                        />
+                                                    </div>
+                                                    <div className="setting">
+                                                        <label>
+                                                            Sound volume <strong>{Math.round(settings.volume * 100)}%</strong>
+                                                        </label>
+                                                        <Slider
+                                                            value={[settings.volume]}
+                                                            min={0}
+                                                            max={1}
+                                                            step={0.05}
+                                                            onValueChange={([v]) => setSettings({ ...settings, volume: v })}
+                                                            aria-label="Sound volume"
+                                                        />
+                                                    </div>
+                                                </TabsContent>
+                                                <TabsContent value="graphics">
+                                                    <div className="setting">
+                                                        <label>Graphics quality</label>
+                                                        <Choice
+                                                            label="Graphics quality"
+                                                            value={settings.quality}
+                                                            onChange={v => setSettings({ ...settings, quality: v })}
+                                                            items={[
+                                                                ['cinematic', 'Cinematic · 8K shadows, densest terrain and forest (image quality first)'],
+                                                                ['extreme', 'Extreme · dense terrain / 4K shadows'],
+                                                                ['ultra', 'Ultra · detailed terrain / 4K shadows'],
+                                                                ['high', 'High · shadows + sharp rendering'],
+                                                                ['balanced', 'Balanced · lighter rendering'],
+                                                                ['low', 'Low · no shadows'],
+                                                            ]}
+                                                        />
+                                                    </div>
+                                                    <div className="setting">
+                                                        <label>
+                                                            Render resolution <strong>{Math.round((settings.renderScale ?? 1) * 100)}%</strong>
+                                                        </label>
+                                                        <Slider
+                                                            value={[settings.renderScale ?? 1]}
+                                                            min={0.75}
+                                                            max={2}
+                                                            step={0.05}
+                                                            onValueChange={([v]) => setSettings({ ...settings, renderScale: v })}
+                                                            aria-label="Render resolution"
+                                                        />
+                                                        <p className="drop-help">
+                                                            Start at 100%. Raise for sharper edges; lower for more FPS. Graphics settings never change the
+                                                            physics.
+                                                        </p>
+                                                    </div>
+                                                    <div className="toggle-setting">
+                                                        <div>
+                                                            <strong>Automatic resolution</strong>
+                                                            <p>
+                                                                Lower the resolution when frames get slow (under about 38 fps), raise it again when there is
+                                                                room.
+                                                            </p>
+                                                        </div>
+                                                        <Switch
+                                                            checked={settings.autoResolution !== false}
+                                                            onCheckedChange={v => setSettings({ ...settings, autoResolution: v })}
+                                                            aria-label="Automatic resolution"
+                                                        />
+                                                    </div>
+                                                    <div className="setting">
+                                                        <label>Offline</label>
+                                                        <button
+                                                            className="secondary-button"
+                                                            disabled={!!offline && offline.done < offline.total}
+                                                            onClick={() => downloadOffline()}
+                                                        >
+                                                            {offline && offline.done < offline.total
+                                                                ? `Saving… ${offline.done} / ${offline.total}`
+                                                                : offline
+                                                                  ? 'Saved · update the offline copy'
+                                                                  : 'Download Verbier for offline play'}
+                                                        </button>
+                                                        <p className="drop-help">
+                                                            About 40 MB: the terrain of the whole 4 Vallées, every run, the buildings and the forest. Afterwards
+                                                            the installed app rides anywhere without a connection.
+                                                        </p>
+                                                    </div>
+                                                    <div className="setting">
+                                                        <label>Benchmark</label>
+                                                        <button className="secondary-button" disabled={!ready || loadingTerrain} onClick={() => runBenchmark()}>
+                                                            Run the 40 s free-ride benchmark
+                                                        </button>
+                                                        <p className="drop-help">
+                                                            Rides the real Verbier terrain from Les Attelas with an automatic rider and reports average FPS, 1%
+                                                            lows, the worst frame and your GPU. Send me the result.
+                                                        </p>
+                                                    </div>
+                                                    <div className="toggle-setting">
+                                                        <div>
+                                                            <strong>Performance & hardware diagnostics</strong>
+                                                            <p>
+                                                                FPS, 1% lows, frame-time graph, draw calls, physics cost and what your browser reports about the
+                                                                GPU.
+                                                            </p>
+                                                        </div>
+                                                        <Switch
+                                                            checked={!!settings.diagnostics}
+                                                            onCheckedChange={v => setSettings({ ...settings, diagnostics: v })}
+                                                            aria-label="Diagnostics overlay"
+                                                        />
+                                                    </div>
+                                                    <div className="setting">
+                                                        <label>Mountain atmosphere</label>
+                                                        <Choice
+                                                            label="Weather"
+                                                            value={settings.weather}
+                                                            onChange={v => setSettings({ ...settings, weather: v })}
+                                                            items={[
+                                                                ['clear', 'Clear skies'],
+                                                                ['dusk', 'Alpine dusk'],
+                                                                ['snow', 'Snowfall'],
+                                                            ]}
+                                                        />
+                                                    </div>
+                                                    <div className="setting">
+                                                        <label>
+                                                            Field of view <strong>{settings.fov}°</strong>
+                                                        </label>
+                                                        <Slider
+                                                            value={[settings.fov]}
+                                                            min={45}
+                                                            max={85}
+                                                            step={1}
+                                                            onValueChange={([v]) => setSettings({ ...settings, fov: v })}
+                                                            aria-label="Field of view"
+                                                        />
+                                                    </div>
+                                                </TabsContent>
+                                                <TabsContent value="controls">
+                                                    <div className="setting">
+                                                        <label>Phone controls</label>
+                                                        <Choice
+                                                            label="Phone controls"
+                                                            value={settings.phoneControls ?? 'tilt'}
+                                                            onChange={v => {
+                                                                setTiltBlocked(false);
+                                                                setSettings({ ...settings, phoneControls: v as 'tilt' | 'buttons' });
+                                                            }}
+                                                            items={[
+                                                                ['tilt', 'Tilt + touch gestures · no buttons'],
+                                                                ['buttons', 'Thumb-stick + buttons'],
+                                                            ]}
+                                                        />
+                                                        <p className="drop-help">
+                                                            Tilt the phone to carve (calibrated to how you hold it when the run starts). Hold the screen to
+                                                            crouch, lift to jump; drag while holding to spin (sideways) or flip (up = back, down = front); touch
+                                                            in the air to grab (left half Indy, right half Melon, two fingers Truck Driver); tilt back to slow
+                                                            down, forward to tuck.
+                                                        </p>
+                                                    </div>
+                                                    <div className="setting">
+                                                        <label>
+                                                            Tilt for a full edge <strong>{settings.tiltSensitivity ?? 22}°</strong>
+                                                        </label>
+                                                        <Slider
+                                                            value={[settings.tiltSensitivity ?? 22]}
+                                                            min={10}
+                                                            max={40}
+                                                            step={1}
+                                                            onValueChange={([v]) => setSettings({ ...settings, tiltSensitivity: v })}
+                                                            aria-label="Tilt sensitivity"
+                                                        />
+                                                    </div>
+                                                    <div className="toggle-setting">
+                                                        <div>
+                                                            <strong>Invert tilt steering</strong>
+                                                            <p>Use this if tilting right turns you left.</p>
+                                                        </div>
+                                                        <Switch
+                                                            checked={!!settings.invertTilt}
+                                                            onCheckedChange={v => setSettings({ ...settings, invertTilt: v })}
+                                                            aria-label="Invert tilt steering"
+                                                        />
+                                                    </div>
+                                                    <p className="drop-help">Reality physics · keyboard</p>
+                                                    <div className="controls-list">
+                                                        {[
+                                                            ['A / D or ← / →', 'Lean onto the heel / toe edge to turn'],
+                                                            [
+                                                                'W or ↑',
+                                                                'Tuck (less air drag, no thrust); at walking pace: skate (push with the back foot) out of stations and across flats',
+                                                            ],
+                                                            ['S or ↓', 'Speed check / stop (heelside; hold F for toeside)'],
+                                                            ['F / Z', 'Pressure forward / back (presses, nollie set-up, level the board in the air)'],
+                                                            ['SPACE', 'Hold to crouch, release to pop (ollie; nollie with F held)'],
+                                                            ['Q / E (hold while crouched)', 'Wind the shoulders; the pop unwinds them into a spin'],
+                                                            ['X / V', 'Throw back / forward at takeoff'],
+                                                            ['SHIFT', 'Grab (counts only once the hand reaches the board)'],
+                                                            ['1–9, 0, -, =, ]', GRABS.map(g => g.name.toLowerCase()).join(' · ')],
+                                                            ['R', 'Reset to the centre of your line'],
+                                                            ['C / ESC', 'Change camera / pause'],
+                                                        ].map(([k, v]) => (
+                                                            <div key={k}>
+                                                                <kbd>{k}</kbd>
+                                                                <span>{v}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <p className="drop-help">
+                                                        Gamepad (standard layout): left stick X edge / steer, left stick Y pressure fore-aft · right stick X
+                                                        shoulders (hold during the crouch to wind a spin) · right stick Y flip throw · RT or A crouch / pop · LT
+                                                        speed check · LB or RB grab · D-pad ← → choose grab · D-pad ↑ camera · Y tuck · View reset · Menu pause.
+                                                    </p>
+                                                    <div className="setting">
+                                                        <label>
+                                                            Stick dead zone <strong>{Math.round((settings.padDeadzone ?? 0.12) * 100)}%</strong>
+                                                        </label>
+                                                        <Slider
+                                                            value={[settings.padDeadzone ?? 0.12]}
+                                                            min={0}
+                                                            max={0.35}
+                                                            step={0.01}
+                                                            onValueChange={([v]) => setSettings({ ...settings, padDeadzone: v })}
+                                                            aria-label="Stick dead zone"
+                                                        />
+                                                    </div>
+                                                    <div className="setting">
+                                                        <label>
+                                                            Stick response curve <strong>{(settings.padCurve ?? 1.5).toFixed(1)}</strong>
+                                                        </label>
+                                                        <Slider
+                                                            value={[settings.padCurve ?? 1.5]}
+                                                            min={1}
+                                                            max={3}
+                                                            step={0.1}
+                                                            onValueChange={([v]) => setSettings({ ...settings, padCurve: v })}
+                                                            aria-label="Stick response curve"
+                                                        />
+                                                    </div>
+                                                    <div className="setting">
+                                                        <label>
+                                                            Stick sensitivity <strong>{Math.round((settings.padSensitivity ?? 1) * 100)}%</strong>
+                                                        </label>
+                                                        <Slider
+                                                            value={[settings.padSensitivity ?? 1]}
+                                                            min={0.5}
+                                                            max={1.5}
+                                                            step={0.05}
+                                                            onValueChange={([v]) => setSettings({ ...settings, padSensitivity: v })}
+                                                            aria-label="Stick sensitivity"
+                                                        />
+                                                    </div>
+                                                    <div className="toggle-setting">
+                                                        <div>
+                                                            <strong>Invert fore-aft pressure</strong>
+                                                            <p>Pull the left stick back to press the nose.</p>
+                                                        </div>
+                                                        <Switch
+                                                            checked={!!settings.invertLean}
+                                                            onCheckedChange={v => setSettings({ ...settings, invertLean: v })}
+                                                            aria-label="Invert fore-aft pressure"
+                                                        />
+                                                    </div>
+                                                    <p className="drop-help">Classic physics · keyboard</p>
+                                                    <div className="controls-list">
+                                                        {[
+                                                            ['A / D or ← / →', 'Carve left / right'],
+                                                            ['W / S or ↑ / ↓', 'Tuck / brake'],
+                                                            ['SPACE', 'Hold to load · release to pop'],
+                                                            ['Q / E', 'Spin in the air'],
+                                                            ['X / V', 'Backflip / frontflip'],
+                                                            ['1 / 2 / 3', 'Select Indy / Mute / Melon'],
+                                                            ['SHIFT', 'Hold selected grab'],
+                                                            ['R', 'Reset'],
+                                                            ['C / ESC', 'Camera / pause'],
+                                                        ].map(([k, v]) => (
+                                                            <div key={'c' + k}>
+                                                                <kbd>{k}</kbd>
+                                                                <span>{v}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </TabsContent>
+                                            </Tabs>
+                                            <div className="settings-save">
+                                                <Check size={15} />
+                                                {saved ? 'Saved on this device' : 'Storage unavailable · session only'}
+                                            </div>
+                                        </>
+                                    )}
+                                    {panel === 'about' && (
+                                        <>
+                                            <span className="eyebrow">EVADER / FIRST PLAYABLE</span>
+                                            <h1 className="panel-title">
+                                                A MOUNTAIN
+                                                <br />
+                                                TO BUILD ON.
+                                            </h1>
+                                            <p className="panel-copy">
+                                                An independent snowboarding prototype based on the EVADER game design blueprint. All destinations and equipment
+                                                are fictional.
+                                            </p>
+                                            <p className="panel-copy">
+                                                This build includes three mountain courses, four solo modes, a park layout builder, color customization, local
+                                                progression, gamepad and touch input, and replay photos.
+                                            </p>
+                                            <p className="panel-copy">
+                                                The blueprint’s online ranked competition, multiplayer, cloud progression, open-world resorts, detailed
+                                                character creator and native console / mobile apps are future development work. This browser build requires
+                                                WebGL 2.
+                                            </p>
+                                            <p className="drop-help">Progress stays in this browser on this device. No real-world snow or temperature data.</p>
+                                        </>
+                                    )}
+                                </section>
+                            </div>
+                            {panel === 'ride' && (
+                                <div className="destination-strip">
+                                    <div className="strip-label">
+                                        CHOOSE YOUR
+                                        <br />
+                                        <strong>NEXT DESCENT</strong>
+                                    </div>
+                                    {COURSES.map((mountain, i) => (
+                                        <button
+                                            className={course === i && !customActive ? 'destination selected' : 'destination'}
+                                            key={mountain.id}
+                                            onClick={() => selectCourse(i)}
+                                        >
+                                            <span className="destination-number">0{i + 1}</span>
+                                            <div>
+                                                <strong>{mountain.name}</strong>
+                                                <span>
+                                                    {mountain.difficulty} · {(mountain.length / 1000).toFixed(1)} KM
+                                                </span>
+                                            </div>
+                                            <div className="destination-peak">
+                                                <Mountain size={35} strokeWidth={1} />
+                                            </div>
+                                            {course === i && !customActive && <span className="destination-selected">SELECTED</span>}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                            <footer className="menu-footer">
+                                <span>
+                                    <Keyboard size={15} /> KEYBOARD
+                                </span>
+                                <span>
+                                    <Gamepad2 size={17} /> GAMEPAD
+                                </span>
+                                <span>
+                                    <MousePointer2 size={15} /> TOUCH
+                                </span>
+                                <span className="save-status">
+                                    {saved ? 'LOCAL SAVE ENABLED' : 'SESSION ONLY'}
+                                    <span className="footer-divider">/</span> LOCAL BUILD 0.4
+                                </span>
+                            </footer>
+                        </>
+                    )}
+                    {(screen === 'ride' || screen === 'pause') && (
+                        <>
+                            <header className="ride-top">
+                                <div>
+                                    <span className="mini-brand">EVADER</span>
+                                    <span className="ride-course">{game.current?.course.name}</span>
+                                    <span className="ride-mode">{mode.replace('-', ' ').toUpperCase()}</span>
+                                </div>
+                                <button className="icon-button fullscreen-btn" aria-label="Fullscreen" onClick={goFullscreen}>
+                                    <Maximize size={18} />
+                                </button>
+                                <button
+                                    className="icon-button pause-btn"
+                                    aria-label="Pause game"
+                                    onClick={() => {
+                                        if (game.current) game.current.state = 'pause';
+                                        setScreen('pause');
+                                    }}
+                                >
+                                    <Pause size={19} />
+                                </button>
+                            </header>
+                            <div className="hud-score">
+                                <span>RUN SCORE</span>
+                                <strong>{hud.score.toLocaleString()}</strong>
+                                <span className="combo-value">
+                                    ×{hud.combo.toFixed(1)} <small>FLOW</small>
+                                </span>
+                            </div>
+                            <div className="hud-progress">
+                                <span>{fmt(hud.time)}</span>
+                                <div className="progress-track">
+                                    <div style={{ width: `${hud.progress * 100}%` }} />
+                                </div>
+                                <span>
+                                    {game.current?.course.free
+                                        ? `${hud.distance.toLocaleString()} M RIDDEN`
+                                        : `${hud.distance} / ${Math.round(game.current?.course.length ?? 0)} M`}
+                                </span>
+                                {hud.altitude != null && (
+                                    <p className="hud-altitude">
+                                        {hud.altitude.toLocaleString()} M · {hud.temperature}°C
+                                    </p>
+                                )}
+                                {mode === 'time-trial' && (
+                                    <p>
+                                        {hud.gates} / {hud.totalGates} GATES
+                                    </p>
+                                )}
+                            </div>
+                            {game.current?.course.free && (
+                                <div className="free-hud">
+                                    <span className="eyebrow">FREE RIDE</span>
+                                    <strong>{hud.where ?? 'Finding your line…'}</strong>
+                                    {hud.station && (
+                                        <span>
+                                            At {hud.station}
+                                            {hud.nearLifts?.length ? '' : ' · stop at a lift to get on'}
+                                        </span>
+                                    )}
+                                    <div className="free-actions">
+                                        {hud.nearLifts?.map(l => (
+                                            <button key={l.id} className="drop-button" onClick={() => freeTakeLift(l.id)}>
+                                                <CableCar size={16} />
+                                                Take {l.name} <small>{l.typeLabel.toLowerCase()}</small>
+                                            </button>
+                                        ))}
+                                        <button className="secondary-button" onClick={freeToMap}>
+                                            <MapIcon size={15} />
+                                            Map
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                            {hud.tutorial && (
+                                <div className="tutorial-card">
+                                    {hud.tutorial.finished ? (
+                                        <>
+                                            <span className="eyebrow">TUTORIAL COMPLETE</span>
+                                            <strong>You can carve, stop, skate, ollie, spin and take lifts.</strong>
+                                            <span>The whole 4 Vallées is open: ride anywhere, or open the map.</span>
+                                            <div className="free-actions">
+                                                <button className="drop-button" onClick={() => endTutorial(true)}>
+                                                    Keep riding
+                                                </button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="eyebrow">
+                                                TUTORIAL {hud.tutorial.step} / {hud.tutorial.total}
+                                            </span>
+                                            <strong>{hud.tutorial.title}</strong>
+                                            <span>{coarse ? hud.tutorial.phone : hud.tutorial.keys}</span>
+                                            <small className="tutorial-goal">{hud.tutorial.goal}</small>
+                                            <div className="progress-track">
+                                                <div style={{ width: `${Math.round(hud.tutorial.progress * 100)}%` }} />
+                                            </div>
+                                            <div className="free-actions">
+                                                <button className="secondary-button" onClick={() => game.current?.tutorial?.skip()}>
+                                                    Skip step
+                                                </button>
+                                                <button className="text-button" onClick={() => endTutorial(false)}>
+                                                    End tutorial
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                            <div className="hud-speed">
+                                <strong>{hud.speed}</strong>
+                                <span>KM/H</span>
+                                <div className="speed-bars">
+                                    {Array.from({ length: 12 }, (_, i) => (
+                                        <i key={i} className={hud.speed > i * 9 ? 'lit' : ''} />
+                                    ))}
+                                </div>
+                            </div>
+                            {hud.trick && (
+                                <div className={`trick-toast ${hud.trickScore === 0 ? 'neutral' : ''}`}>
+                                    <span>{hud.feedback}</span>
+                                    <strong>{hud.trick}</strong>
+                                    {hud.trickScore > 0 && <b>+{hud.trickScore.toLocaleString()}</b>}
+                                </div>
+                            )}
+                            <div className="ride-hints">
+                                <span>
+                                    <kbd>A</kbd>
+                                    <kbd>D</kbd> CARVE
+                                </span>
+                                <span>
+                                    <kbd>SPACE</kbd> LOAD / POP
+                                </span>
+                                <span>
+                                    <kbd>Q</kbd>
+                                    <kbd>E</kbd> SPIN
+                                </span>
+                                <span>
+                                    <kbd>SHIFT</kbd> GRAB
+                                </span>
+                                <span>
+                                    <kbd>X</kbd>
+                                    <kbd>V</kbd> FLIP
+                                </span>
+                            </div>
+                            {screen === 'ride' && <div className="rotate-hint">↻ Turn your phone sideways for the best view</div>}
+                            {screen === 'ride' && coarse && (settings.phoneControls ?? 'tilt') === 'tilt' && !tiltBlocked && game.current && (
+                                <TiltGestures
+                                    game={game.current}
+                                    sensitivity={settings.tiltSensitivity ?? 22}
+                                    invert={!!settings.invertTilt}
+                                    onUnavailable={onTiltUnavailable}
+                                />
+                            )}
+                            {screen === 'ride' && coarse && (settings.phoneControls ?? 'tilt') === 'tilt' && !tiltBlocked && game.current && gestureHelp && (
+                                <div className="gesture-help">
+                                    <strong>Tilt to carve</strong>
+                                    <span>Hold the screen to crouch · lift to jump</span>
+                                    <span>Drag sideways while holding = spin · up / down = flip</span>
+                                    <span>Touch in the air = grab · tilt back = slow down · tilt forward on flats = skate</span>
+                                </div>
+                            )}
+                            {screen === 'ride' && !(coarse && (settings.phoneControls ?? 'tilt') === 'tilt' && !tiltBlocked && game.current) && (
+                                <div className="touch-controls">
+                                    <TouchStick onMove={(x, y) => game.current?.setStick(x, y)} />
+                                    <div className="touch-tricks">
+                                        {(settings.physics === 'reality'
+                                            ? [
+                                                  ['KeyQ', '⟲'],
+                                                  ['KeyE', '⟳'],
+                                                  ['ShiftLeft', 'Grab'],
+                                                  ['KeyW', 'Tuck'],
+                                                  ['KeyS', 'Stop'],
+                                                  ['Space', 'Pop'],
+                                              ]
+                                            : [
+                                                  ['KeyQ', 'Spin'],
+                                                  ['ShiftLeft', 'Grab'],
+                                                  ['KeyS', 'Brake'],
+                                                  ['KeyX', 'Flip'],
+                                                  ['KeyW', 'Tuck'],
+                                                  ['Space', 'Jump'],
+                                              ]
+                                        ).map(([key, label]) => (
+                                            <button
+                                                key={key}
+                                                aria-label={label === '⟲' ? 'Spin left' : label === '⟳' ? 'Spin right' : label}
+                                                className={key === 'Space' ? 'jump-touch' : ''}
+                                                onPointerDown={e => {
+                                                    e.preventDefault();
+                                                    e.currentTarget.setPointerCapture(e.pointerId);
+                                                    game.current?.press(key, true);
+                                                    navigator.vibrate?.(8);
+                                                }}
+                                                onPointerUp={() => game.current?.press(key, false)}
+                                                onPointerCancel={() => game.current?.press(key, false)}
+                                                onContextMenu={e => e.preventDefault()}
+                                            >
+                                                {label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
+                    {screen === 'pause' && (
+                        <div className="overlay">
+                            <div className="pause-panel">
+                                <span className="eyebrow">TAKE A BREATH</span>
+                                <h1>ON HOLD.</h1>
+                                <button
+                                    className="drop-button"
+                                    onClick={() => {
+                                        window.dispatchEvent(new Event('evader-recalibrate'));
+                                        game.current?.resume();
+                                        setScreen('ride');
+                                    }}
+                                >
+                                    <Play size={18} />
+                                    Resume ride
+                                </button>
+                                <button className="secondary-button" onClick={() => start()}>
+                                    <RotateCcw size={17} />
+                                    Restart run
+                                </button>
+                                {game.current?.course.dem && (
+                                    <button className="secondary-button" onClick={game.current?.course.free ? freeToMap : openResort}>
+                                        <MapIcon size={17} />
+                                        Resort map
+                                    </button>
+                                )}
+                                <button className="secondary-button" onClick={home}>
+                                    <Mountain size={17} />
+                                    Back to mountain menu
+                                </button>
+                                <p>Hold SPACE, release to pop · Q / E spin · 1 / 2 / 3 grab style · SHIFT grab · X / V flip</p>
+                            </div>
+                        </div>
+                    )}
+                    {screen === 'result' && result && (
+                        <div className="overlay result-overlay">
+                            <div className="results">
+                                <span className="eyebrow">
+                                    {result.course.name} / {result.mode.replace('-', ' ')}
+                                </span>
+                                <h1>
+                                    LINE
+                                    <br />
+                                    <span>COMPLETE.</span>
+                                </h1>
+                                <div className="result-score">
+                                    <strong>{result.mode === 'time-trial' ? fmt(result.time) : result.score.toLocaleString()}</strong>
+                                    <span>
+                                        {result.mode === 'time-trial' ? (result.gates === result.totalGates ? 'VALID TIME' : 'MISSED GATES') : 'POINTS'}
+                                    </span>
+                                </div>
+                                <div className="result-stats">
+                                    <div>
+                                        <span>TIME</span>
+                                        <strong>{fmt(result.time)}</strong>
+                                    </div>
+                                    <div>
+                                        <span>TRICKS</span>
+                                        <strong>{result.tricks}</strong>
+                                    </div>
+                                    <div>
+                                        <span>BAILS</span>
+                                        <strong>{result.bails}</strong>
+                                    </div>
+                                    {result.mode === 'time-trial' && (
+                                        <div>
+                                            <span>GATES</span>
+                                            <strong>
+                                                {result.gates}/{result.totalGates}
+                                            </strong>
+                                        </div>
+                                    )}
+                                </div>
+                                <p className="result-note">
+                                    {result.mode === 'time-trial' && result.gates < result.totalGates
+                                        ? 'Missed gates: complete every gate for the Gate keeper challenge.'
+                                        : result.bails === 0
+                                          ? 'Clean from first turn to finish. That’s a line worth remembering.'
+                                          : 'Every run is a new chance to find your line.'}
+                                </p>
+                                <div className="result-actions">
+                                    <button className="drop-button" onClick={() => start()}>
+                                        <RotateCcw size={18} />
+                                        Ride again
+                                    </button>
+                                    <button className="secondary-button" onClick={() => replay(result)}>
+                                        <Film size={18} />
+                                        Replay & photo
+                                    </button>
+                                    <button className="text-button" onClick={home}>
+                                        Choose another mountain
+                                    </button>
+                                </div>
+                                <span className="settings-save">
+                                    <Check size={15} />
+                                    {saved ? 'Run saved on this device' : 'Storage unavailable · run kept for this session'}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                    {bench === 'running' && <div className="bench-running">BENCHMARK · 40 s automatic free ride · keep this tab in front</div>}
+                    {bench && bench !== 'running' && (
+                        <div className="overlay bench-overlay">
+                            <div className="pause-panel">
+                                <span className="eyebrow">BENCHMARK</span>
+                                {
+                                    <>
+                                        <h1>{bench.avgFps} FPS</h1>
+                                        <div className="result-stats">
+                                            <div>
+                                                <span>1% LOW</span>
+                                                <strong>{bench.low1Fps}</strong>
+                                            </div>
+                                            <div>
+                                                <span>WORST FRAME</span>
+                                                <strong>{bench.worstMs} ms</strong>
+                                            </div>
+                                            <div>
+                                                <span>RESOLUTION</span>
+                                                <strong>{bench.resolution}</strong>
+                                            </div>
+                                        </div>
+                                        <p className="bench-gpu">
+                                            {bench.gpu} · {bench.quality} · auto scale {bench.autoScale}
+                                        </p>
+                                        <button
+                                            className="drop-button"
+                                            onClick={() => {
+                                                navigator.clipboard
+                                                    ?.writeText(JSON.stringify(bench))
+                                                    .then(() => notice('Benchmark copied'))
+                                                    .catch(() => {});
+                                            }}
+                                        >
+                                            Copy the results
+                                        </button>
+                                        <button className="text-button" onClick={() => setBench(null)}>
+                                            Close
+                                        </button>
+                                    </>
+                                }
+                            </div>
+                        </div>
+                    )}
+                    {screen === 'lift' && liftNow && (
+                        <div className="lift-hud">
+                            <div className="lift-hud-card">
+                                <span className="eyebrow">
+                                    {liftNow.typeLabel.toUpperCase()} ·{' '}
+                                    {
+                                        (
+                                            {
+                                                wait: 'WAIT AT THE LOADING POINT',
+                                                board: 'GETTING ON',
+                                                depart: 'LEAVING THE STATION',
+                                                ride: 'RIDING UP',
+                                                arrive: 'ARRIVING',
+                                                alight: 'GETTING OFF',
+                                                done: 'AT THE TOP',
+                                            } as Record<string, string>
+                                        )[liftHud?.phase ?? 'wait']
+                                    }
+                                </span>
+                                <strong>{liftNow.name}</strong>
+                                <span className="lift-hud-route">
+                                    {stationName(liftNow.from)} → {stationName(liftNow.to)}
+                                </span>
+                                <div className="progress-track">
+                                    <div style={{ width: `${(liftHud?.progress ?? 0) * 100}%` }} />
+                                </div>
+                                <span className="lift-hud-stats">
+                                    {(liftHud?.elevation ?? liftNow.bottomZ).toLocaleString()} m · {liftHud?.kmh ?? 0} km/h ·{' '}
+                                    {Math.floor((liftHud?.remainingReal ?? liftNow.rideS) / 60)}:
+                                    {String((liftHud?.remainingReal ?? liftNow.rideS) % 60).padStart(2, '0')} real time left
+                                </span>
+                                {journeyView && (
+                                    <span className="lift-hud-journey">
+                                        Step {journeyView.i + 1} of {journeyView.steps.length} to {stationName(journeyView.dest)}
+                                        {journeyView.steps[journeyView.i + 1]
+                                            ? ` · next: ${journeyView.steps[journeyView.i + 1].kind === 'lift' ? (journeyView.steps[journeyView.i + 1] as { lift: ResortLift }).lift.name : 'ride down'}`
+                                            : ''}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="lift-hud-controls" role="group" aria-label="Lift ride speed">
+                                {[1, 4, 16].map(v => (
+                                    <button key={v} aria-pressed={liftSpeed === v} onClick={() => setLiftSpeed(v)}>
+                                        ×{v}
+                                    </button>
+                                ))}
+                                <button onClick={() => game.current?.skipLift()}>Skip</button>
+                                <button
+                                    aria-label="Change camera"
+                                    onClick={() => {
+                                        if (game.current) game.current.cameraMode = (game.current.cameraMode + 1) % 3;
+                                    }}
+                                >
+                                    <Camera size={15} />
+                                </button>
+                                <button onClick={leaveLift}>Map</button>
+                            </div>
+                        </div>
+                    )}
+                    {screen === 'resort' && (
+                        <ResortMap
+                            station={resortStation}
+                            onStation={setResortStation}
+                            onRide={rideRoute}
+                            onLift={rideLift}
+                            onJourney={startJourney}
+                            onFreeRide={startFreeAt}
+                            onClose={closeResort}
+                            arrival={arrival}
+                            onDismissArrival={() => setArrival(null)}
+                            loading={loadingTerrain}
+                        />
+                    )}
+                    {screen === 'replay' && lastRun && (
+                        <>
+                            <header className="replay-header">
+                                <button className="secondary-button" onClick={home}>
+                                    <ChevronLeft size={18} />
+                                    Mountain menu
+                                </button>
+                                <span className="mini-brand">{photo ? 'PHOTO MODE' : 'REPLAY STUDIO'}</span>
+                                <button className="icon-button" aria-label="Save photo" onClick={capture}>
+                                    <Camera size={20} />
+                                </button>
+                            </header>
+                            <div className="replay-bottom">
+                                <div className="replay-controls">
+                                    <button
+                                        className="icon-button"
+                                        aria-label={replayPlaying ? 'Pause replay' : 'Play replay'}
+                                        onClick={() => {
+                                            if (game.current) {
+                                                game.current.replayPlaying = !game.current.replayPlaying;
+                                                setReplayPlaying(game.current.replayPlaying);
+                                            }
+                                        }}
+                                    >
+                                        {replayPlaying ? <Pause size={18} /> : <Play size={18} />}
+                                    </button>
+                                    <span>{fmt(replayT)}</span>
+                                    <Slider
+                                        value={[replayT]}
+                                        max={lastRun.time}
+                                        step={0.05}
+                                        min={0}
+                                        onValueChange={([v]) => {
+                                            game.current?.setReplayTime(v);
+                                            setReplayT(v);
+                                        }}
+                                        aria-label="Replay timeline"
+                                    />
+                                    <span>{fmt(lastRun.time)}</span>
+                                </div>
+                                <div className="photo-actions">
+                                    <button
+                                        className="secondary-button"
+                                        onClick={() => {
+                                            if (game.current) game.current.cameraMode = (game.current.cameraMode + 1) % 3;
+                                        }}
+                                    >
+                                        <Camera size={17} />
+                                        Change camera
+                                    </button>
+                                    <button
+                                        className={`secondary-button ${photo ? 'active' : ''}`}
+                                        onClick={() => {
+                                            if (game.current) {
+                                                game.current.photo = !photo;
+                                                game.current.replayPlaying = false;
+                                            }
+                                            setPhoto(!photo);
+                                        }}
+                                    >
+                                        {photo ? 'Exit photo mode' : 'Photo mode'}
+                                    </button>
+                                    {photo && (
+                                        <>
+                                            <button
+                                                className="icon-button"
+                                                aria-label="Orbit left"
+                                                onClick={() => {
+                                                    if (game.current) game.current.photoAngle -= 0.35;
+                                                }}
+                                            >
+                                                <ChevronLeft />
+                                            </button>
+                                            <button
+                                                className="icon-button"
+                                                aria-label="Orbit right"
+                                                onClick={() => {
+                                                    if (game.current) game.current.photoAngle += 0.35;
+                                                }}
+                                            >
+                                                <ChevronRight />
+                                            </button>
+                                            <button className="secondary-button" onClick={capture}>
+                                                Save photo
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </>
+                    )}
+                    {notification && (
+                        <div className="notification" role="status">
+                            <Check size={18} />
+                            {notification}
+                        </div>
+                    )}
+                </>
+            )}
+        </main>
+    );
 }

@@ -93,4 +93,4 @@ The **Verbier passport** (Career panel) counts stations visited, lifts ridden, v
   - `build_widths.py`
   - `name_stations.py`
 
-**Not done:** a reformat of the two largest files (`lib/snow-game.ts`, `app/page.tsx`). Run on its own, it would have touched almost every line and buried this release's changes in the diff. It is left for a separate commit.
+- The two largest files, `lib/snow-game.ts` and `app/page.tsx`, are formatted with Prettier in a commit of their own, so the feature diff stays readable. `.prettierrc.json` holds the house style; run `npm run format` to reformat them.

@@ -34,25 +34,38 @@ import { FreeTerrain, setFreeTerrain, resortLoaded, buildingsLoaded, buildingsAr
  *  faces, sun crust on south-facing slopes, wind-packed snow on high exposed ground. Otherwise chosen from depth. */
 export function demSurface(x: number, d: number, c: Course, weather: string): SnowMaterial | undefined {
     const run = verbierRun(c.dem!);
-    if (run.mogulAmplitude(x, d) > .2) return SNOW.hardpack;
+    if (run.mogulAmplitude(x, d) > 0.2) return SNOW.hardpack;
     if (run.snowAt(x, d).off < 0) return undefined;
     const s = run.slopeAt(x, d);
     if (s.deg > 40) return SNOW.icy;
-    if (weather !== 'snow' && s.downN < -.35 && s.elevation < 2700) return SNOW.crust;
+    if (weather !== 'snow' && s.downN < -0.35 && s.elevation < 2700) return SNOW.crust;
     if (s.elevation > 2700 && s.deg < 28 && weather !== 'snow') return SNOW.windPacked;
     return undefined;
 }
 function demSnowDepth(x: number, d: number, c: Course) {
-    const run = verbierRun(c.dem!), snow = run.snowAt(x, d), off = snow.off;
-    if (off < 0) return .025;
+    const run = verbierRun(c.dem!),
+        snow = run.snowAt(x, d),
+        off = snow.off;
+    if (off < 0) return 0.025;
     const s = run.slopeAt(x, d);
-    const north = Math.max(0, s.downN);                     // 1 = faces north (shaded, keeps powder)
+    const north = Math.max(0, s.downN); // 1 = faces north (shaded, keeps powder)
     const alt = Math.min(1, Math.max(0, (s.elevation - 1700) / 1200));
     const steep = Math.max(0, 1 - Math.max(0, s.deg - 30) / 15); // very steep faces hold little loose snow
     const ramp = snow.itinerary ? 1 : Math.min(1, off / 8); // itineraries are ungroomed right on the line
-    return .025 + ramp * steep * (.08 + .22 * alt + .14 * north);
+    return 0.025 + ramp * steep * (0.08 + 0.22 * alt + 0.14 * north);
 }
-export type BenchResult = { seconds: number; frames: number; avgFps: number; low1Fps: number; worstMs: number; quality: string; resolution: string; autoScale: number; gpu: string; userAgent: string };
+export type BenchResult = {
+    seconds: number;
+    frames: number;
+    avgFps: number;
+    low1Fps: number;
+    worstMs: number;
+    quality: string;
+    resolution: string;
+    autoScale: number;
+    gpu: string;
+    userAgent: string;
+};
 export type Mode = 'freeride' | 'slopestyle' | 'time-trial' | 'training';
 export type PhysicsModel = 'reality' | 'classic';
 export type Settings = {
@@ -112,28 +125,107 @@ export type Course = {
 /** Real-terrain runs in Verbier – 4 Vallées (lib/verbier): mapped run lines on swissALTI3D 2 m terrain. */
 const CLASS_LABEL: Record<string, string> = { blue: 'BLUE', red: 'RED', black: 'BLACK', itinerary: 'ITINERARY', park: 'PARK', skicross: 'SKI CROSS' };
 const VERBIER_COURSES: Course[] = VERBIER_RUNS.map((r, i) => ({
-    id: 10 + i, name: r.name, region: 'VERBIER · 4 VALLÉES', subtitle: r.description, length: r.length,
-    drop: Math.round(r.startElevation - r.endElevation), difficulty: CLASS_LABEL[r.klass] ?? r.klass.toUpperCase(), spacing: 1e9,
-    rails: r.klass === 'park' ? 4 : 0, seed: 300 + i, dem: r.id, runClass: r.klass as RunClass,
+    id: 10 + i,
+    name: r.name,
+    region: 'VERBIER · 4 VALLÉES',
+    subtitle: r.description,
+    length: r.length,
+    drop: Math.round(r.startElevation - r.endElevation),
+    difficulty: CLASS_LABEL[r.klass] ?? r.klass.toUpperCase(),
+    spacing: 1e9,
+    rails: r.klass === 'park' ? 4 : 0,
+    seed: 300 + i,
+    dem: r.id,
+    runClass: r.klass as RunClass,
 }));
 /** A playable course for any resort route (station to station along mapped pistes). Load it with loadRun first. */
 /** Free ride over the whole Verbier 4 Vallées domain (start it with SnowGame.startFree). */
-export const FREE_COURSE: Course = { id: 3000, name: 'FREE RIDE', region: 'VERBIER · 4 VALLÉES', subtitle: 'Ride anywhere on the mountain', length: 1e6, drop: 0,
-    difficulty: 'FREE RIDE', spacing: 1e9, rails: 0, seed: 77, dem: 'free', runClass: 'red', free: true };
+export const FREE_COURSE: Course = {
+    id: 3000,
+    name: 'FREE RIDE',
+    region: 'VERBIER · 4 VALLÉES',
+    subtitle: 'Ride anywhere on the mountain',
+    length: 1e6,
+    drop: 0,
+    difficulty: 'FREE RIDE',
+    spacing: 1e9,
+    rails: 0,
+    seed: 77,
+    dem: 'free',
+    runClass: 'red',
+    free: true,
+};
 let surfaceMap: SurfaceMap | undefined;
 /** The scene for riding a lift: the corridor along its real line (load it with loadLift first). */
 export function liftCourse(l: { id: string; name: string; typeLabel: string; vertical: number; length: number }): Course {
-    return { id: 2000, name: l.name.toUpperCase(), region: 'VERBIER · 4 VALLÉES', subtitle: l.typeLabel, length: Math.round(l.length), drop: -l.vertical,
-        difficulty: l.typeLabel.toUpperCase(), spacing: 1e9, rails: 0, seed: 900, dem: `lift-${l.id}`, runClass: 'red' };
+    return {
+        id: 2000,
+        name: l.name.toUpperCase(),
+        region: 'VERBIER · 4 VALLÉES',
+        subtitle: l.typeLabel,
+        length: Math.round(l.length),
+        drop: -l.vertical,
+        difficulty: l.typeLabel.toUpperCase(),
+        spacing: 1e9,
+        rails: 0,
+        seed: 900,
+        dem: `lift-${l.id}`,
+        runClass: 'red',
+    };
 }
 export function routeCourse(r: { id: string; name: string; description: string; klass: string; length: number; drop: number }, index = 0): Course {
-    return { id: 1000 + index, name: r.name, region: 'VERBIER · 4 VALLÉES', subtitle: r.description, length: r.length, drop: r.drop,
-        difficulty: CLASS_LABEL[r.klass] ?? r.klass.toUpperCase(), spacing: 1e9, rails: r.klass === 'park' ? 4 : 0, seed: 500 + index, dem: r.id, runClass: r.klass as RunClass };
+    return {
+        id: 1000 + index,
+        name: r.name,
+        region: 'VERBIER · 4 VALLÉES',
+        subtitle: r.description,
+        length: r.length,
+        drop: r.drop,
+        difficulty: CLASS_LABEL[r.klass] ?? r.klass.toUpperCase(),
+        spacing: 1e9,
+        rails: r.klass === 'park' ? 4 : 0,
+        seed: 500 + index,
+        dem: r.id,
+        runClass: r.klass as RunClass,
+    };
 }
 export const COURSES: Course[] = [
-    { id: 0, name: 'AIGUILLE NOIRE', region: 'THE ALPINE RANGE', subtitle: 'Big lines. Bigger possibilities.', length: 1600, drop: 416, difficulty: 'INTERMEDIATE', spacing: 190, rails: 5, seed: 27 },
-    { id: 1, name: 'NORTHLINE PARK', region: 'THE NORTHERN RIDGE', subtitle: 'A perfectly imperfect playground.', length: 1200, drop: 300, difficulty: 'BEGINNER', spacing: 125, rails: 8, seed: 56 },
-    { id: 2, name: 'WHITEOUT PASS', region: 'THE HIGH BACKCOUNTRY', subtitle: 'Find your way through the wild.', length: 1900, drop: 494, difficulty: 'ADVANCED', spacing: 260, rails: 2, seed: 91 },
+    {
+        id: 0,
+        name: 'AIGUILLE NOIRE',
+        region: 'THE ALPINE RANGE',
+        subtitle: 'Big lines. Bigger possibilities.',
+        length: 1600,
+        drop: 416,
+        difficulty: 'INTERMEDIATE',
+        spacing: 190,
+        rails: 5,
+        seed: 27,
+    },
+    {
+        id: 1,
+        name: 'NORTHLINE PARK',
+        region: 'THE NORTHERN RIDGE',
+        subtitle: 'A perfectly imperfect playground.',
+        length: 1200,
+        drop: 300,
+        difficulty: 'BEGINNER',
+        spacing: 125,
+        rails: 8,
+        seed: 56,
+    },
+    {
+        id: 2,
+        name: 'WHITEOUT PASS',
+        region: 'THE HIGH BACKCOUNTRY',
+        subtitle: 'Find your way through the wild.',
+        length: 1900,
+        drop: 494,
+        difficulty: 'ADVANCED',
+        spacing: 260,
+        rails: 2,
+        seed: 91,
+    },
     ...VERBIER_COURSES,
 ];
 export type Frame = {
@@ -218,13 +310,17 @@ const DUSK_LIGHT = new T.Vector3(-158, 48, -95);
 const HARD_LANDING_SPEED = 8.5;
 const CHASE_HEIGHT = 2.0;
 const CHASE_DISTANCE = 5.0;
-export function center(d: number, c: Course) { if (c.dem) return verbierRun(c.dem).centreX(d); return Math.sin(d / (c.id === 2 ? 125 : 220)) * (c.id === 1 ? 6 : 16); }
+export function center(d: number, c: Course) {
+    if (c.dem) return verbierRun(c.dem).centreX(d);
+    return Math.sin(d / (c.id === 2 ? 125 : 220)) * (c.id === 1 ? 6 : 16);
+}
 export function rampAt(d: number, x: number, c: Course) {
     if (c.dem === 'la-chaux-park') {
         // Park lanes side by side (S, M, L): every feature whose footprint contains this point adds its rise.
         let h = 0;
         for (const f of LA_CHAUX_FEATURES) {
-            const t = d - f.base; if (t < 0 || t > f.profile.runout) continue;
+            const t = d - f.base;
+            if (t < 0 || t > f.profile.runout) continue;
             h += kickerRise(t, Math.abs(x - (center(f.base + f.profile.lip, c) + f.x)), f.profile);
         }
         return h;
@@ -235,41 +331,50 @@ export function rampAt(d: number, x: number, c: Course) {
     return kickerRise(d - base, offset, profile);
 }
 function bankRise(x: number, d: number, c: Course, legacy = false) {
- const edge = Math.max(0, Math.abs(x - center(d, c)) - 23);
- if (legacy) return edge * edge * .024;
- const pitch = c.id === 1 ? .012 : c.id === 2 ? .021 : .017;
- const shoulder = pitch * edge ** 2 / (1 + edge / 17);
- const drifts = 2.35 * Math.sin(d * .034 + x * .09) + .8 * Math.sin(d * .085 - x * .22);
- return shoulder + T.MathUtils.smoothstep(edge, 0, 22) * drifts;
+    const edge = Math.max(0, Math.abs(x - center(d, c)) - 23);
+    if (legacy) return edge * edge * 0.024;
+    const pitch = c.id === 1 ? 0.012 : c.id === 2 ? 0.021 : 0.017;
+    const shoulder = (pitch * edge ** 2) / (1 + edge / 17);
+    const drifts = 2.35 * Math.sin(d * 0.034 + x * 0.09) + 0.8 * Math.sin(d * 0.085 - x * 0.22);
+    return shoulder + T.MathUtils.smoothstep(edge, 0, 22) * drifts;
 }
 export function snowDepth(x: number, d: number, c: Course) {
     if (c.dem) return demSnowDepth(x, d, c);
-    if (c.packedSnow) return .025;
+    if (c.packedSnow) return 0.025;
     const offset = Math.abs(x - center(d, c));
     const groomedEdge = c.id === 2 ? 8 : c.id === 1 ? 13 : 11;
     const shoulder = T.MathUtils.smoothstep(offset, groomedEdge, groomedEdge + 10);
     const backcountry = T.MathUtils.smoothstep(offset, groomedEdge + 5, groomedEdge + 15);
-    const wind = .5 + .22 * Math.sin(d * .047 + x * .21 + c.seed)
-        + .17 * Math.cos(d * .023 - x * .14) + .09 * Math.sin(x * .41 + d * .092);
-    return .025 + shoulder * (.07 + .09 * wind) + backcountry * (.10 + .32 * wind);
+    const wind = 0.5 + 0.22 * Math.sin(d * 0.047 + x * 0.21 + c.seed) + 0.17 * Math.cos(d * 0.023 - x * 0.14) + 0.09 * Math.sin(x * 0.41 + d * 0.092);
+    return 0.025 + shoulder * (0.07 + 0.09 * wind) + backcountry * (0.1 + 0.32 * wind);
 }
 export function height(x: number, d: number, c: Course) {
- if (c.dem) { const run = verbierRun(c.dem); return run.height(x, d) + rampAt(d, x, c) + (c.dem === 'la-chaux-skicross' ? skicrossShape(run, x, d) : 0); }
- const buildup = Math.max(0, snowDepth(x, d, c) - .04);
- return 180 - d * (c.drop / c.length) + Math.sin(d * .024) * .9
-    + Math.sin(x * .15 + d * .012) * .25 + bankRise(x, d, c) + rampAt(d, x, c)
-    + buildup * (.74 + .23 * Math.sin(x * .73 - d * .18 + .9 * Math.cos(d * .12)));
+    if (c.dem) {
+        const run = verbierRun(c.dem);
+        return run.height(x, d) + rampAt(d, x, c) + (c.dem === 'la-chaux-skicross' ? skicrossShape(run, x, d) : 0);
+    }
+    const buildup = Math.max(0, snowDepth(x, d, c) - 0.04);
+    return (
+        180 -
+        d * (c.drop / c.length) +
+        Math.sin(d * 0.024) * 0.9 +
+        Math.sin(x * 0.15 + d * 0.012) * 0.25 +
+        bankRise(x, d, c) +
+        rampAt(d, x, c) +
+        buildup * (0.74 + 0.23 * Math.sin(x * 0.73 - d * 0.18 + 0.9 * Math.cos(d * 0.12)))
+    );
 }
 function supportHeight(x: number, d: number, c: Course, speed: number) {
-    const depth = Math.max(0, snowDepth(x, d, c) - .045);
+    const depth = Math.max(0, snowDepth(x, d, c) - 0.045);
     const float = T.MathUtils.smoothstep(speed, 3, 21);
-    return height(x, d, c) - depth * (.44 - float * .27);
+    return height(x, d, c) - depth * (0.44 - float * 0.27);
 }
 /** 0 outside a kicker, 1 on its takeoff ramp, 2 on its knuckle / landing. Used to pick park snow for the simulation. */
 export function parkZone(x: number, d: number, c: Course): 0 | 1 | 2 {
     if (c.dem === 'la-chaux-park') {
         for (const f of LA_CHAUX_FEATURES) {
-            const t = d - f.base; if (t < 0 || t > f.profile.runout) continue;
+            const t = d - f.base;
+            if (t < 0 || t > f.profile.runout) continue;
             if (Math.abs(x - (center(f.base + f.profile.lip, c) + f.x)) > f.profile.shoulder) continue;
             return t <= f.profile.lip ? 1 : 2;
         }
@@ -283,15 +388,24 @@ export function parkZone(x: number, d: number, c: Course): 0 | 1 | 2 {
     return t >= 0 && t <= k.profile.lip ? 1 : t > k.profile.lip && t <= k.profile.runout ? 2 : 0;
 }
 const RIG_FLIP = new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), Math.PI);
-export function pathSlope(x:number,d:number,heading:number,c:Course) {
- const dx=Math.sin(heading)*.05, dd=Math.cos(heading)*.05;
- return (height(x+dx,d+dd,c)-height(x-dx,d-dd,c))/.1;
+export function pathSlope(x: number, d: number, heading: number, c: Course) {
+    const dx = Math.sin(heading) * 0.05,
+        dd = Math.cos(heading) * 0.05;
+    return (height(x + dx, d + dd, c) - height(x - dx, d - dd, c)) / 0.1;
 }
 export function landingScore(spin: number, flip: number, grabTime: number, airTime: number, repeat: number, grabKind = 0) {
-    const degrees = completedRotation(spin, Math.PI) * 180, flips = completedRotation(flip, TAU);
-    const name = [flips ? `${flips > 1 ? 'DOUBLE ' : ''}${flip < 0 ? 'FRONTFLIP' : 'BACKFLIP'}` : '', degrees ? `${degrees}°` : '', grabTime > .16 ? ['INDY', 'MUTE', 'MELON'][grabKind] : ''].filter(Boolean).join(' ') || 'STRAIGHT AIR';
-    const base = 90 + degrees * 1.35 + flips * 550 + (grabTime > .16 ? 170 + grabTime * 90 : 0);
-    return { name, score: Math.round(base * (1 + Math.min(airTime, 3) * .14) * Math.max(.35, 1 - repeat * .18)) };
+    const degrees = completedRotation(spin, Math.PI) * 180,
+        flips = completedRotation(flip, TAU);
+    const name =
+        [
+            flips ? `${flips > 1 ? 'DOUBLE ' : ''}${flip < 0 ? 'FRONTFLIP' : 'BACKFLIP'}` : '',
+            degrees ? `${degrees}°` : '',
+            grabTime > 0.16 ? ['INDY', 'MUTE', 'MELON'][grabKind] : '',
+        ]
+            .filter(Boolean)
+            .join(' ') || 'STRAIGHT AIR';
+    const base = 90 + degrees * 1.35 + flips * 550 + (grabTime > 0.16 ? 170 + grabTime * 90 : 0);
+    return { name, score: Math.round(base * (1 + Math.min(airTime, 3) * 0.14) * Math.max(0.35, 1 - repeat * 0.18)) };
 }
 /** Trees and rocks: a short post of radius r (within 1.7 m along the slope, 3 m high); boxes: their footprint and height. */
 function hitObstacle(o: { x: number; d: number; r: number } | Solid, x: number, d: number, above: number) {
@@ -306,7 +420,7 @@ export class SnowGame {
     environmentTarget?: T.WebGLRenderTarget;
     renderer: T.WebGLRenderer;
     scene = new T.Scene();
-    camera = new T.PerspectiveCamera(62, 1, .1, 3600);
+    camera = new T.PerspectiveCamera(62, 1, 0.1, 3600);
     world = new T.Group();
     rider = new T.Group();
     body = new T.Group();
@@ -339,14 +453,26 @@ export class SnowGame {
     mode: Mode = 'freeride';
     state: 'menu' | 'ride' | 'pause' | 'result' | 'replay' | 'garage' | 'lift' = 'menu';
     /** The lift being ridden (state 'lift'), its latest frame, and the callback when the rider has got off at the top. */
-    lift?: LiftRide; liftFrame?: RideFrame; liftId?: string; private liftEnded = false; private liftRope?: T.Mesh;
+    lift?: LiftRide;
+    liftFrame?: RideFrame;
+    liftId?: string;
+    private liftEnded = false;
+    private liftRope?: T.Mesh;
     onLiftEnd: (liftId: string) => void = () => {};
     /** Free ride: the streamed world, where the session starts (course frame), what the HUD shows, distance ridden. */
-    freeView?: FreeView; freeStart?: { x: number; d: number; yaw: number }; freeInfo?: FreeInfo; private freeInfoTimer = 0; freeDistance = 0; /** Vertical metres ridden down in this free ride. */ freeDescent = 0; private freeLast?: { x: number; d: number; y: number };
+    freeView?: FreeView;
+    freeStart?: { x: number; d: number; yaw: number };
+    freeInfo?: FreeInfo;
+    private freeInfoTimer = 0;
+    freeDistance = 0;
+    /** Vertical metres ridden down in this free ride. */ freeDescent = 0;
+    private freeLast?: { x: number; d: number; y: number };
     keys = new Set<string>();
     touch = new Set<string>();
     frameId = 0;
-    private clothLast = new T.Vector3(); private clothVel = new T.Vector3(); private clothSmooth = new T.Vector3();
+    private clothLast = new T.Vector3();
+    private clothVel = new T.Vector3();
+    private clothSmooth = new T.Vector3();
     /** Debug / screenshots only: a fixed air velocity relative to the rider (world, m/s) instead of the measured one. */
     debugWind?: { x: number; y: number; z: number };
     /** True while another full-screen view (the resort map) owns the GPU: the game stops rendering. */
@@ -431,7 +557,9 @@ export class SnowGame {
     reality?: RealityRide;
     realityEvents: FreestyleEvent[] = [];
     /** Rendered board orientation from the simulation, and the one from the previous 120 Hz tick for interpolation. */
-    renderQ = new T.Quaternion(); prevRenderQ = new T.Quaternion(); replayHasQ = false;
+    renderQ = new T.Quaternion();
+    prevRenderQ = new T.Quaternion();
+    replayHasQ = false;
     intent: RiderIntent = { ...IDLE_INTENT };
     keySteer = 0;
     /** Selected grab (index into GRABS) for Reality physics. */
@@ -445,7 +573,9 @@ export class SnowGame {
     padId = '';
     diagnostics?: Diagnostics;
     crashVisual = 0;
-    private crashRoll = 0; private crashRollRate = 0; private crashPitch = false;
+    private crashRoll = 0;
+    private crashRollRate = 0;
+    private crashPitch = false;
     constructor(host: HTMLElement, settings: Settings, look: Look, onHUD: (h: HUD) => void, onEnd: (r: Run) => void, onPause: () => void) {
         this.host = host;
         this.settings = settings;
@@ -463,9 +593,9 @@ export class SnowGame {
         this.camera.aspect = host.clientWidth / host.clientHeight;
         this.camera.updateProjectionMatrix();
         host.appendChild(this.renderer.domElement);
-        this.performanceLabel=document.createElement('div');
-        this.performanceLabel.className='performance-label';
-        this.performanceLabel.textContent='Preparing terrain…';
+        this.performanceLabel = document.createElement('div');
+        this.performanceLabel.className = 'performance-label';
+        this.performanceLabel.textContent = 'Preparing terrain…';
         host.appendChild(this.performanceLabel);
         this.diagnostics = new Diagnostics(host);
         this.diagnostics.setVisible(!!settings.diagnostics);
@@ -483,8 +613,8 @@ export class SnowGame {
         sun.shadow.camera.bottom = -92;
         sun.shadow.radius = 3;
         sun.shadow.camera.far = 700;
-        sun.shadow.normalBias = .015;
-        sun.shadow.bias = -.0001;
+        sun.shadow.normalBias = 0.015;
+        sun.shadow.bias = -0.0001;
         this.scene.add(sun);
         this.scene.add(sun.target);
         sun.name = 'sun';
@@ -493,12 +623,12 @@ export class SnowGame {
         const reflectionScene = new T.Scene();
         reflectionScene.add(this.sky.clone());
         const pmrem = new T.PMREMGenerator(this.renderer);
-        this.environmentTarget = pmrem.fromScene(reflectionScene, .04, .1, 5000);
+        this.environmentTarget = pmrem.fromScene(reflectionScene, 0.04, 0.1, 5000);
         this.scene.environment = this.environmentTarget.texture;
-        this.scene.environmentIntensity = .52;
+        this.scene.environmentIntensity = 0.52;
         pmrem.dispose();
-        this.jacket = new T.MeshPhysicalMaterial({ color: look.jacket, roughness: .78, sheen: .8, sheenRoughness: .6, sheenColor: 0x8faaa7 });
-        this.boardMat = new T.MeshPhysicalMaterial({ color: look.board, roughness: .24, metalness: .04, clearcoat: 1, clearcoatRoughness: .19 });
+        this.jacket = new T.MeshPhysicalMaterial({ color: look.jacket, roughness: 0.78, sheen: 0.8, sheenRoughness: 0.6, sheenColor: 0x8faaa7 });
+        this.boardMat = new T.MeshPhysicalMaterial({ color: look.board, roughness: 0.24, metalness: 0.04, clearcoat: 1, clearcoatRoughness: 0.19 });
         this.makeRider();
         this.setLook(look);
         this.scene.add(this.rider);
@@ -515,7 +645,7 @@ export class SnowGame {
         }
         const sg = new T.BufferGeometry();
         sg.setAttribute('position', new T.BufferAttribute(this.snowPositions, 3));
-        this.snow = new T.Points(sg, new T.PointsMaterial({ color: 0xffffff, size: .12, transparent: true, opacity: .7 }));
+        this.snow = new T.Points(sg, new T.PointsMaterial({ color: 0xffffff, size: 0.12, transparent: true, opacity: 0.7 }));
         this.scene.add(this.snow);
         this.buildWorld();
         this.resizeObserver = new ResizeObserver(() => this.resizeCanvas());
@@ -526,8 +656,19 @@ export class SnowGame {
         document.addEventListener('visibilitychange', this.visibility);
         this.tick();
     }
-    mesh(g: T.BufferGeometry, m: T.Material, x: number, y: number, z: number, parent: T.Object3D = this.body) { const o = new T.Mesh(g, m); o.position.set(x, y, z); o.castShadow = true; o.receiveShadow = true; parent.add(o); return o; }
-    makeRider() { this.rider.add(this.body); this.rig = new RiderRig(this.body, this.jacket, this.boardMat); this.rig.setBoard(BOARDS[this.settings?.board ?? 'all-mountain']); }
+    mesh(g: T.BufferGeometry, m: T.Material, x: number, y: number, z: number, parent: T.Object3D = this.body) {
+        const o = new T.Mesh(g, m);
+        o.position.set(x, y, z);
+        o.castShadow = true;
+        o.receiveShadow = true;
+        parent.add(o);
+        return o;
+    }
+    makeRider() {
+        this.rider.add(this.body);
+        this.rig = new RiderRig(this.body, this.jacket, this.boardMat);
+        this.rig.setBoard(BOARDS[this.settings?.board ?? 'all-mountain']);
+    }
     private resizeCanvas() {
         const host = this.garageHost ?? this.host;
         const { clientWidth: width, clientHeight: height } = host;
@@ -556,35 +697,54 @@ export class SnowGame {
         this.resizeObserver.observe(target);
         this.resizeCanvas();
     }
-    setGearView(view: GearView) { this.gearPreview.setView(view); }
-    rotateGearView(radians: number) { this.gearPreview.rotate(radians); }
+    setGearView(view: GearView) {
+        this.gearPreview.setView(view);
+    }
+    rotateGearView(radians: number) {
+        this.gearPreview.rotate(radians);
+    }
     buildWorld() {
-        this.world.traverse(o => { if (o instanceof T.Mesh || o instanceof T.Points || o instanceof T.LineSegments) {
-            if (o instanceof T.InstancedMesh) o.dispose();
-            o.geometry.dispose();
-            const ms = Array.isArray(o.material) ? o.material : [o.material];
-            ms.forEach(m => m.dispose());
-        } });
+        this.world.traverse(o => {
+            if (o instanceof T.Mesh || o instanceof T.Points || o instanceof T.LineSegments) {
+                if (o instanceof T.InstancedMesh) o.dispose();
+                o.geometry.dispose();
+                const ms = Array.isArray(o.material) ? o.material : [o.material];
+                ms.forEach(m => m.dispose());
+            }
+        });
         this.world.clear();
         this.obstacles = [];
         this.rails = [];
         this.features = [];
         const c = this.course;
-        this.freeView?.dispose(); this.freeView = undefined;
+        this.freeView?.dispose();
+        this.freeView = undefined;
         if (c.free) {
             // The whole domain, streamed around the rider (terrain chunks, trees, lifts, poles, cloud sea).
             const run = verbierRun('free') as FreeTerrain;
-            this.freeView = new FreeView(run, surfaceMap!, resortLoaded()!, this.settings.quality, (x, d) => height(x, d, c), (x, d) => snowDepth(x, d, c));
+            this.freeView = new FreeView(
+                run,
+                surfaceMap!,
+                resortLoaded()!,
+                this.settings.quality,
+                (x, d) => height(x, d, c),
+                (x, d) => snowDepth(x, d, c),
+            );
             const p = this.freeStart ?? { x: 0, d: 0, yaw: 0 };
             this.freeView.prime(p.x, p.d);
             this.obstacles = this.freeView.obstacles;
             this.world.add(this.freeView.group);
-            this.x = p.x; this.d = p.d; this.y = height(p.x, p.d, c);
+            this.x = p.x;
+            this.d = p.d;
+            this.y = height(p.x, p.d, c);
             this.setAtmosphere();
             return;
         }
         let seed = c.seed;
-        const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+        const rand = () => {
+            seed = (seed * 1664525 + 1013904223) >>> 0;
+            return seed / 4294967296;
+        };
         const detail = preset(this.settings.quality);
         const piste = snowMaterial(c.length, c.spacing, c.id === 1, detail.step <= 1.5);
         const nx = Math.ceil(118 / detail.step);
@@ -599,26 +759,32 @@ export class SnowGame {
             const depths = new Float32Array(p.count);
             const normals = new Float32Array(p.count * 3);
             for (let i = 0; i < p.count; i++) {
-                const u = p.getX(i), d = -p.getZ(i), line = center(d, c);
-                const x = 150 * (.33 * u + .67 * u ** 3) + line * (1 - u * u);
+                const u = p.getX(i),
+                    d = -p.getZ(i),
+                    line = center(d, c);
+                const x = 150 * (0.33 * u + 0.67 * u ** 3) + line * (1 - u * u);
                 p.setXYZ(i, x, height(x, d, c), -d);
-                const dx = (height(x - .12, d, c) - height(x + .12, d, c)) / .24;
-                const dz = (height(x, d + .12, c) - height(x, d - .12, c)) / .24;
+                const dx = (height(x - 0.12, d, c) - height(x + 0.12, d, c)) / 0.24;
+                const dz = (height(x, d + 0.12, c) - height(x, d - 0.12, c)) / 0.24;
                 const scale = 1 / Math.hypot(dx, 1, dz);
                 normals[i * 3] = dx * scale;
                 normals[i * 3 + 1] = scale;
                 normals[i * 3 + 2] = dz * scale;
-                const wind = Math.sin(x * .16 + d * .085) * Math.cos(x * .072 - d * .12);
+                const wind = Math.sin(x * 0.16 + d * 0.085) * Math.cos(x * 0.072 - d * 0.12);
                 const depth = snowDepth(x, d, c);
-                const powder = T.MathUtils.smoothstep(depth, .07, .44);
-                const snow = .86 + .07 * wind * powder;
-                colors[i * 3] = snow * (.93 - .035 * powder);
-                colors[i * 3 + 1] = snow * (.97 - .02 * powder);
+                const powder = T.MathUtils.smoothstep(depth, 0.07, 0.44);
+                const snow = 0.86 + 0.07 * wind * powder;
+                colors[i * 3] = snow * (0.93 - 0.035 * powder);
+                colors[i * 3 + 1] = snow * (0.97 - 0.02 * powder);
                 colors[i * 3 + 2] = snow;
                 if (c.dem) {
                     // Real terrain: faces steeper than ~40 degrees shed snow and show rock.
-                    const rock = 1 - T.MathUtils.smoothstep(scale, .74, .84);
-                    if (rock > 0) { colors[i * 3] = T.MathUtils.lerp(colors[i * 3], .36, rock); colors[i * 3 + 1] = T.MathUtils.lerp(colors[i * 3 + 1], .38, rock); colors[i * 3 + 2] = T.MathUtils.lerp(colors[i * 3 + 2], .42, rock); }
+                    const rock = 1 - T.MathUtils.smoothstep(scale, 0.74, 0.84);
+                    if (rock > 0) {
+                        colors[i * 3] = T.MathUtils.lerp(colors[i * 3], 0.36, rock);
+                        colors[i * 3 + 1] = T.MathUtils.lerp(colors[i * 3 + 1], 0.38, rock);
+                        colors[i * 3 + 2] = T.MathUtils.lerp(colors[i * 3 + 2], 0.42, rock);
+                    }
                 }
                 depths[i] = depth;
                 centers[i * 2] = line;
@@ -650,7 +816,7 @@ export class SnowGame {
             tile.position.z = -start - span / 2;
             near.position.z = far.position.z = -tile.position.z;
             tile.addLevel(near, 0);
-            tile.addLevel(far, 175, .1);
+            tile.addLevel(far, 175, 0.1);
             this.world.add(tile);
         }
         // Snow-capped ridgelines are real world geometry, surrounding the rideable terrain.
@@ -661,59 +827,72 @@ export class SnowGame {
             const mp = mg.attributes.position;
             const heights = new Float32Array(mp.count);
             for (let i = 0; i < mp.count; i++) {
-                const x = mp.getX(i), d = -mp.getZ(i), dist = Math.abs(x);
+                const x = mp.getX(i),
+                    d = -mp.getZ(i),
+                    dist = Math.abs(x);
                 const ridge = T.MathUtils.smoothstep(dist, 150, 720);
-                const massif = 1 - Math.abs(Math.sin(d * .0037 + x * .0044 + c.seed));
+                const massif = 1 - Math.abs(Math.sin(d * 0.0037 + x * 0.0044 + c.seed));
                 const gullies = ridgeHeight(x + side * 346, d + c.seed * 15);
                 const crest = 90 + 440 * massif ** 1.45 + 255 * gullies;
                 const valley = height(side * 150, d, c) - 1;
                 // Real-terrain courses: the surrounding mountains are the DEM itself.
-                const h = c.dem ? height(x, d, c) - (dist < 160 ? 1 : 0) : valley + ridge * (crest - Math.max(0, dist - 1120) * .38);
+                const h = c.dem ? height(x, d, c) - (dist < 160 ? 1 : 0) : valley + ridge * (crest - Math.max(0, dist - 1120) * 0.38);
                 heights[i] = h;
                 mp.setY(i, h);
             }
             mg.computeVertexNormals();
-            const cs = new Float32Array(mp.count * 3), n = mg.attributes.normal;
-            const snow = new T.Color(0xe8eff8), stone = new T.Color(0x596479), color = new T.Color();
+            const cs = new Float32Array(mp.count * 3),
+                n = mg.attributes.normal;
+            const snow = new T.Color(0xe8eff8),
+                stone = new T.Color(0x596479),
+                color = new T.Color();
             for (let i = 0; i < mp.count; i++) {
-                const x = mp.getX(i), d = -mp.getZ(i);
-                const strata = Math.sin(heights[i] * .077 + x * .044 + d * .032) * .13;
+                const x = mp.getX(i),
+                    d = -mp.getZ(i);
+                const strata = Math.sin(heights[i] * 0.077 + x * 0.044 + d * 0.032) * 0.13;
                 // Real terrain (30 m DEM) rarely exceeds 45 degrees, so rock starts showing from ~33 degrees, and wind-scoured
                 // high ground (above ~2,900 m) shows more rock, as in the guide's high-alpine biome.
-                const demRock = c.dem ? (1 - T.MathUtils.smoothstep(n.getY(i) + strata * .5, .72, .86)) * (.75 + .25 * T.MathUtils.smoothstep(heights[i], 2600, 3000)) : 0;
-                const cliff = c.dem ? demRock : 1 - T.MathUtils.smoothstep(n.getY(i) + strata, .39, .83);
+                const demRock = c.dem
+                    ? (1 - T.MathUtils.smoothstep(n.getY(i) + strata * 0.5, 0.72, 0.86)) * (0.75 + 0.25 * T.MathUtils.smoothstep(heights[i], 2600, 3000))
+                    : 0;
+                const cliff = c.dem ? demRock : 1 - T.MathUtils.smoothstep(n.getY(i) + strata, 0.39, 0.83);
                 const exposed = cliff * (c.dem ? T.MathUtils.smoothstep(Math.abs(x), 150, 260) : T.MathUtils.smoothstep(Math.abs(x), 172, 390));
-                color.copy(snow).lerp(stone, exposed * .91).toArray(cs, i * 3);
+                color
+                    .copy(snow)
+                    .lerp(stone, exposed * 0.91)
+                    .toArray(cs, i * 3);
             }
             mg.setAttribute('color', new T.BufferAttribute(cs, 3));
-            const mm = new T.Mesh(mg, new T.MeshStandardMaterial({ vertexColors: true, roughness: .94, envMapIntensity: .48 }));
+            const mm = new T.Mesh(mg, new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.94, envMapIntensity: 0.48 }));
             mm.receiveShadow = true;
             this.world.add(mm);
         }
-        const trees = c.dem ? this.realTrees(c, detail.trees) : Array.from({ length: detail.trees }, (_, index) => {
-            const canReach = index < 300;
-            const sample = rand() * c.length;
-            const side = rand() > .5 ? 1 : -1;
-            const d = canReach ? sample : clamp(sample + side * 19 * Math.sin(sample * .033 + c.seed), 0, c.length);
-            const offset = rand();
-            const middle = center(d, c);
-            const glade = 86 + 10 * Math.cos(d * .037 + side * 3);
-            const x = canReach ? middle + side * (26 + offset * 100)
-                : middle + side * T.MathUtils.lerp(glade, 145 - side * middle, offset);
-            const treeHeight = 7 + rand() * 11;
-            if (canReach) this.obstacles.push({ x, d, r: 1.25 });
-            return { x, y: height(x, d, c), d, height: treeHeight, index };
-        }).filter((t): t is NonNullable<typeof t> => t !== null);
+        const trees = c.dem
+            ? this.realTrees(c, detail.trees)
+            : Array.from({ length: detail.trees }, (_, index) => {
+                  const canReach = index < 300;
+                  const sample = rand() * c.length;
+                  const side = rand() > 0.5 ? 1 : -1;
+                  const d = canReach ? sample : clamp(sample + side * 19 * Math.sin(sample * 0.033 + c.seed), 0, c.length);
+                  const offset = rand();
+                  const middle = center(d, c);
+                  const glade = 86 + 10 * Math.cos(d * 0.037 + side * 3);
+                  const x = canReach ? middle + side * (26 + offset * 100) : middle + side * T.MathUtils.lerp(glade, 145 - side * middle, offset);
+                  const treeHeight = 7 + rand() * 11;
+                  if (canReach) this.obstacles.push({ x, d, r: 1.25 });
+                  return { x, y: height(x, d, c), d, height: treeHeight, index };
+              }).filter((t): t is NonNullable<typeof t> => t !== null);
         this.world.add(makeAlpineForest(trees));
         const obj = new T.Object3D();
-        seed=c.seed+981; // Stable obstacle layout across all graphics presets.
+        seed = c.seed + 981; // Stable obstacle layout across all graphics presets.
         const rockG = new T.IcosahedronGeometry(1, 2);
         // Real terrain already carries its rock outcrops (2 m DEM, rock-coloured by slope): no invented boulders there.
         const rocks = new T.InstancedMesh(rockG, new T.MeshStandardMaterial({ color: 0x73828a, roughness: 1 }), c.dem ? 0 : 100);
         rocks.castShadow = true;
         for (let i = 0; i < (c.dem ? 0 : 100); i++) {
-            const d = rand() * c.length, x = center(d, c) + (rand() > .5 ? 1 : -1) * (33 + rand() * 55);
-            this.obstacles.push({x,d,r:3});
+            const d = rand() * c.length,
+                x = center(d, c) + (rand() > 0.5 ? 1 : -1) * (33 + rand() * 55);
+            this.obstacles.push({ x, d, r: 3 });
             obj.position.set(x, height(x, d, c), -d);
             obj.scale.set(2 + rand() * 4, 2 + rand() * 3, 2 + rand() * 3);
             obj.rotation.set(rand(), rand(), rand());
@@ -722,23 +901,38 @@ export class SnowGame {
         }
         this.world.add(rocks);
         if (c.dem) {
-            const run = verbierRun(c.dem), h = (x: number, d: number) => height(x, d, c);
+            const run = verbierRun(c.dem),
+                h = (x: number, d: number) => height(x, d, c);
             this.world.add(liftGroup(run, h, this.settings.quality));
             if (!run.h.lift) this.world.add(poleGroup(run, h, d => center(d, c)));
             if (c.dem === 'la-chaux-skicross') this.world.add(skicrossGroup(run, h));
             // real buildings (VECTOR25 + GWR) beside the run, kept off the piste
             if (buildingsLoaded()) {
-                const R = this.settings.quality === 'low' ? 700 : this.settings.quality === 'balanced' ? 1200 : 1800, seen = new Set<Building>(), list: Building[] = [];
-                for (let d = 0; d <= c.length; d += 250) { const w = run.world(center(d, c), d); for (const b of buildingsAround(w.e, w.n, R)) if (!seen.has(b)) { seen.add(b); list.push(b); } }
-                const local = (e: number, n: number): [number, number] | null => { const q = run.toCourse(e, n); return q ? [q.x, q.d] : null; };
-                const keep = (x: number, d: number, b: Building) => d > -900 && d < c.length + 900 && Math.abs(x - center(d, c)) > run.pisteHalfWidth + b.width / 2 + 4;
+                const R = this.settings.quality === 'low' ? 700 : this.settings.quality === 'balanced' ? 1200 : 1800,
+                    seen = new Set<Building>(),
+                    list: Building[] = [];
+                for (let d = 0; d <= c.length; d += 250) {
+                    const w = run.world(center(d, c), d);
+                    for (const b of buildingsAround(w.e, w.n, R))
+                        if (!seen.has(b)) {
+                            seen.add(b);
+                            list.push(b);
+                        }
+                }
+                const local = (e: number, n: number): [number, number] | null => {
+                    const q = run.toCourse(e, n);
+                    return q ? [q.x, q.d] : null;
+                };
+                const keep = (x: number, d: number, b: Building) =>
+                    d > -900 && d < c.length + 900 && Math.abs(x - center(d, c)) > run.pisteHalfWidth + b.width / 2 + 4;
                 const { mesh, solids } = buildingMesh(list, local, h, { shadows: this.settings.quality !== 'low', keep });
-                mesh.updateMatrix(); this.world.add(mesh);
+                mesh.updateMatrix();
+                this.world.add(mesh);
                 for (const o of solids) if (Math.abs(o.x - center(o.d, c)) < 220) this.obstacles.push(o);
             }
         }
-        const poleMat = new T.MeshStandardMaterial({ color: 0x18343d, roughness: .54 });
-        const flagMat = new T.MeshStandardMaterial({ color: 0x56d2ca, side: T.DoubleSide, roughness: .8 });
+        const poleMat = new T.MeshStandardMaterial({ color: 0x18343d, roughness: 0.54 });
+        const flagMat = new T.MeshStandardMaterial({ color: 0x56d2ca, side: T.DoubleSide, roughness: 0.8 });
         const kickerBases: number[] = [];
         const laneOf = (base: number) => LA_CHAUX_FEATURES.find(f => f.base === base)?.x ?? 0;
         if (c.dem === 'la-chaux-park') kickerBases.push(...LA_CHAUX_FEATURES.map(f => f.base));
@@ -746,31 +940,49 @@ export class SnowGame {
         for (const d of kickerBases) {
             const { profile, exists } = kickerAt(d, c);
             if (!exists) continue;
-            const lip = d + profile.lip, line = center(c.classicFeatures ? d + 12 : lip, c) + (c.dem === 'la-chaux-park' ? laneOf(d) : 0);
+            const lip = d + profile.lip,
+                line = center(c.classicFeatures ? d + 12 : lip, c) + (c.dem === 'la-chaux-park' ? laneOf(d) : 0);
             const group = new T.Group();
             for (let side of [-1, 1]) {
-                const x = line + side * (profile.width + 2.5), y = height(x, lip, c);
-                this.mesh(new T.CylinderGeometry(.07, .07, 3), poleMat, x, y + 1.5, -lip, group);
-                this.mesh(new T.PlaneGeometry(1.7, .7), flagMat, x + side * .8, y + 2.7, -lip, group);
+                const x = line + side * (profile.width + 2.5),
+                    y = height(x, lip, c);
+                this.mesh(new T.CylinderGeometry(0.07, 0.07, 3), poleMat, x, y + 1.5, -lip, group);
+                this.mesh(new T.PlaneGeometry(1.7, 0.7), flagMat, x + side * 0.8, y + 2.7, -lip, group);
             }
             this.world.add(group);
         }
-        this.rails = makeParkRails(c, d => center(d, c), (x, d) => height(x, d, c), poleMat);
+        this.rails = makeParkRails(
+            c,
+            d => center(d, c),
+            (x, d) => height(x, d, c),
+            poleMat,
+        );
         for (const rail of this.rails) this.world.add(rail.mesh);
         // Real-terrain runs: no gates or finish banner; the run ends at the mapped lift station (drawn with the lifts).
         for (let i = 1; i <= (c.dem ? 0 : Math.floor(c.length / 180) - 1); i++) {
-            const d = i * 180, x = center(d, c), group = new T.Group();
+            const d = i * 180,
+                x = center(d, c),
+                group = new T.Group();
             for (const side of [-1, 1]) {
-                this.mesh(new T.CylinderGeometry(.065, .065, 3.8), poleMat, x + side * 12, height(x + side * 12, d, c) + 1.9, -d, group);
-                this.mesh(new T.PlaneGeometry(1.2, 1.3), new T.MeshStandardMaterial({ color: 0xff7967, side: T.DoubleSide }), x + side * 11.4, height(x + side * 12, d, c) + 2.8, -d, group);
+                this.mesh(new T.CylinderGeometry(0.065, 0.065, 3.8), poleMat, x + side * 12, height(x + side * 12, d, c) + 1.9, -d, group);
+                this.mesh(
+                    new T.PlaneGeometry(1.2, 1.3),
+                    new T.MeshStandardMaterial({ color: 0xff7967, side: T.DoubleSide }),
+                    x + side * 11.4,
+                    height(x + side * 12, d, c) + 2.8,
+                    -d,
+                    group,
+                );
             }
             this.world.add(group);
             this.features.push(group);
         }
-        const finish = new T.Group(), fd = c.length - 10, fx = center(fd, c), fy = height(fx, fd, c);
-        for (const side of [-1, 1])
-            this.mesh(new T.BoxGeometry(.4, 8, .4), poleMat, fx + side * 20, fy + 4, -fd, finish);
-        this.mesh(new T.BoxGeometry(40, 1, .5), flagMat, fx, fy + 8, -fd, finish);
+        const finish = new T.Group(),
+            fd = c.length - 10,
+            fx = center(fd, c),
+            fy = height(fx, fd, c);
+        for (const side of [-1, 1]) this.mesh(new T.BoxGeometry(0.4, 8, 0.4), poleMat, fx + side * 20, fy + 4, -fd, finish);
+        this.mesh(new T.BoxGeometry(40, 1, 0.5), flagMat, fx, fy + 8, -fd, finish);
         if (!c.dem) this.world.add(finish);
         // Real terrain: valley cloud sea (winter inversion) below the lowest station, in clear weather.
         if (c.dem) this.world.add(makeCloudSea(new T.Vector3(center(c.length / 2, c), 0, -c.length / 2)));
@@ -783,10 +995,15 @@ export class SnowGame {
     }
     /** Trees detected in SWISSIMAGE for a real-terrain run, thinned to the graphics preset; near ones are solid. */
     realTrees(c: Course, budget: number) {
-        const run = verbierRun(c.dem!), t = run.trees, n = t.length / 3, keep = Math.min(n, Math.max(budget * 3, 1500));
+        const run = verbierRun(c.dem!),
+            t = run.trees,
+            n = t.length / 3,
+            keep = Math.min(n, Math.max(budget * 3, 1500));
         const out: { x: number; y: number; d: number; height: number; index: number }[] = [];
         for (let k = 0; k < keep; k++) {
-            const i = Math.floor(k * n / keep), x = t[i * 3], d = t[i * 3 + 1];
+            const i = Math.floor((k * n) / keep),
+                x = t[i * 3],
+                d = t[i * 3 + 1];
             if (Math.abs(x - center(d, c)) < 140) this.obstacles.push({ x, d, r: 1.1 });
             out.push({ x, y: height(x, d, c), d, height: t[i * 3 + 2], index: k });
         }
@@ -794,27 +1011,37 @@ export class SnowGame {
     }
     setAtmosphere() {
         const weather = this.settings.weather;
-        const dusk = weather === 'dusk', snowing = weather === 'snow';
+        const dusk = weather === 'dusk',
+            snowing = weather === 'snow';
         const horizon = dusk ? 0xd6a9a8 : snowing ? 0xb5c9d6 : 0xd5e5f5;
         // High-altitude real terrain: clearer air (guide section 13.4), so distant ridges keep their contrast.
-        const clarity = this.course?.dem ? .32 : 1;
-        this.scene.fog = new T.FogExp2(horizon, (snowing ? .0045 : dusk ? .0011 : .00066) * (snowing ? 1 : clarity));
+        const clarity = this.course?.dem ? 0.32 : 1;
+        this.scene.fog = new T.FogExp2(horizon, (snowing ? 0.0045 : dusk ? 0.0011 : 0.00066) * (snowing ? 1 : clarity));
         this.snow.visible = snowing;
-        this.scene.environmentIntensity = dusk ? .35 : .52;
+        this.scene.environmentIntensity = dusk ? 0.35 : 0.52;
         const sun = this.scene.getObjectByName('sun') as T.DirectionalLight;
         sun.color.set(dusk ? 0xffae83 : snowing ? 0xdbe8fa : 0xfff0da);
-        sun.intensity = snowing ? .85 : dusk ? 2.1 : 3.1;
+        sun.intensity = snowing ? 0.85 : dusk ? 2.1 : 3.1;
         this.powder.setSun(dusk ? DUSK_LIGHT : DAYLIGHT);
         const sea = this.world.getObjectByName('cloud-sea') as T.Mesh<T.BufferGeometry, T.ShaderMaterial> | undefined;
-        if (sea) { sea.visible = !snowing; sea.material.uniforms.sunDirection.value.copy(dusk ? DUSK_LIGHT : DAYLIGHT).normalize(); }
+        if (sea) {
+            sea.visible = !snowing;
+            sea.material.uniforms.sunDirection.value.copy(dusk ? DUSK_LIGHT : DAYLIGHT).normalize();
+        }
         const { uniforms } = this.sky.material;
         uniforms.zenith.value.set(dusk ? 0x4d6294 : snowing ? 0x8faabd : 0x2a68b4);
         uniforms.horizon.value.set(horizon);
         uniforms.sunDirection.value.copy(dusk ? DUSK_LIGHT : DAYLIGHT);
-        uniforms.clouds.value = snowing ? .35 : dusk ? .58 : .74;   // clear: scattered cloud, deep blue sky
-        uniforms.sunStrength.value = snowing ? .03 : 1;
+        uniforms.clouds.value = snowing ? 0.35 : dusk ? 0.58 : 0.74; // clear: scattered cloud, deep blue sky
+        uniforms.sunStrength.value = snowing ? 0.03 : 1;
     }
-    setCourse(c: Course) { this.powder.clear(); this.course = c; this.state = 'menu'; this.boardTracks.clear(); this.buildWorld(); }
+    setCourse(c: Course) {
+        this.powder.clear();
+        this.course = c;
+        this.state = 'menu';
+        this.boardTracks.clear();
+        this.buildWorld();
+    }
     setLook(look: Look) {
         this.look = look;
         this.jacket.color.set(look.jacket);
@@ -822,176 +1049,342 @@ export class SnowGame {
         this.rig.setKit(look.kit);
     }
     setSettings(s: Settings) {
-        const changed=this.settings.quality!==s.quality;
+        const changed = this.settings.quality !== s.quality;
         if ((this.settings.board ?? 'all-mountain') !== (s.board ?? 'all-mountain')) this.rig.setBoard(BOARDS[s.board ?? 'all-mountain']);
-        this.settings=s;
+        this.settings = s;
         if (changed) this.powder.setQuality(s.quality);
-        const detail=preset(s.quality);
-        this.renderer.setPixelRatio(Math.min(devicePixelRatio,detail.pixel) * (s.renderScale ?? 1) * this.autoScale);
-        this.renderer.shadowMap.enabled=s.quality!=='low';
-        const sun=this.scene.getObjectByName('sun') as T.DirectionalLight;
-        if(sun.shadow.mapSize.x!==detail.shadow){sun.shadow.map?.dispose();sun.shadow.map=null;sun.shadow.mapSize.set(detail.shadow,detail.shadow);}
-        { const c=sun.shadow.camera, r=detail.shadowRange; if(c.right!==r){c.left=-r;c.right=r;c.top=r;c.bottom=-r;c.far=Math.max(700,r*5);c.updateProjectionMatrix();} }
-        this.camera.fov=s.fov;this.camera.updateProjectionMatrix();this.setAtmosphere();
+        const detail = preset(s.quality);
+        this.renderer.setPixelRatio(Math.min(devicePixelRatio, detail.pixel) * (s.renderScale ?? 1) * this.autoScale);
+        this.renderer.shadowMap.enabled = s.quality !== 'low';
+        const sun = this.scene.getObjectByName('sun') as T.DirectionalLight;
+        if (sun.shadow.mapSize.x !== detail.shadow) {
+            sun.shadow.map?.dispose();
+            sun.shadow.map = null;
+            sun.shadow.mapSize.set(detail.shadow, detail.shadow);
+        }
+        {
+            const c = sun.shadow.camera,
+                r = detail.shadowRange;
+            if (c.right !== r) {
+                c.left = -r;
+                c.right = r;
+                c.top = r;
+                c.bottom = -r;
+                c.far = Math.max(700, r * 5);
+                c.updateProjectionMatrix();
+            }
+        }
+        this.camera.fov = s.fov;
+        this.camera.updateProjectionMatrix();
+        this.setAtmosphere();
         this.diagnostics?.setVisible(!!s.diagnostics);
         if (this.reality) this.configureReality(this.reality);
-        if(changed && (this.state==='menu'||this.state==='garage')) this.buildWorld();
+        if (changed && (this.state === 'menu' || this.state === 'garage')) this.buildWorld();
     }
-    start(mode: Mode) { this.powder.clear(); if (this.course.classicFeatures || this.course.originalKickers || this.course.packedSnow) this.setCourse({ ...this.course, classicFeatures: false, originalKickers: false, packedSnow: false }); this.parkFlight = undefined; this.mode = mode; this.state = 'ride'; this.x = center(0, this.course); this.d = 0; this.y = height(this.x, 0, this.course); this.vy = 0; this.speed = 12; this.heading = 0; this.steerFilter = 0; this.edgeAngle = 0; this.skidAngle = 0; this.steerSpring = { value: 0, velocity: 0 }; this.previous = undefined; this.physicsAccumulator = 0; this.landingImpact = 0; this.spin = 0; this.flip = 0; this.spinVelocity = 0; this.flipVelocity = 0; this.load = 0; this.pop = 0; this.extension = 0; this.jumpPending = false; this.jumpReleased = false; this.grabLocked = -1; this.grabKind = 0; this.grabContactTime = 0; this.visualGrab = false; this.visualTuck = false; this.spinInput = 0; this.ground = true; this.score = 0; this.time = 0; this.tricks = 0; this.bails = 0; this.combo = 1; this.bailTimer = 0; this.lastRamp = -1; this.frames = []; this.repeats.clear(); this.railDone.clear(); this.railActive = -1; this.gateCount = 0; this.gateIndex = 0; this.flowTimer = 0; this.toastTimer = 3; this.trick = ''; this.trickScore = 0; this.recordTimer = 0; this.frames.push(this.snapshot()); this.feedback = mode === 'training' ? 'Hold SPACE to load, release to pop · Q / E spin · SHIFT grab' : 'Find your line'; this.photo = false; this.keys.clear(); this.touch.clear(); this.boardTracks.clear(); this.reality = undefined; if (this.settings.physics === 'reality') this.startReality(); this.camera.position.set(this.x, this.y + CHASE_HEIGHT, CHASE_DISTANCE); this.cameraFocus.set(this.x, this.y + 1.05, -5.15); this.cameraSpring.reset(this.camera.position); this.focusSpring.reset(this.cameraFocus); this.initAudio(); this.audio?.resume().catch(() => { }); }
+    start(mode: Mode) {
+        this.powder.clear();
+        if (this.course.classicFeatures || this.course.originalKickers || this.course.packedSnow)
+            this.setCourse({ ...this.course, classicFeatures: false, originalKickers: false, packedSnow: false });
+        this.parkFlight = undefined;
+        this.mode = mode;
+        this.state = 'ride';
+        this.x = center(0, this.course);
+        this.d = 0;
+        this.y = height(this.x, 0, this.course);
+        this.vy = 0;
+        this.speed = 12;
+        this.heading = 0;
+        this.steerFilter = 0;
+        this.edgeAngle = 0;
+        this.skidAngle = 0;
+        this.steerSpring = { value: 0, velocity: 0 };
+        this.previous = undefined;
+        this.physicsAccumulator = 0;
+        this.landingImpact = 0;
+        this.spin = 0;
+        this.flip = 0;
+        this.spinVelocity = 0;
+        this.flipVelocity = 0;
+        this.load = 0;
+        this.pop = 0;
+        this.extension = 0;
+        this.jumpPending = false;
+        this.jumpReleased = false;
+        this.grabLocked = -1;
+        this.grabKind = 0;
+        this.grabContactTime = 0;
+        this.visualGrab = false;
+        this.visualTuck = false;
+        this.spinInput = 0;
+        this.ground = true;
+        this.score = 0;
+        this.time = 0;
+        this.tricks = 0;
+        this.bails = 0;
+        this.combo = 1;
+        this.bailTimer = 0;
+        this.lastRamp = -1;
+        this.frames = [];
+        this.repeats.clear();
+        this.railDone.clear();
+        this.railActive = -1;
+        this.gateCount = 0;
+        this.gateIndex = 0;
+        this.flowTimer = 0;
+        this.toastTimer = 3;
+        this.trick = '';
+        this.trickScore = 0;
+        this.recordTimer = 0;
+        this.frames.push(this.snapshot());
+        this.feedback = mode === 'training' ? 'Hold SPACE to load, release to pop · Q / E spin · SHIFT grab' : 'Find your line';
+        this.photo = false;
+        this.keys.clear();
+        this.touch.clear();
+        this.boardTracks.clear();
+        this.reality = undefined;
+        if (this.settings.physics === 'reality') this.startReality();
+        this.camera.position.set(this.x, this.y + CHASE_HEIGHT, CHASE_DISTANCE);
+        this.cameraFocus.set(this.x, this.y + 1.05, -5.15);
+        this.cameraSpring.reset(this.camera.position);
+        this.focusSpring.reset(this.cameraFocus);
+        this.initAudio();
+        this.audio?.resume().catch(() => {});
+    }
     configureReality(ride: RealityRide) {
         const w = this.settings.weather;
         ride.configure({
-            assist: this.settings.assistLevel ?? 'balanced', stance: this.settings.stance ?? 'regular',
-            freshSnow: w === 'snow' ? .6 : 0,
+            assist: this.settings.assistLevel ?? 'balanced',
+            stance: this.settings.stance ?? 'regular',
+            freshSnow: w === 'snow' ? 0.6 : 0,
             // Steady cross-slope breeze; stronger in a snowstorm (m/s).
-            wind: w === 'snow' ? { x: 3.2, z: 1.1 } : w === 'dusk' ? { x: -1.2, z: .4 } : { x: .8, z: 0 },
+            wind: w === 'snow' ? { x: 3.2, z: 1.1 } : w === 'dusk' ? { x: -1.2, z: 0.4 } : { x: 0.8, z: 0 },
         });
     }
     startReality() {
         const c = this.course;
         const rails = this.rails.map(r => ({ x: r.x, d: r.d, end: r.end, width: r.width, top: r.top, slope: r.slope, round: r.name === 'LONG TUBE' }));
         const weather = this.settings.weather;
-        const ride = new RealityRide({ height: (x, d) => height(x, d, c), snowDepth: (x, d) => snowDepth(x, d, c), center: d => center(d, c), parkZone: (x, d) => parkZone(x, d, c),
-            surface: c.dem ? (x, d) => demSurface(x, d, c, weather) : undefined }, rails, this.settings.board ?? 'all-mountain');
+        const ride = new RealityRide(
+            {
+                height: (x, d) => height(x, d, c),
+                snowDepth: (x, d) => snowDepth(x, d, c),
+                center: d => center(d, c),
+                parkZone: (x, d) => parkZone(x, d, c),
+                surface: c.dem ? (x, d) => demSurface(x, d, c, weather) : undefined,
+            },
+            rails,
+            this.settings.board ?? 'all-mountain',
+        );
         this.configureReality(ride);
         this.reality = ride;
         // A rider drops in from a standstill with a short push (about 3 m/s); gravity does the rest.
         // Real-terrain runs start on summits and stations where the fall line can point anywhere: face along the mapped line.
-        if (c.free) { const p = this.freeStart ?? { x: 0, d: 0, yaw: 0 }; ride.place(p.x, p.d, 1.5, p.yaw); }
-        else ride.place(center(2, c), 2, 3, c.dem ? Math.atan2(1, (center(12, c) - center(2, c)) / 10) : undefined);
+        if (c.free) {
+            const p = this.freeStart ?? { x: 0, d: 0, yaw: 0 };
+            ride.place(p.x, p.d, 1.5, p.yaw);
+        } else ride.place(center(2, c), 2, 3, c.dem ? Math.atan2(1, (center(12, c) - center(2, c)) / 10) : undefined);
         this.syncReality(1 / 120);
         this.prevRenderQ.copy(this.renderQ);
-        this.feedback = this.mode === 'training'
-            ? 'A/D edge · S speed check · hold SPACE to crouch, release to pop · hold Q/E while crouched to wind a spin · SHIFT grab (1–9, 0, -, = choose)'
-            : 'Find your line';
+        this.feedback =
+            this.mode === 'training'
+                ? 'A/D edge · S speed check · hold SPACE to crouch, release to pop · hold Q/E while crouched to wind a spin · SHIFT grab (1–9, 0, -, = choose)'
+                : 'Find your line';
     }
-    initAudio() { if (this.audio)
-        return; try {
-        this.audio = new AudioContext();
-        const b = this.audio.createBuffer(1, this.audio.sampleRate * 2, this.audio.sampleRate);
-        const data = b.getChannelData(0);
-        for (let i = 0; i < data.length; i++)
-            data[i] = Math.random() * 2 - 1;
-        const src = this.audio.createBufferSource();
-        src.buffer = b;
-        src.loop = true;
-        this.noiseFilter = this.audio.createBiquadFilter();
-        this.noiseFilter.type = 'lowpass';
-        this.noiseFilter.frequency.value = 500;
-        this.noiseGain = this.audio.createGain();
-        this.noiseGain.gain.value = 0;
-        src.connect(this.noiseFilter).connect(this.noiseGain).connect(this.audio.destination);
-        src.start();
-        this.soundscape = new Soundscape(this.audio);
+    initAudio() {
+        if (this.audio) return;
+        try {
+            this.audio = new AudioContext();
+            const b = this.audio.createBuffer(1, this.audio.sampleRate * 2, this.audio.sampleRate);
+            const data = b.getChannelData(0);
+            for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+            const src = this.audio.createBufferSource();
+            src.buffer = b;
+            src.loop = true;
+            this.noiseFilter = this.audio.createBiquadFilter();
+            this.noiseFilter.type = 'lowpass';
+            this.noiseFilter.frequency.value = 500;
+            this.noiseGain = this.audio.createGain();
+            this.noiseGain.gain.value = 0;
+            src.connect(this.noiseFilter).connect(this.noiseGain).connect(this.audio.destination);
+            src.start();
+            this.soundscape = new Soundscape(this.audio);
+        } catch {
+            /* Silent play remains available. */
+        }
     }
-    catch { /* Silent play remains available. */ } }
-    sound(freq: number, duration = .12) { if (!this.audio || this.settings.volume === 0)
-        return; const osc = this.audio.createOscillator(), gain = this.audio.createGain(); osc.frequency.setValueAtTime(freq, this.audio.currentTime); osc.frequency.exponentialRampToValueAtTime(freq * .4, this.audio.currentTime + duration); gain.gain.setValueAtTime(this.settings.volume * .08, this.audio.currentTime); gain.gain.exponentialRampToValueAtTime(.001, this.audio.currentTime + duration); osc.connect(gain).connect(this.audio.destination); osc.start(); osc.stop(this.audio.currentTime + duration); }
-    keydown = (e: KeyboardEvent) => { if ((e.target as HTMLElement)?.closest('input,textarea,[role="slider"],[role="combobox"],[role="tablist"]'))
-        return; const k = e.code; if (['Space', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(k))
-        e.preventDefault(); if (!e.repeat) {
-        if (k === 'Escape' && this.state === 'ride') {
+    sound(freq: number, duration = 0.12) {
+        if (!this.audio || this.settings.volume === 0) return;
+        const osc = this.audio.createOscillator(),
+            gain = this.audio.createGain();
+        osc.frequency.setValueAtTime(freq, this.audio.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(freq * 0.4, this.audio.currentTime + duration);
+        gain.gain.setValueAtTime(this.settings.volume * 0.08, this.audio.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.audio.currentTime + duration);
+        osc.connect(gain).connect(this.audio.destination);
+        osc.start();
+        osc.stop(this.audio.currentTime + duration);
+    }
+    keydown = (e: KeyboardEvent) => {
+        if ((e.target as HTMLElement)?.closest('input,textarea,[role="slider"],[role="combobox"],[role="tablist"]')) return;
+        const k = e.code;
+        if (['Space', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(k)) e.preventDefault();
+        if (!e.repeat) {
+            if (k === 'Escape' && this.state === 'ride') {
+                this.state = 'pause';
+                this.keys.clear();
+                this.onPause();
+            } else if (k === 'KeyR' && this.state === 'ride') this.resetMarker();
+            else if (k === 'KeyC') this.cameraMode = (this.cameraMode + 1) % 3;
+            else if (k === 'Space' && this.state === 'ride') this.prepareJump();
+            else if (['Digit1', 'Digit2', 'Digit3'].includes(k) && !this.reality) this.grabKind = Number(k.slice(-1)) - 1;
+            else if (this.reality && GRAB_KEYS.includes(k)) this.realityGrab = GRAB_KEYS.indexOf(k);
+        }
+        this.keys.add(k);
+    };
+    keyup = (e: KeyboardEvent) => {
+        this.keys.delete(e.code);
+        if (e.code === 'Space') this.jumpReleased = true;
+    };
+    blur = () => {
+        this.keys.clear();
+        this.touch.clear();
+        if (this.state === 'ride') {
             this.state = 'pause';
-            this.keys.clear();
             this.onPause();
         }
-        else if (k === 'KeyR' && this.state === 'ride')
-            this.resetMarker();
-        else if (k === 'KeyC')
-            this.cameraMode = (this.cameraMode + 1) % 3;
-        else if (k === 'Space' && this.state === 'ride')
-            this.prepareJump();
-        else if (['Digit1', 'Digit2', 'Digit3'].includes(k) && !this.reality)
-            this.grabKind = Number(k.slice(-1)) - 1;
-        else if (this.reality && GRAB_KEYS.includes(k))
-            this.realityGrab = GRAB_KEYS.indexOf(k);
-    } this.keys.add(k); };
-    keyup = (e: KeyboardEvent) => { this.keys.delete(e.code); if (e.code === 'Space')
-        this.jumpReleased = true; };
-    blur = () => { this.keys.clear(); this.touch.clear(); if (this.state === 'ride') {
-        this.state = 'pause';
-        this.onPause();
-    } };
-    visibility = () => { if (document.hidden)
-        this.blur(); };
+    };
+    visibility = () => {
+        if (document.hidden) this.blur();
+    };
     /** Thumb-stick input. Classic physics has no analog steering, so the stick also drives the A/D keys there. */
     setStick(x: number, y: number) {
-        this.stick.x = clamp(x, -1, 1); this.stick.y = clamp(y, -1, 1);
-        const left = this.stick.x < -.35, right = this.stick.x > .35;
-        if (left) this.touch.add('KeyA'); else this.touch.delete('KeyA');
-        if (right) this.touch.add('KeyD'); else this.touch.delete('KeyD');
+        this.stick.x = clamp(x, -1, 1);
+        this.stick.y = clamp(y, -1, 1);
+        const left = this.stick.x < -0.35,
+            right = this.stick.x > 0.35;
+        if (left) this.touch.add('KeyA');
+        else this.touch.delete('KeyA');
+        if (right) this.touch.add('KeyD');
+        else this.touch.delete('KeyD');
     }
     /** Tilt reading from the phone (already calibrated and shaped by the page). */
     setTilt(steer: number, lean: number) {
         const g = this.gesture;
         g.steer = clamp(steer, -1, 1);
         g.lean = clamp(lean, -1, 1);
-        g.tuck = lean > .85;
-        g.brake = clamp((-lean - .55) / .45, 0, 1);
+        g.tuck = lean > 0.85;
+        g.brake = clamp((-lean - 0.55) / 0.45, 0, 1);
     }
     /** Touch gesture state from the page. A touch that starts in the air is a grab until it lifts, never a crouch. */
     setGesture(fingers: number, wind: number, flip: number, side: number) {
         const g = this.gesture;
         if (g.fingers === 0 && fingers > 0) g.startedInAir = !this.ground;
-        g.fingers = fingers; g.wind = clamp(wind, -1, 1); g.flip = clamp(flip, -1, 1); g.side = side;
+        g.fingers = fingers;
+        g.wind = clamp(wind, -1, 1);
+        g.flip = clamp(flip, -1, 1);
+        g.side = side;
     }
     /** Classic physics reads keys, so gestures are translated to the same virtual keys it already understands. */
     private applyGestureKeys() {
-        const g = this.gesture, want = new Set<string>();
-        if (g.steer > .3) want.add('KeyD'); if (g.steer < -.3) want.add('KeyA');
-        if (g.tuck) want.add('KeyW'); if (g.brake > .3) want.add('KeyS');
+        const g = this.gesture,
+            want = new Set<string>();
+        if (g.steer > 0.3) want.add('KeyD');
+        if (g.steer < -0.3) want.add('KeyA');
+        if (g.tuck) want.add('KeyW');
+        if (g.brake > 0.3) want.add('KeyS');
         if (g.fingers > 0) want.add(g.startedInAir || !this.ground ? 'ShiftLeft' : 'Space');
-        if (g.wind > .4) want.add('KeyE'); if (g.wind < -.4) want.add('KeyQ');
-        if (g.flip > .4) want.add('KeyX'); if (g.flip < -.4) want.add('KeyV');
+        if (g.wind > 0.4) want.add('KeyE');
+        if (g.wind < -0.4) want.add('KeyQ');
+        if (g.flip > 0.4) want.add('KeyX');
+        if (g.flip < -0.4) want.add('KeyV');
         for (const k of this.gestureKeys) if (!want.has(k)) this.press(k, false);
         for (const k of want) if (!this.gestureKeys.has(k)) this.press(k, true);
         this.gestureKeys = want;
     }
-    press(k: string, on: boolean) { if (on) {
-        this.touch.add(k);
-        if (k === 'Space')
-            this.prepareJump();
+    press(k: string, on: boolean) {
+        if (on) {
+            this.touch.add(k);
+            if (k === 'Space') this.prepareJump();
+        } else {
+            this.touch.delete(k);
+            if (k === 'Space') this.jumpReleased = true;
+        }
     }
-    else {
-        this.touch.delete(k);
-        if (k === 'Space')
-            this.jumpReleased = true;
-    } }
-    resetMarker() { if (this.reality) { this.powder?.clear(); this.boardTracks?.breakTrail(); if (this.course.free) this.reality.place(this.x, this.d, 2, this.fallLineYaw(this.x, this.d)); else this.reality.place(center(this.d, this.course), this.d, 3); this.syncReality(1 / 120); this.prevRenderQ.copy(this.renderQ); this.previous = undefined; this.combo = 1; this.bails++; this.toast('Line reset'); return; } this.powder?.clear(); this.boardTracks?.breakTrail(); this.parkFlight = undefined; this.edgeAngle = 0; this.skidAngle = 0; this.x = center(this.d, this.course); this.y = height(this.x, this.d, this.course); this.vy = 0; this.ground = true; this.heading = 0; this.spin = 0; this.flip = 0; this.speed = 10; this.combo = 1; this.railActive = -1; this.bails++; this.jumpPending = false; this.load = 0; this.spinVelocity = 0; this.flipVelocity = 0; this.previous = undefined; this.toast('Line reset'); }
-    prepareJump() { if (this.ground && this.state === 'ride' && this.bailTimer <= 0) {
-        this.jumpPending = true;
-        this.jumpReleased = false;
-        this.load = 0;
-    } }
-    jump(power = 3.6) { if (this.ground && this.state === 'ride' && this.bailTimer <= 0) {
-        this.ground = false;
+    resetMarker() {
+        if (this.reality) {
+            this.powder?.clear();
+            this.boardTracks?.breakTrail();
+            if (this.course.free) this.reality.place(this.x, this.d, 2, this.fallLineYaw(this.x, this.d));
+            else this.reality.place(center(this.d, this.course), this.d, 3);
+            this.syncReality(1 / 120);
+            this.prevRenderQ.copy(this.renderQ);
+            this.previous = undefined;
+            this.combo = 1;
+            this.bails++;
+            this.toast('Line reset');
+            return;
+        }
+        this.powder?.clear();
+        this.boardTracks?.breakTrail();
         this.parkFlight = undefined;
-        this.vy = power + this.speed * pathSlope(this.x,this.d,this.heading,this.course);
-        this.spinOrigin = this.spin;
-        this.flipOrigin = this.flip;
+        this.edgeAngle = 0;
+        this.skidAngle = 0;
+        this.x = center(this.d, this.course);
+        this.y = height(this.x, this.d, this.course);
+        this.vy = 0;
+        this.ground = true;
+        this.heading = 0;
+        this.spin = 0;
+        this.flip = 0;
+        this.speed = 10;
+        this.combo = 1;
+        this.railActive = -1;
+        this.bails++;
+        this.jumpPending = false;
+        this.load = 0;
         this.spinVelocity = 0;
         this.flipVelocity = 0;
-        this.airTime = 0;
-        this.grabTime = 0;
-        this.grabContactTime = 0;
-        this.grabLocked = -1;
-        this.jumpPending = false;
-        this.jumpReleased = false;
-        this.load = 0;
-        this.pop = 1;
-        this.extension = 0;
-        this.sound(160);
-    } }
+        this.previous = undefined;
+        this.toast('Line reset');
+    }
+    prepareJump() {
+        if (this.ground && this.state === 'ride' && this.bailTimer <= 0) {
+            this.jumpPending = true;
+            this.jumpReleased = false;
+            this.load = 0;
+        }
+    }
+    jump(power = 3.6) {
+        if (this.ground && this.state === 'ride' && this.bailTimer <= 0) {
+            this.ground = false;
+            this.parkFlight = undefined;
+            this.vy = power + this.speed * pathSlope(this.x, this.d, this.heading, this.course);
+            this.spinOrigin = this.spin;
+            this.flipOrigin = this.flip;
+            this.spinVelocity = 0;
+            this.flipVelocity = 0;
+            this.airTime = 0;
+            this.grabTime = 0;
+            this.grabContactTime = 0;
+            this.grabLocked = -1;
+            this.jumpPending = false;
+            this.jumpReleased = false;
+            this.load = 0;
+            this.pop = 1;
+            this.extension = 0;
+            this.sound(160);
+        }
+    }
     launchKicker(lipX: number, lipD: number, base: number, profile: ReturnType<typeof kickerAt>['profile']) {
         this.y = supportHeight(lipX, lipD, this.course, this.speed);
         this.jump(0);
-        const slope = pathSlope(lipX, lipD - .16, this.heading, this.course);
+        const slope = pathSlope(lipX, lipD - 0.16, this.heading, this.course);
         this.vy = this.speed * slope;
         if (!this.settings.autoLand || this.course.classicFeatures) return;
 
         const downhillSpeed = this.speed * Math.cos(this.heading);
         const lateralSpeed = this.speed * Math.sin(this.heading);
-        if (downhillSpeed < 8 || Math.abs(this.heading) > .5) return;
+        if (downhillSpeed < 8 || Math.abs(this.heading) > 0.5) return;
         const naturalVy = this.vy;
         const landingCenter = center(lipD, this.course);
         let bestCost = Infinity;
@@ -999,24 +1392,23 @@ export class SnowGame {
             const duration = (targetD - lipD) / downhillSpeed;
             if (duration > 3.5) break;
             const freeX = lipX + lateralSpeed * duration;
-            const targetX = clamp(freeX, landingCenter - profile.width * .8, landingCenter + profile.width * .8);
+            const targetX = clamp(freeX, landingCenter - profile.width * 0.8, landingCenter + profile.width * 0.8);
             if (Math.abs(targetX - freeX) > 6.5) continue;
             const targetLateralSpeed = clamp(lateralSpeed + (targetX - freeX) / duration, -1.8, 1.8);
             const heading = Math.atan2(targetLateralSpeed, downhillSpeed);
             const targetSpeed = Math.hypot(downhillSpeed, targetLateralSpeed);
-            const launchVy = (supportHeight(targetX, targetD, this.course, targetSpeed) - this.y) / duration + .5 * GRAVITY * duration;
+            const launchVy = (supportHeight(targetX, targetD, this.course, targetSpeed) - this.y) / duration + 0.5 * GRAVITY * duration;
             const adjustment = Math.abs(launchVy - naturalVy);
             if (launchVy < 0 || adjustment > 3.2) continue;
             const deckD = base + profile.knuckle;
             const deckTime = (deckD - lipD) / downhillSpeed;
             const deckX = approach(lipX, lateralSpeed, targetX, targetLateralSpeed, deckTime, duration);
-            if (this.y + launchVy * deckTime - .5 * GRAVITY * deckTime ** 2 <= height(deckX, deckD, this.course)) continue;
+            if (this.y + launchVy * deckTime - 0.5 * GRAVITY * deckTime ** 2 <= height(deckX, deckD, this.course)) continue;
             const forwardSlope = pathSlope(targetX, targetD, heading, this.course);
             const crossSlope = pathSlope(targetX, targetD, heading + Math.PI / 2, this.course);
-            const impact = (targetSpeed * forwardSlope - (launchVy - GRAVITY * duration))
-                / Math.hypot(1, forwardSlope, crossSlope);
-            if (impact <= 0 || impact >= HARD_LANDING_SPEED - .35) continue;
-            const cost = adjustment + .16 * impact + .12 * Math.abs(targetX - freeX);
+            const impact = (targetSpeed * forwardSlope - (launchVy - GRAVITY * duration)) / Math.hypot(1, forwardSlope, crossSlope);
+            if (impact <= 0 || impact >= HARD_LANDING_SPEED - 0.35) continue;
+            const cost = adjustment + 0.16 * impact + 0.12 * Math.abs(targetX - freeX);
             if (cost >= bestCost) continue;
             bestCost = cost;
             this.vy = launchVy;
@@ -1025,19 +1417,24 @@ export class SnowGame {
     }
     alignParkLanding(flight: ParkFlight, dt: number) {
         const remaining = flight.duration - this.airTime;
-        const timeToOpen = clamp(.39 + .019 * (Math.abs(this.spinVelocity) + Math.abs(this.flipVelocity)), .39, .57);
+        const timeToOpen = clamp(0.39 + 0.019 * (Math.abs(this.spinVelocity) + Math.abs(this.flipVelocity)), 0.39, 0.57);
         if (!flight.alignment && remaining <= timeToOpen) {
-            const stopTime = timeToOpen * .4;
+            const stopTime = timeToOpen * 0.4;
             const window = landingWindow(this.spin + this.spinVelocity * stopTime, this.flip + this.flipVelocity * stopTime, true);
             flight.alignment = {
                 start: this.airTime - dt,
-                spin: this.spin, spinRate: this.spinVelocity, spinTarget: window.spinTarget,
-                flip: this.flip, flipRate: this.flipVelocity, flipTarget: window.flipTarget,
+                spin: this.spin,
+                spinRate: this.spinVelocity,
+                spinTarget: window.spinTarget,
+                flip: this.flip,
+                flipRate: this.flipVelocity,
+                flipTarget: window.flipTarget,
             };
         }
         const a = flight.alignment;
         if (!a) return false;
-        const elapsed = this.airTime - a.start, duration = flight.duration - a.start;
+        const elapsed = this.airTime - a.start,
+            duration = flight.duration - a.start;
         const spin = approach(a.spin, a.spinRate, a.spinTarget, 0, elapsed, duration);
         const flip = approach(a.flip, a.flipRate, a.flipTarget, 0, elapsed, duration);
         this.spinVelocity = (spin - this.spin) / dt;
@@ -1046,8 +1443,29 @@ export class SnowGame {
         this.flip = flip;
         return true;
     }
-    toast(message: string, score = 0) { this.trick = message; this.trickScore = score; this.toastTimer = 2.7; }
-    bail(message = 'BAIL') { this.parkFlight = undefined; this.jumpPending = false; this.load = 0; this.spinVelocity = 0; this.flipVelocity = 0; this.combo = 1; this.bails++; this.bailTimer = 1; this.ground = true; this.visualGrab = false; this.vy = 0; this.speed = 5; this.railActive = -1; this.toast(message); this.feedback = 'Combo lost'; this.sound(70, .3); }
+    toast(message: string, score = 0) {
+        this.trick = message;
+        this.trickScore = score;
+        this.toastTimer = 2.7;
+    }
+    bail(message = 'BAIL') {
+        this.parkFlight = undefined;
+        this.jumpPending = false;
+        this.load = 0;
+        this.spinVelocity = 0;
+        this.flipVelocity = 0;
+        this.combo = 1;
+        this.bails++;
+        this.bailTimer = 1;
+        this.ground = true;
+        this.visualGrab = false;
+        this.vy = 0;
+        this.speed = 5;
+        this.railActive = -1;
+        this.toast(message);
+        this.feedback = 'Combo lost';
+        this.sound(70, 0.3);
+    }
     land(spinOffset = 0) {
         const guided = this.parkFlight?.alignment;
         if (guided) {
@@ -1060,22 +1478,28 @@ export class SnowGame {
             this.bail('UNDER-ROTATED');
             return false;
         }
-        const spin = this.spin - this.spinOrigin, flip = this.flip - this.flipOrigin;
-        const key = `${completedRotation(spin, Math.PI)}-${this.grabTime > .16 ? this.lastGrabKind : -1}-${completedRotation(flip, TAU)}`;
+        const spin = this.spin - this.spinOrigin,
+            flip = this.flip - this.flipOrigin;
+        const key = `${completedRotation(spin, Math.PI)}-${this.grabTime > 0.16 ? this.lastGrabKind : -1}-${completedRotation(flip, TAU)}`;
         const result = landingScore(spin, flip, this.grabTime, this.airTime, this.repeats.get(key) || 0, this.lastGrabKind);
-        this.tutorial?.event({ type: 'landed', air: this.airTime, rotationDeg: spin * 180 / Math.PI });
+        this.tutorial?.event({ type: 'landed', air: this.airTime, rotationDeg: (spin * 180) / Math.PI });
         const freeDismount = boardAcrossRail(this.spinOrigin) && result.name === 'STRAIGHT AIR';
         if (!freeDismount) this.repeats.set(key, (this.repeats.get(key) || 0) + 1);
-        if (this.airTime > .25 && !freeDismount) {
-            if (this.flowTimer > 0)
-                this.combo = Math.min(5, this.combo + .5);
+        if (this.airTime > 0.25 && !freeDismount) {
+            if (this.flowTimer > 0) this.combo = Math.min(5, this.combo + 0.5);
             const pts = Math.round(result.score * this.combo);
             this.score += pts;
             this.tricks++;
-            this.feedback = guided ? 'PARK LANDING' : window.spinError < .09 && window.flipError < .09 ? 'PERFECT LANDING' : window.spinError > Math.PI / 10 || window.flipError > Math.PI / 10 ? 'ASSISTED LANDING' : 'CLEAN LANDING';
+            this.feedback = guided
+                ? 'PARK LANDING'
+                : window.spinError < 0.09 && window.flipError < 0.09
+                  ? 'PERFECT LANDING'
+                  : window.spinError > Math.PI / 10 || window.flipError > Math.PI / 10
+                    ? 'ASSISTED LANDING'
+                    : 'CLEAN LANDING';
             this.toast(result.name, pts);
             this.flowTimer = 8;
-            this.sound(380, .1);
+            this.sound(380, 0.1);
         }
         // Retain continuous angles (including switch stance) across contact.
         this.ground = true;
@@ -1083,15 +1507,43 @@ export class SnowGame {
         this.spinVelocity = 0;
         this.flipVelocity = 0;
         this.visualGrab = false;
-        this.landingImpact = Math.min(1, .25 + this.airTime * .32);
+        this.landingImpact = Math.min(1, 0.25 + this.airTime * 0.32);
         return true;
     }
-    finish() { this.frames.push(this.snapshot()); this.state = 'result'; const run: Run = { physics: this.reality ? PHYSICS_VERSION : 'classic-0.4', terrainRevision: 5, course: this.course, mode: this.mode, score: this.score, time: this.time, distance: this.d, tricks: this.tricks, bails: this.bails, gates: this.gateCount, totalGates: this.features.length, frames: this.frames }; this.run = run; this.onEnd(run); }
+    finish() {
+        this.frames.push(this.snapshot());
+        this.state = 'result';
+        const run: Run = {
+            physics: this.reality ? PHYSICS_VERSION : 'classic-0.4',
+            terrainRevision: 5,
+            course: this.course,
+            mode: this.mode,
+            score: this.score,
+            time: this.time,
+            distance: this.d,
+            tricks: this.tricks,
+            bails: this.bails,
+            gates: this.gateCount,
+            totalGates: this.features.length,
+            frames: this.frames,
+        };
+        this.run = run;
+        this.onEnd(run);
+    }
     replay(run: Run) {
         this.powder?.clear();
         const revision = run.terrainRevision ?? 1;
-        const classicFeatures = revision < 3, originalKickers = revision === 3, packedSnow = revision < 5;
-        if (this.course.seed !== run.course.seed || this.course.spacing !== run.course.spacing || this.course.rails !== run.course.rails || !!this.course.classicFeatures !== classicFeatures || !!this.course.originalKickers !== originalKickers || !!this.course.packedSnow !== packedSnow) {
+        const classicFeatures = revision < 3,
+            originalKickers = revision === 3,
+            packedSnow = revision < 5;
+        if (
+            this.course.seed !== run.course.seed ||
+            this.course.spacing !== run.course.spacing ||
+            this.course.rails !== run.course.rails ||
+            !!this.course.classicFeatures !== classicFeatures ||
+            !!this.course.originalKickers !== originalKickers ||
+            !!this.course.packedSnow !== packedSnow
+        ) {
             this.course = { ...run.course, classicFeatures, originalKickers, packedSnow };
             this.boardTracks?.clear();
             this.buildWorld();
@@ -1105,92 +1557,158 @@ export class SnowGame {
         this.photo = false;
         this.cameraMode = 0;
     }
-    setReplayTime(t: number) { const time = clamp(t, 0, this.run?.time || 0); if (time !== this.replayTime) this.powder?.clear(); this.replayTime = time; }
-    getHUD(): HUD { return { tutorial: this.tutorial?.hud(), speed: Math.round(this.speed * 3.6), score: this.score, time: this.time, distance: Math.round(this.d), progress: this.d / this.course.length, combo: this.combo, trick: this.toastTimer > 0 ? this.trick : '', trickScore: this.trickScore, feedback: this.feedback, air: !this.ground, gates: this.gateCount, totalGates: this.features.length , ...(this.course.dem ? { altitude: Math.round(this.y), temperature: Math.round(lapseTemperature(this.y, VILLAGE_TEMP[this.settings.weather] ?? -6)) } : {}),
-        ...(this.course.free ? { distance: Math.round(this.freeDistance), descent: Math.round(this.freeDescent), progress: 0, where: this.freeInfo?.where, station: this.freeInfo?.station?.name,
-            nearLifts: this.freeInfo?.nearLifts.map(l => ({ id: l.id, name: l.name, typeLabel: l.typeLabel })) } : {}) }; }
-    tick = () => { this.frameId = requestAnimationFrame(this.tick); const rawDt = this.clock.getDelta(), dt = Math.min(rawDt, .10); if (this.suspended) return; this.pace(rawDt); if (this.state === 'ride') {
-        this.physicsAccumulator += dt;
-        let substeps = 0;
-        while (this.physicsAccumulator >= 1 / 120 && substeps++ < 12) {
-            this.previous = { x: this.x, y: this.y, d: this.d, heading: this.heading, spin: this.spin, flip: this.flip };
-            this.update(1 / 120);
-            this.physicsAccumulator -= 1 / 120;
-            if (this.state !== 'ride')
-                break;
-        }
+    setReplayTime(t: number) {
+        const time = clamp(t, 0, this.run?.time || 0);
+        if (time !== this.replayTime) this.powder?.clear();
+        this.replayTime = time;
     }
-    else
-        this.physicsAccumulator = 0; if (this.state === 'lift') this.updateLift(dt); if (this.freeView && (this.state === 'ride' || this.state === 'pause' || this.state === 'menu')) this.updateFree(dt); if (this.state === 'replay')
-        this.updateReplay(dt);
+    getHUD(): HUD {
+        return {
+            tutorial: this.tutorial?.hud(),
+            speed: Math.round(this.speed * 3.6),
+            score: this.score,
+            time: this.time,
+            distance: Math.round(this.d),
+            progress: this.d / this.course.length,
+            combo: this.combo,
+            trick: this.toastTimer > 0 ? this.trick : '',
+            trickScore: this.trickScore,
+            feedback: this.feedback,
+            air: !this.ground,
+            gates: this.gateCount,
+            totalGates: this.features.length,
+            ...(this.course.dem
+                ? { altitude: Math.round(this.y), temperature: Math.round(lapseTemperature(this.y, VILLAGE_TEMP[this.settings.weather] ?? -6)) }
+                : {}),
+            ...(this.course.free
+                ? {
+                      distance: Math.round(this.freeDistance),
+                      descent: Math.round(this.freeDescent),
+                      progress: 0,
+                      where: this.freeInfo?.where,
+                      station: this.freeInfo?.station?.name,
+                      nearLifts: this.freeInfo?.nearLifts.map(l => ({ id: l.id, name: l.name, typeLabel: l.typeLabel })),
+                  }
+                : {}),
+        };
+    }
+    tick = () => {
+        this.frameId = requestAnimationFrame(this.tick);
+        const rawDt = this.clock.getDelta(),
+            dt = Math.min(rawDt, 0.1);
+        if (this.suspended) return;
+        this.pace(rawDt);
+        if (this.state === 'ride') {
+            this.physicsAccumulator += dt;
+            let substeps = 0;
+            while (this.physicsAccumulator >= 1 / 120 && substeps++ < 12) {
+                this.previous = { x: this.x, y: this.y, d: this.d, heading: this.heading, spin: this.spin, flip: this.flip };
+                this.update(1 / 120);
+                this.physicsAccumulator -= 1 / 120;
+                if (this.state !== 'ride') break;
+            }
+        } else this.physicsAccumulator = 0;
+        if (this.state === 'lift') this.updateLift(dt);
+        if (this.freeView && (this.state === 'ride' || this.state === 'pause' || this.state === 'menu')) this.updateFree(dt);
+        if (this.state === 'replay') this.updateReplay(dt);
         const inspectingGear = this.state === 'garage' && this.garageHost;
         if (inspectingGear) {
             if (this.gearPreview.showsRider) {
                 const headwear = this.gearPreview.view === 'headwear';
-                this.rig.pose({ dt, time: performance.now() * .001, turn: 0, speed: headwear ? 0 : 12, air: false, grab: false, landing: 0, menu: headwear });
+                this.rig.pose({ dt, time: performance.now() * 0.001, turn: 0, speed: headwear ? 0 : 12, air: false, grab: false, landing: 0, menu: headwear });
             }
             this.gearPreview.update(dt);
             // the garage shows the clothes in a light breeze (or the debug wind)
-            updateClothWind(this.debugWind ? this.clothVel.set(-this.debugWind.x, -this.debugWind.y, -this.debugWind.z) : this.clothVel.set(0, 0, 0), this.gearPreview.camera, performance.now() * .001);
+            updateClothWind(
+                this.debugWind ? this.clothVel.set(-this.debugWind.x, -this.debugWind.y, -this.debugWind.z) : this.clothVel.set(0, 0, 0),
+                this.gearPreview.camera,
+                performance.now() * 0.001,
+            );
         } else {
             this.visual(dt);
         }
-        this.soundscape?.update({ volume: this.settings.volume, riding: this.state === 'ride', ground: this.ground, speed: this.speed, edge: this.edgeAngle, slip: this.skidAngle,
-            soft: this.reality?.ctl.soft ?? 0, lift: this.state === 'lift', liftSpeed: this.liftFrame?.speed ?? 0 }, dt);
+        this.soundscape?.update(
+            {
+                volume: this.settings.volume,
+                riding: this.state === 'ride',
+                ground: this.ground,
+                speed: this.speed,
+                edge: this.edgeAngle,
+                slip: this.skidAngle,
+                soft: this.reality?.ctl.soft ?? 0,
+                lift: this.state === 'lift',
+                liftSpeed: this.liftFrame?.speed ?? 0,
+            },
+            dt,
+        );
         if (inspectingGear) this.renderer.render(this.gearPreview.scene, this.gearPreview.camera);
         else this.renderer.render(this.scene, this.camera);
         if (this.diagnostics?.visible) {
-            const r = this.reality, sim = r?.sim;
-            this.diagnostics.frame(dt, { quality: this.settings.quality, renderer: this.renderer, physicsMs: r?.lastTickMs ?? 0, physics: r ? `Reality 960 Hz · ${BOARDS[r.board].name} · ${r.ctl.assist}` : 'Classic 120 Hz',
-                particles: this.powder.activeCount?.() ?? 0, contacts: sim?.diag.contacts ?? 0, speed: this.speed, slip: r ? r.ctl.slipAngle(sim!) : this.skidAngle, edge: sim?.edgeAngle ?? this.edgeAngle,
-                legForce: sim?.legAxial ?? 0, balance: sim?.balanceLoad ?? 0, terrainEvals: r?.terrain.evaluations ?? 0 });
+            const r = this.reality,
+                sim = r?.sim;
+            this.diagnostics.frame(dt, {
+                quality: this.settings.quality,
+                renderer: this.renderer,
+                physicsMs: r?.lastTickMs ?? 0,
+                physics: r ? `Reality 960 Hz · ${BOARDS[r.board].name} · ${r.ctl.assist}` : 'Classic 120 Hz',
+                particles: this.powder.activeCount?.() ?? 0,
+                contacts: sim?.diag.contacts ?? 0,
+                speed: this.speed,
+                slip: r ? r.ctl.slipAngle(sim!) : this.skidAngle,
+                edge: sim?.edgeAngle ?? this.edgeAngle,
+                legForce: sim?.legAxial ?? 0,
+                balance: sim?.balanceLoad ?? 0,
+                terrainEvals: r?.terrain.evaluations ?? 0,
+            });
             if (r) r.terrain.evaluations = 0;
         }
-        this.performanceTime+=dt;this.performanceFrames++;
-        if(this.performanceTime>=1 && this.performanceLabel){
-            this.performanceLabel.textContent=`${this.settings.quality.toUpperCase()} · ${Math.round(this.performanceFrames/this.performanceTime)} FPS · ${this.renderer.domElement.width} × ${this.renderer.domElement.height}`;
-            this.performanceTime=0;this.performanceFrames=0;
+        this.performanceTime += dt;
+        this.performanceFrames++;
+        if (this.performanceTime >= 1 && this.performanceLabel) {
+            this.performanceLabel.textContent = `${this.settings.quality.toUpperCase()} · ${Math.round(this.performanceFrames / this.performanceTime)} FPS · ${this.renderer.domElement.width} × ${this.renderer.domElement.height}`;
+            this.performanceTime = 0;
+            this.performanceFrames = 0;
         }
     };
     update(dt: number) {
-        if (this.reality) { this.updateReality(dt); return; }
+        if (this.reality) {
+            this.updateReality(dt);
+            return;
+        }
         if (this.gesture?.enabled) this.applyGestureKeys();
         this.time += dt;
         this.bailTimer = Math.max(0, this.bailTimer - dt);
         this.flowTimer = Math.max(0, this.flowTimer - dt);
-        if (this.flowTimer === 0)
-            this.combo = 1;
+        if (this.flowTimer === 0) this.combo = 1;
         this.toastTimer = Math.max(0, this.toastTimer - dt);
         const active = (k: string) => this.keys.has(k) || this.touch.has(k);
         let steer = (active('KeyD') || active('ArrowRight') ? 1 : 0) - (active('KeyA') || active('ArrowLeft') ? 1 : 0);
-        let brake = active('KeyS') || active('ArrowDown'), boost = active('KeyW') || active('ArrowUp'), spin = (active('KeyE') ? 1 : 0) - (active('KeyQ') ? 1 : 0), grab = active('ShiftLeft') || active('ShiftRight'), flip = (active('KeyX') ? 1 : 0) - (active('KeyV') ? 1 : 0);
+        let brake = active('KeyS') || active('ArrowDown'),
+            boost = active('KeyW') || active('ArrowUp'),
+            spin = (active('KeyE') ? 1 : 0) - (active('KeyQ') ? 1 : 0),
+            grab = active('ShiftLeft') || active('ShiftRight'),
+            flip = (active('KeyX') ? 1 : 0) - (active('KeyV') ? 1 : 0);
         const pad = Array.from(navigator.getGamepads?.() || []).find(p => p && p.connected);
         if (pad) {
             const ax = pad.axes[0] || 0;
-            steer = Math.abs(ax) > .12 ? ax : steer;
+            steer = Math.abs(ax) > 0.12 ? ax : steer;
             brake ||= !!pad.buttons[6]?.pressed;
             boost ||= !!pad.buttons[7]?.pressed;
             grab ||= !!pad.buttons[4]?.pressed;
-            spin = Math.abs(pad.axes[2] || 0) > .2 ? pad.axes[2] : spin;
-            if (pad.buttons[2]?.pressed)
-                flip = 1;
+            spin = Math.abs(pad.axes[2] || 0) > 0.2 ? pad.axes[2] : spin;
+            if (pad.buttons[2]?.pressed) flip = 1;
             const jump = pad.buttons[0]?.pressed;
-            if (jump && !this.keys.has('PadJump'))
-                this.prepareJump();
-            if (!jump && this.keys.has('PadJump'))
-                this.jumpReleased = true;
-            if (jump)
-                this.keys.add('PadJump');
-            else
-                this.keys.delete('PadJump');
+            if (jump && !this.keys.has('PadJump')) this.prepareJump();
+            if (!jump && this.keys.has('PadJump')) this.jumpReleased = true;
+            if (jump) this.keys.add('PadJump');
+            else this.keys.delete('PadJump');
             if (pad.buttons[9]?.pressed && !this.keys.has('PadPause')) {
                 this.keys.add('PadPause');
                 this.state = 'pause';
                 this.onPause();
                 return;
             }
-            if (!pad.buttons[9]?.pressed)
-                this.keys.delete('PadPause');
+            if (!pad.buttons[9]?.pressed) this.keys.delete('PadPause');
         }
         this.spinInput = spin;
         this.visualTuck = !!boost;
@@ -1200,43 +1718,42 @@ export class SnowGame {
         const kickerCenter = center(kicker.base + (this.course.classicFeatures ? 12 : kicker.profile.lip), this.course) + (kicker.x ?? 0);
         const onApproach = kicker.exists && this.d < lipD && Math.abs(this.x - kickerCenter) < kicker.profile.width + 1;
         if (this.jumpPending) {
-            this.load = Math.min(1, this.load + dt / .38);
+            this.load = Math.min(1, this.load + dt / 0.38);
             const bufferAtLip = this.settings.autoLand && onApproach && lipD - this.d < 6 && this.speed > 8;
-            if (this.jumpReleased && this.load >= .28 && !bufferAtLip)
-                this.jump(2.4 + this.load * 1.4);
-        }
-        else
-            this.load = 0;
-        if (this.bailTimer > 0)
-            steer = 0;
+            if (this.jumpReleased && this.load >= 0.28 && !bufferAtLip) this.jump(2.4 + this.load * 1.4);
+        } else this.load = 0;
+        if (this.bailTimer > 0) steer = 0;
         this.steerSpring ??= { value: 0, velocity: 0 };
         this.steerFilter = springStep(this.steerSpring, steer, 3.2, dt);
         if (this.ground) {
             const rail = this.rails[this.railActive];
-            const powder = rail ? 0 : T.MathUtils.smoothstep(snowDepth(this.x, this.d, this.course), .055, .50);
+            const powder = rail ? 0 : T.MathUtils.smoothstep(snowDepth(this.x, this.d, this.course), 0.055, 0.5);
             const grade = rail?.slope ?? pathSlope(this.x, this.d, 0, this.course);
             const crossGrade = rail ? 0 : pathSlope(this.x, this.d, Math.PI / 2, this.course);
             const normalGravity = GRAVITY / Math.hypot(1, grade, crossGrade);
-            const grip = normalGravity * T.MathUtils.lerp(.94, .54, powder);
-            const fallLine = clamp(Math.atan2(-crossGrade, Math.max(.22, -grade)), -.34, .34);
+            const grip = normalGravity * T.MathUtils.lerp(0.94, 0.54, powder);
+            const fallLine = clamp(Math.atan2(-crossGrade, Math.max(0.22, -grade)), -0.34, 0.34);
             const edge = this.steerFilter;
             // A flatter board drifts toward the fall line. An edged board can
             // turn only as fast as the snow can push it sideways.
-            const alignment = Math.sin(fallLine - this.heading) * Math.min(this.speed * .54, 8) * (1 - .4 * Math.abs(edge));
+            const alignment = Math.sin(fallLine - this.heading) * Math.min(this.speed * 0.54, 8) * (1 - 0.4 * Math.abs(edge));
             const turnForce = clamp(edge * grip + alignment, -grip, grip);
-            this.heading = clamp(this.heading + turnForce / Math.max(3.5, this.speed) * dt, -1.1, 1.1);
-            this.edgeAngle = T.MathUtils.damp(this.edgeAngle ?? 0, clamp(Math.atan2(turnForce, normalGravity), -.61, .61), 10, dt);
-            const skidDirection = Math.abs(edge) > .15 ? Math.sign(edge) : Math.sign(this.skidAngle || this.heading || 1);
-            const skidTarget = brake ? skidDirection * .77 : edge * (.07 + .16 * powder);
+            this.heading = clamp(this.heading + (turnForce / Math.max(3.5, this.speed)) * dt, -1.1, 1.1);
+            this.edgeAngle = T.MathUtils.damp(this.edgeAngle ?? 0, clamp(Math.atan2(turnForce, normalGravity), -0.61, 0.61), 10, dt);
+            const skidDirection = Math.abs(edge) > 0.15 ? Math.sign(edge) : Math.sign(this.skidAngle || this.heading || 1);
+            const skidTarget = brake ? skidDirection * 0.77 : edge * (0.07 + 0.16 * powder);
             this.skidAngle = T.MathUtils.damp(this.skidAngle ?? 0, skidTarget, 9, dt);
-            const brakeGrip = brake ? .39 + .45 * Math.abs(Math.sin(this.skidAngle)) : 0;
+            const brakeGrip = brake ? 0.39 + 0.45 * Math.abs(Math.sin(this.skidAngle)) : 0;
             const slope = rail?.slope ?? grade * Math.cos(this.heading) + crossGrade * Math.sin(this.heading);
             this.speed = Math.max(0, this.speed + groundAcceleration(slope, this.speed, boost, brakeGrip, edge, powder) * dt);
         } else {
             this.edgeAngle = T.MathUtils.damp(this.edgeAngle ?? 0, 0, 8, dt);
             this.skidAngle = T.MathUtils.damp(this.skidAngle ?? 0, 0, 8, dt);
         }
-        const oldD = this.d, oldY = this.y, oldX = this.x, previousRail = this.railActive;
+        const oldD = this.d,
+            oldY = this.y,
+            oldX = this.x,
+            previousRail = this.railActive;
         this.railActive = -1;
         let airStep = dt;
         this.d += (this.parkFlight?.downhillSpeed ?? this.speed * Math.cos(this.heading)) * dt;
@@ -1246,15 +1763,14 @@ export class SnowGame {
         let floor = supportHeight(this.x, this.d, this.course, this.speed);
         if (this.ground && previousRail >= 0) {
             const rail = this.rails[previousRail];
-            if (rail && this.d <= rail.end && Math.abs(this.heading) <= .24) {
+            if (rail && this.d <= rail.end && Math.abs(this.heading) <= 0.24) {
                 this.railActive = previousRail;
             } else {
                 this.jump(0);
                 if (rail) this.vy = rail.slope * this.speed * Math.cos(this.heading);
             }
         }
-        if (this.ground && !this.jumpPending && onApproach)
-            this.load = rampAt(this.d, this.x, this.course) / kicker.profile.rise * .65;
+        if (this.ground && !this.jumpPending && onApproach) this.load = (rampAt(this.d, this.x, this.course) / kicker.profile.rise) * 0.65;
         if (this.ground && previousRail < 0 && this.bailTimer === 0 && onApproach && this.d >= lipD) {
             const fraction = (lipD - oldD) / (this.d - oldD);
             const lipX = T.MathUtils.lerp(oldX, this.x, fraction);
@@ -1267,35 +1783,34 @@ export class SnowGame {
         }
         if (this.ground) {
             this.y = floor;
-            const spinStep = (this.rails[this.railActive]?.width ?? 0) >= .65 ? Math.PI / 2 : Math.PI;
+            const spinStep = (this.rails[this.railActive]?.width ?? 0) >= 0.65 ? Math.PI / 2 : Math.PI;
             this.spin = T.MathUtils.damp(this.spin, Math.round(this.spin / spinStep) * spinStep, 12, dt);
             this.flip = T.MathUtils.damp(this.flip, Math.round(this.flip / TAU) * TAU, 12, dt);
             this.pop = 0;
             this.extension = 0;
             this.visualGrab = false;
-        }
-        else if (airStep > 0) {
+        } else if (airStep > 0) {
             this.airTime += airStep;
             const flight = this.parkFlight;
             const gap = Math.max(0, this.y - floor);
-            const touchdown = flight ? Math.max(0, flight.duration - this.airTime)
+            const touchdown = flight
+                ? Math.max(0, flight.duration - this.airTime)
                 : landingTime(gap, this.vy - this.speed * pathSlope(this.x, this.d, this.heading, this.course));
             const phase = airPhase(this.airTime, touchdown);
             this.pop = phase.pop;
             this.extension = phase.extension;
-            this.visualGrab = !!grab && this.airTime > .12 && this.extension < .5;
+            this.visualGrab = !!grab && this.airTime > 0.12 && this.extension < 0.5;
             if (this.visualGrab && this.grabLocked < 0) {
                 this.grabLocked = this.grabKind;
                 this.lastGrabKind = this.grabKind;
             }
-            if (!grab)
-                this.grabLocked = -1;
+            if (!grab) this.grabLocked = -1;
             // A boardslide comes off the box across the direction of travel. Open the
             // hips toward the nearest rideable stance before the short drop ends.
-            const unwinding = boardAcrossRail(this.spinOrigin) && this.airTime - airStep < .23;
+            const unwinding = boardAcrossRail(this.spinOrigin) && this.airTime - airStep < 0.23;
             if (unwinding) {
                 const target = Math.round(this.spinOrigin / Math.PI) * Math.PI;
-                const angle = T.MathUtils.lerp(this.spinOrigin, target, T.MathUtils.smoothstep(this.airTime, 0, .23));
+                const angle = T.MathUtils.lerp(this.spinOrigin, target, T.MathUtils.smoothstep(this.airTime, 0, 0.23));
                 this.spinVelocity = (angle - this.spin) / airStep;
                 this.spin = angle;
             } else if (!flight || !this.alignParkLanding(flight, airStep)) {
@@ -1307,16 +1822,19 @@ export class SnowGame {
                 this.flip += inversion.angle;
             }
             this.grabContactTime = this.visualGrab ? this.grabContactTime + airStep : 0;
-            if (this.grabContactTime > .22)
-                this.grabTime += airStep;
-            this.y += this.vy * airStep - .5 * GRAVITY * airStep * airStep;
+            if (this.grabContactTime > 0.22) this.grabTime += airStep;
+            this.y += this.vy * airStep - 0.5 * GRAVITY * airStep * airStep;
             this.vy -= GRAVITY * airStep;
             const assist = this.settings.assist || this.mode === 'training';
-            const parallel = Math.abs(this.heading) <= .28 && landingWindow(this.spin, this.flip, assist).valid;
-            const across = Math.abs(this.heading) <= .42 && landingWindow(this.spin - Math.PI / 2, this.flip, assist).valid;
-            const caughtRail = !flight && this.bailTimer === 0 && (parallel || across) ? this.rails.findIndex((rail, i) =>
-                i !== previousRail && (parallel || rail.width >= .65) && crossesRail(rail, { x: oldX, d: oldD, y: oldY }, this, airStep),
-            ) : -1;
+            const parallel = Math.abs(this.heading) <= 0.28 && landingWindow(this.spin, this.flip, assist).valid;
+            const across = Math.abs(this.heading) <= 0.42 && landingWindow(this.spin - Math.PI / 2, this.flip, assist).valid;
+            const caughtRail =
+                !flight && this.bailTimer === 0 && (parallel || across)
+                    ? this.rails.findIndex(
+                          (rail, i) =>
+                              i !== previousRail && (parallel || rail.width >= 0.65) && crossesRail(rail, { x: oldX, d: oldD, y: oldY }, this, airStep),
+                      )
+                    : -1;
             if (caughtRail >= 0) {
                 this.land(parallel ? 0 : Math.PI / 2);
                 this.speed *= Math.cos(this.heading);
@@ -1335,29 +1853,29 @@ export class SnowGame {
                 if (impact > HARD_LANDING_SPEED) this.bail('HARD LANDING');
                 else if (this.land()) {
                     // Redirect velocity along the landing face, absorbing the normal impact.
-                    this.landingImpact = clamp(impact / HARD_LANDING_SPEED, .12, 1);
-                    const along = incomingSpeed - impact * forwardSlope / normalLength;
-                    const across = -impact * crossSlope / normalLength;
-                    this.speed = Math.hypot(along, across) * (1 - Math.min(.24, impact * .02));
-                    this.heading = incomingHeading + Math.atan2(across, Math.max(.01, along));
+                    this.landingImpact = clamp(impact / HARD_LANDING_SPEED, 0.12, 1);
+                    const along = incomingSpeed - (impact * forwardSlope) / normalLength;
+                    const across = (-impact * crossSlope) / normalLength;
+                    this.speed = Math.hypot(along, across) * (1 - Math.min(0.24, impact * 0.02));
+                    this.heading = incomingHeading + Math.atan2(across, Math.max(0.01, along));
                 }
             }
         }
         const rail = this.rails[this.railActive];
         if (rail) {
             const boardslide = boardAcrossRail(this.spin);
-            const deckHalfWidth = rail.width * .42;
+            const deckHalfWidth = rail.width * 0.42;
             this.x = clamp(this.x, rail.x - deckHalfWidth, rail.x + deckHalfWidth);
             this.y = railRideHeight(rail, this.d);
             this.railTime += dt;
             this.feedback = `${boardslide ? 'BOARDSLIDE' : '50–50'} · ${rail.name}`;
-            if (!this.railDone.has(this.railActive) && this.d > rail.end - 1 && this.railTime >= .16) {
+            if (!this.railDone.has(this.railActive) && this.d > rail.end - 1 && this.railTime >= 0.16) {
                 const pts = Math.round(((boardslide ? 240 : 180) + this.railTime * 170) * this.combo);
                 this.score += pts;
                 this.tricks++;
                 this.railDone.add(this.railActive);
                 this.flowTimer = 8;
-                this.combo = Math.min(5, this.combo + .5);
+                this.combo = Math.min(5, this.combo + 0.5);
                 this.toast(boardslide ? 'BOARDSLIDE' : '50–50 GRIND', pts);
             }
         } else {
@@ -1375,14 +1893,31 @@ export class SnowGame {
     /** Gates, snow tracks, replay frames, HUD and the finish line: shared by both physics models. */
     /** Interactive tutorial (free ride from Les Ruinettes); see tutorial.ts. */
     tutorial?: Tutorial;
-    startTutorial() { this.tutorial = new Tutorial(); this.feedback = 'Tutorial: follow the card'; }
-    endTutorial() { this.tutorial = undefined; }
+    startTutorial() {
+        this.tutorial = new Tutorial();
+        this.feedback = 'Tutorial: follow the card';
+    }
+    endTutorial() {
+        this.tutorial = undefined;
+    }
     private tutorialTick(dt: number, onLift = false) {
-        const t = this.tutorial; if (!t) return;
+        const t = this.tutorial;
+        if (!t) return;
         const r = this.reality;
-        t.update({ dt, speed: this.speed, steer: r ? this.intent.steer : this.steerFilter, brake: r ? this.intent.brake : (this.keys.has('KeyS') || this.keys.has('ArrowDown') ? 1 : 0),
-            tuck: r ? this.intent.tuck : this.visualTuck, ground: this.ground, riding: this.state === 'ride' && !(r?.crashed), onLift });
-        if (t.justDone) { this.toast(t.finished ? 'TUTORIAL COMPLETE' : `DONE · ${t.justDone.title.toUpperCase()}`); this.sound(520, .12); }
+        t.update({
+            dt,
+            speed: this.speed,
+            steer: r ? this.intent.steer : this.steerFilter,
+            brake: r ? this.intent.brake : this.keys.has('KeyS') || this.keys.has('ArrowDown') ? 1 : 0,
+            tuck: r ? this.intent.tuck : this.visualTuck,
+            ground: this.ground,
+            riding: this.state === 'ride' && !r?.crashed,
+            onLift,
+        });
+        if (t.justDone) {
+            this.toast(t.finished ? 'TUTORIAL COMPLETE' : `DONE · ${t.justDone.title.toUpperCase()}`);
+            this.sound(520, 0.12);
+        }
     }
     bookkeeping(dt: number) {
         this.tutorialTick(dt);
@@ -1395,15 +1930,17 @@ export class SnowGame {
                     this.score += 100;
                     this.toast('GATE CLEARED', 100);
                 }
-            }
-            else if (this.mode === 'time-trial')
-                this.toast('MISSED GATE');
+            } else if (this.mode === 'time-trial') this.toast('MISSED GATE');
         }
         if (this.boardTracks) {
-            if (this.ground && this.railActive < 0 && this.bailTimer === 0 && this.speed > .25) {
+            if (this.ground && this.railActive < 0 && this.bailTimer === 0 && this.speed > 0.25) {
                 this.boardTracks.record({
-                    x: this.x, d: this.d, heading: this.heading, edgeAngle: this.edgeAngle,
-                    skidAngle: this.skidAngle, depth: snowDepth(this.x, this.d, this.course),
+                    x: this.x,
+                    d: this.d,
+                    heading: this.heading,
+                    edgeAngle: this.edgeAngle,
+                    skidAngle: this.skidAngle,
+                    depth: snowDepth(this.x, this.d, this.course),
                 });
             } else {
                 this.boardTracks.breakTrail();
@@ -1415,19 +1952,23 @@ export class SnowGame {
             this.recordTimer -= 1 / 60;
         }
         this.hudTimer += dt;
-        if (this.hudTimer > .1) {
+        if (this.hudTimer > 0.1) {
             this.onHUD(this.getHUD());
             this.hudTimer = 0;
         }
-        if (!this.course.free && (this.d >= this.course.length - 10 || this.time > (this.reality ? 600 : 240)))
-            this.finish();
+        if (!this.course.free && (this.d >= this.course.length - 10 || this.time > (this.reality ? 600 : 240))) this.finish();
     }
     /** Rider intent from keyboard, touch and gamepad (Reality physics). Input expresses intent; the simulation decides. */
     readIntent(dt: number): RiderIntent {
         const active = (k: string) => this.keys.has(k) || this.touch.has(k);
         const s = this.settings;
-        const pad = readGamepad({ deadzone: s.padDeadzone ?? .12, curve: s.padCurve ?? 1.5, sensitivity: s.padSensitivity ?? 1, invertLean: !!s.invertLean });
-        const latch = (name: string, on: boolean) => { const was = this.padLatch.has(name); if (on) this.padLatch.add(name); else this.padLatch.delete(name); return on && !was; };
+        const pad = readGamepad({ deadzone: s.padDeadzone ?? 0.12, curve: s.padCurve ?? 1.5, sensitivity: s.padSensitivity ?? 1, invertLean: !!s.invertLean });
+        const latch = (name: string, on: boolean) => {
+            const was = this.padLatch.has(name);
+            if (on) this.padLatch.add(name);
+            else this.padLatch.delete(name);
+            return on && !was;
+        };
         const keySteer = (this.keys.has('KeyD') || active('ArrowRight') ? 1 : 0) - (this.keys.has('KeyA') || active('ArrowLeft') ? 1 : 0);
         // Keys ramp over ~0.2 s, the time a rider takes to roll from flat to a committed edge.
         this.keySteer += clamp(keySteer - this.keySteer, -dt * 5, dt * 5);
@@ -1443,8 +1984,12 @@ export class SnowGame {
         i.grab = active('ShiftLeft') || active('ShiftRight') || !!pad?.lb || !!pad?.rb;
         const gz = this.gesture;
         if (gz?.enabled && !(pad && (pad.lx || pad.ly))) {
-            i.steer = gz.steer; i.lean = gz.lean; i.tuck = i.tuck || gz.tuck; i.brake = Math.max(i.brake, gz.brake);
-            i.wind = gz.wind || i.wind; i.flip = gz.flip || i.flip;
+            i.steer = gz.steer;
+            i.lean = gz.lean;
+            i.tuck = i.tuck || gz.tuck;
+            i.brake = Math.max(i.brake, gz.brake);
+            i.wind = gz.wind || i.wind;
+            i.flip = gz.flip || i.flip;
             if (gz.fingers > 0) {
                 if (gz.startedInAir || !this.ground) {
                     i.grab = true;
@@ -1459,31 +2004,47 @@ export class SnowGame {
             if (latch('right', pad.right)) this.realityGrab = (this.realityGrab + 1) % GRABS.length;
             if (latch('up', pad.up)) this.cameraMode = (this.cameraMode + 1) % 3;
             if (latch('select', pad.select)) this.resetMarker();
-            if (latch('start', pad.start)) { this.state = 'pause'; this.keys.clear(); this.onPause(); }
+            if (latch('start', pad.start)) {
+                this.state = 'pause';
+                this.keys.clear();
+                this.onPause();
+            }
         } else this.padLatch.clear();
         return i;
     }
     /** Copy the simulation state into the game's shared fields (HUD, camera, tracks, replay recording). */
     syncReality(dt: number) {
-        const ride = this.reality!, sim = ride.sim;
-        this.x = ride.x; this.d = ride.d; this.y = ride.y; this.speed = ride.speed; this.vy = ride.vy;
-        this.heading = ride.heading; this.ground = ride.ground; this.airTime = ride.tricks.airTime;
+        const ride = this.reality!,
+            sim = ride.sim;
+        this.x = ride.x;
+        this.d = ride.d;
+        this.y = ride.y;
+        this.speed = ride.speed;
+        this.vy = ride.vy;
+        this.heading = ride.heading;
+        this.ground = ride.ground;
+        this.airTime = ride.tricks.airTime;
         this.edgeAngle = ride.crashed ? 0 : sim.edgeAngle;
         this.skidAngle = ride.crashed ? 0 : clamp(ride.ctl.slipAngle(sim), -1.4, 1.4);
         this.steerFilter = this.intent.steer;
-        this.visualGrab = ride.tricks.grabbing; this.visualTuck = this.intent.tuck;
-        this.grabKind = this.realityGrab; this.grabLocked = this.visualGrab ? this.realityGrab : -1;
+        this.visualGrab = ride.tricks.grabbing;
+        this.visualTuck = this.intent.tuck;
+        this.grabKind = this.realityGrab;
+        this.grabLocked = this.visualGrab ? this.realityGrab : -1;
         this.load = clamp(ride.compression, 0, 1);
         this.pop = ride.ctl.pop === 'extend' ? 1 : Math.max(0, this.pop - dt * 4);
-        this.spinVelocity = ride.crashed ? 0 : sim.board.w.y; this.flipVelocity = 0; this.spinInput = this.intent.wind;
+        this.spinVelocity = ride.crashed ? 0 : sim.board.w.y;
+        this.flipVelocity = 0;
+        this.spinInput = this.intent.wind;
         this.bailTimer = ride.crashed ? 1 : 0;
         this.crashVisual = ride.crashed ? ride.crashTime : 0;
         // Leg force above body weight shows as landing compression in the rig.
         const legLoad = clamp((sim.legAxial - 1600) / 2600, 0, 1);
         this.landingImpact = ride.ground ? Math.max(this.landingImpact - dt * 2.6, legLoad) : Math.max(0, this.landingImpact - dt * 2.6);
         // Air: extension rises as the ground approaches (landing preparation in the rig).
-        const gap = ride.ctl.gapBelow(sim), fall = Math.max(.5, -sim.board.v.y);
-        this.extension = ride.ground ? 0 : 1 - T.MathUtils.smoothstep(gap / fall, .15, .55);
+        const gap = ride.ctl.gapBelow(sim),
+            fall = Math.max(0.5, -sim.board.v.y);
+        this.extension = ride.ground ? 0 : 1 - T.MathUtils.smoothstep(gap / fall, 0.15, 0.55);
         // The rig's lead foot: regular riders have their left foot toward the board's +x end in the simulation frame.
         const regular = (this.settings.stance ?? 'regular') === 'regular';
         this.spin = (regular ? ride.ctl.travelSign > 0 : ride.ctl.travelSign < 0) ? Math.PI : 0;
@@ -1491,7 +2052,7 @@ export class SnowGame {
         const q = sim.board.q;
         this.renderQ.set(q.x, q.y, q.z, q.w);
         if (regular) this.renderQ.multiply(RIG_FLIP);
-        this.railActive = sim.railContacts > 0 ? this.rails.findIndex(r => this.d >= r.d - .5 && this.d <= r.end + .5 && Math.abs(this.x - r.x) < 1.3) : -1;
+        this.railActive = sim.railContacts > 0 ? this.rails.findIndex(r => this.d >= r.d - 0.5 && this.d <= r.end + 0.5 && Math.abs(this.x - r.x) < 1.3) : -1;
     }
     updateReality(dt: number) {
         const ride = this.reality!;
@@ -1503,78 +2064,127 @@ export class SnowGame {
         if (this.state !== 'ride') return;
         this.previous = { x: this.x, y: this.y, d: this.d, heading: this.heading, spin: this.spin, flip: this.flip };
         this.prevRenderQ.copy(this.renderQ);
-        const events = this.realityEvents; events.length = 0;
+        const events = this.realityEvents;
+        events.length = 0;
         ride.tick(intent, GRABS[this.realityGrab].id, events);
         // Trees and rocks are solid: hitting one stops the body.
-        if (!ride.crashed) for (const o of this.obstacles) {
-            if (hitObstacle(o, ride.x, ride.d, ride.y - height(ride.x, ride.d, this.course))) {
-                const kind = 'kind' in o ? o.kind : o.r > 2 ? 'ROCK STRIKE' : 'TREE STRIKE';
-                ride.crash(kind, .15);
-                events.push({ type: 'crash', kind });
-                break;
+        if (!ride.crashed)
+            for (const o of this.obstacles) {
+                if (hitObstacle(o, ride.x, ride.d, ride.y - height(ride.x, ride.d, this.course))) {
+                    const kind = 'kind' in o ? o.kind : o.r > 2 ? 'ROCK STRIKE' : 'TREE STRIKE';
+                    ride.crash(kind, 0.15);
+                    events.push({ type: 'crash', kind });
+                    break;
+                }
             }
-        }
         for (const e of events) this.onRealityEvent(e);
         this.syncReality(dt);
         this.bookkeeping(dt);
     }
     onRealityEvent(e: FreestyleEvent) {
-        if (e.type === 'takeoff') { if (e.kind === 'ollie' || e.kind === 'nollie') this.sound(e.kind === 'ollie' ? 160 : 190); this.feedback = e.kind === 'nollie' ? 'NOLLIE' : e.kind === 'ollie' ? 'OLLIE' : ''; return; }
+        if (e.type === 'takeoff') {
+            if (e.kind === 'ollie' || e.kind === 'nollie') this.sound(e.kind === 'ollie' ? 160 : 190);
+            this.feedback = e.kind === 'nollie' ? 'NOLLIE' : e.kind === 'ollie' ? 'OLLIE' : '';
+            return;
+        }
         if (e.type === 'landed') this.tutorial?.event({ type: 'landed', air: e.air, rotationDeg: e.rotationDeg });
-        if (e.type === 'crash') { this.combo = 1; this.bails++; this.toast(e.kind); this.feedback = 'Combo lost'; this.sound(70, .3); return; }
+        if (e.type === 'crash') {
+            this.combo = 1;
+            this.bails++;
+            this.toast(e.kind);
+            this.feedback = 'Combo lost';
+            this.sound(70, 0.3);
+            return;
+        }
         const pts = Math.round(e.score * this.combo);
         if (e.type === 'landed') {
             this.feedback = `${e.landing} · ${e.air.toFixed(2)} s air`;
-            if (e.air < .3 && e.spinDeg === 0 && !e.grab) return;
+            if (e.air < 0.3 && e.spinDeg === 0 && !e.grab) return;
         } else this.feedback = `${e.name} · ${e.time.toFixed(1)} s`;
-        if (this.flowTimer > 0) this.combo = Math.min(5, this.combo + .5);
-        this.score += pts; this.tricks++; this.flowTimer = 8;
-        this.toast(e.name, pts); this.sound(380, .1);
+        if (this.flowTimer > 0) this.combo = Math.min(5, this.combo + 0.5);
+        this.score += pts;
+        this.tricks++;
+        this.flowTimer = 8;
+        this.toast(e.name, pts);
+        this.sound(380, 0.1);
     }
-    snapshot(): Frame { return { t: this.time, x: this.x, d: this.d, y: this.y, heading: this.heading, spin: this.spin, flip: this.flip, grab: this.visualGrab, tuck: this.visualTuck, speed: this.speed, vy: this.vy, airTime: this.airTime, ground: this.ground, load: this.load, pop: this.pop, extension: this.extension, landing: this.landingImpact, spinVelocity: this.spinVelocity, flipVelocity: this.flipVelocity, grabKind: this.grabLocked >= 0 ? this.grabLocked : this.grabKind, rail: this.railActive >= 0, spinInput: this.spinInput, edge: this.steerFilter, edgeAngle: this.edgeAngle, skidAngle: this.skidAngle, landingPitch: this.parkFlight?.landingPitch, landingSpin: this.parkFlight?.alignment?.spinTarget, ...(this.reality ? { q: [this.renderQ.x, this.renderQ.y, this.renderQ.z, this.renderQ.w] as [number, number, number, number], crouch: this.load, crashed: this.reality.crashed || undefined } : {}) }; }
+    snapshot(): Frame {
+        return {
+            t: this.time,
+            x: this.x,
+            d: this.d,
+            y: this.y,
+            heading: this.heading,
+            spin: this.spin,
+            flip: this.flip,
+            grab: this.visualGrab,
+            tuck: this.visualTuck,
+            speed: this.speed,
+            vy: this.vy,
+            airTime: this.airTime,
+            ground: this.ground,
+            load: this.load,
+            pop: this.pop,
+            extension: this.extension,
+            landing: this.landingImpact,
+            spinVelocity: this.spinVelocity,
+            flipVelocity: this.flipVelocity,
+            grabKind: this.grabLocked >= 0 ? this.grabLocked : this.grabKind,
+            rail: this.railActive >= 0,
+            spinInput: this.spinInput,
+            edge: this.steerFilter,
+            edgeAngle: this.edgeAngle,
+            skidAngle: this.skidAngle,
+            landingPitch: this.parkFlight?.landingPitch,
+            landingSpin: this.parkFlight?.alignment?.spinTarget,
+            ...(this.reality
+                ? {
+                      q: [this.renderQ.x, this.renderQ.y, this.renderQ.z, this.renderQ.w] as [number, number, number, number],
+                      crouch: this.load,
+                      crashed: this.reality.crashed || undefined,
+                  }
+                : {}),
+        };
+    }
     updateReplay(dt: number) {
         const frames = this.run?.frames;
-        if (!frames?.length)
-            return;
-        if (this.replayPlaying && !this.photo)
-            this.replayTime += dt;
+        if (!frames?.length) return;
+        if (this.replayPlaying && !this.photo) this.replayTime += dt;
         if (this.replayTime > frames[frames.length - 1].t) {
             this.replayTime = frames[frames.length - 1].t;
             this.replayPlaying = false;
         }
-        let lo = 0, hi = frames.length - 1;
+        let lo = 0,
+            hi = frames.length - 1;
         while (lo < hi) {
             const mid = Math.floor((lo + hi) / 2);
-            if (frames[mid].t < this.replayTime)
-                lo = mid + 1;
-            else
-                hi = mid;
+            if (frames[mid].t < this.replayTime) lo = mid + 1;
+            else hi = mid;
         }
-        const b = frames[lo], a = frames[Math.max(0, lo - 1)], mix = clamp((this.replayTime - a.t) / Math.max(.001, b.t - a.t), 0, 1);
-        for (const key of ['x', 'd', 'y', 'heading', 'spin', 'flip'] as const)
-            this[key] = T.MathUtils.lerp(a[key], b[key], mix);
-        if (!this.run?.terrainRevision)
-            this.y += bankRise(this.x, this.d, this.course) - bankRise(this.x, this.d, this.course, true);
+        const b = frames[lo],
+            a = frames[Math.max(0, lo - 1)],
+            mix = clamp((this.replayTime - a.t) / Math.max(0.001, b.t - a.t), 0, 1);
+        for (const key of ['x', 'd', 'y', 'heading', 'spin', 'flip'] as const) this[key] = T.MathUtils.lerp(a[key], b[key], mix);
+        if (!this.run?.terrainRevision) this.y += bankRise(this.x, this.d, this.course) - bankRise(this.x, this.d, this.course, true);
         for (const key of ['speed', 'vy', 'airTime', 'load', 'pop', 'extension', 'spinVelocity', 'flipVelocity', 'spinInput'] as const)
             this[key] = T.MathUtils.lerp(a[key] ?? 0, b[key] ?? 0, mix);
         this.steerFilter = T.MathUtils.lerp(a.edge ?? clamp(a.heading, -1, 1), b.edge ?? clamp(b.heading, -1, 1), mix);
-        this.edgeAngle = T.MathUtils.lerp(a.edgeAngle ?? (a.edge ?? a.heading) * .26, b.edgeAngle ?? (b.edge ?? b.heading) * .26, mix);
+        this.edgeAngle = T.MathUtils.lerp(a.edgeAngle ?? (a.edge ?? a.heading) * 0.26, b.edgeAngle ?? (b.edge ?? b.heading) * 0.26, mix);
         this.skidAngle = T.MathUtils.lerp(a.skidAngle ?? 0, b.skidAngle ?? 0, mix);
         const landingPitch = a.landingPitch ?? b.landingPitch;
-        this.replayLandingPitch = landingPitch === undefined ? undefined
-            : T.MathUtils.lerp(landingPitch, b.landingPitch ?? landingPitch, mix);
-        this.replayLandingSpin = (mix < .5 ? a : b).landingSpin;
+        this.replayLandingPitch = landingPitch === undefined ? undefined : T.MathUtils.lerp(landingPitch, b.landingPitch ?? landingPitch, mix);
+        this.replayLandingSpin = (mix < 0.5 ? a : b).landingSpin;
         this.landingImpact = T.MathUtils.lerp(a.landing ?? 0, b.landing ?? 0, mix);
         this.time = this.replayTime;
-        const discrete = mix < .5 ? a : b;
+        const discrete = mix < 0.5 ? a : b;
         this.visualGrab = !!discrete.grab;
         this.visualTuck = !!discrete.tuck;
         this.grabKind = discrete.grabKind ?? 0;
         this.grabLocked = this.visualGrab ? this.grabKind : -1;
-        this.railActive = discrete.rail ? this.rails.findIndex(rail =>
-            this.d >= rail.d - .5 && this.d <= rail.end + .5 && Math.abs(this.x - rail.x) < 1,
-        ) : -1;
-        this.ground = discrete.ground ?? (Math.abs(this.y - height(this.x, this.d, this.course)) < .3);
+        this.railActive = discrete.rail
+            ? this.rails.findIndex(rail => this.d >= rail.d - 0.5 && this.d <= rail.end + 0.5 && Math.abs(this.x - rail.x) < 1)
+            : -1;
+        this.ground = discrete.ground ?? Math.abs(this.y - height(this.x, this.d, this.course)) < 0.3;
         this.replayHasQ = !!(a.q && b.q);
         if (a.q && b.q) {
             this.renderQ.fromArray(a.q).slerp(new T.Quaternion().fromArray(b.q), mix);
@@ -1588,40 +2198,55 @@ export class SnowGame {
         if (this.state === 'lift') this.visualLift(dt);
         else if (menu) {
             this.rider.position.set(center(0, this.course), height(center(0, this.course), 0, this.course), 0);
-            this.body.quaternion.slerp(new T.Quaternion().setFromEuler(new T.Euler(0, .18, 0)), 1 - Math.exp(-dt * 8));
-            this.rig.pose({ dt, time: performance.now() * .001, turn: 0, speed: 0, air: false, grab: false, landing: 0, menu: true });
-            const t = performance.now() * .00007;
+            this.body.quaternion.slerp(new T.Quaternion().setFromEuler(new T.Euler(0, 0.18, 0)), 1 - Math.exp(-dt * 8));
+            this.rig.pose({ dt, time: performance.now() * 0.001, turn: 0, speed: 0, air: false, grab: false, landing: 0, menu: true });
+            const t = performance.now() * 0.00007;
             const close = this.state === 'garage';
             const target = new T.Vector3(this.rider.position.x + (close ? 0 : -7), this.rider.position.y + (close ? 1.1 : 2), close ? 0 : -12);
-            const pos = new T.Vector3(this.rider.position.x + (close ? 2.6 : 13) + Math.sin(t) * 2, this.rider.position.y + (close ? 1.65 : 5), close ? 3.7 : 18);
+            const pos = new T.Vector3(
+                this.rider.position.x + (close ? 2.6 : 13) + Math.sin(t) * 2,
+                this.rider.position.y + (close ? 1.65 : 5),
+                close ? 3.7 : 18,
+            );
             this.camera.position.lerp(pos, 1 - Math.exp(-dt * 2));
             this.camera.lookAt(target);
-        }
-        else {
-            const alpha = this.state === 'ride' ? clamp(this.physicsAccumulator * 120, 0, 1) : 1, prev = this.previous;
-            const rx = prev ? T.MathUtils.lerp(prev.x, this.x, alpha) : this.x, ry = prev ? T.MathUtils.lerp(prev.y, this.y, alpha) : this.y, rd = prev ? T.MathUtils.lerp(prev.d, this.d, alpha) : this.d, rh = prev ? T.MathUtils.lerp(prev.heading, this.heading, alpha) : this.heading;
+        } else {
+            const alpha = this.state === 'ride' ? clamp(this.physicsAccumulator * 120, 0, 1) : 1,
+                prev = this.previous;
+            const rx = prev ? T.MathUtils.lerp(prev.x, this.x, alpha) : this.x,
+                ry = prev ? T.MathUtils.lerp(prev.y, this.y, alpha) : this.y,
+                rd = prev ? T.MathUtils.lerp(prev.d, this.d, alpha) : this.d,
+                rh = prev ? T.MathUtils.lerp(prev.heading, this.heading, alpha) : this.heading;
             this.rider.position.set(rx, ry, -rd);
             this.rider.rotation.set(0, 0, 0);
             const blendAngle = (a: number, b: number) => T.MathUtils.lerp(a, b, alpha);
-            const rs = prev && !this.reality ? blendAngle(prev.spin, this.spin) : this.spin, rf = prev ? blendAngle(prev.flip, this.flip) : this.flip;
+            const rs = prev && !this.reality ? blendAngle(prev.spin, this.spin) : this.spin,
+                rf = prev ? blendAngle(prev.flip, this.flip) : this.flip;
             const rail = this.rails[this.railActive];
             const realityView = (this.state === 'ride' && !!this.reality) || (this.state === 'replay' && this.replayHasQ);
-            const normal = rail ? new T.Vector3(0, 1, rail.slope).normalize()
-                : new T.Vector3(-(height(rx + .4, rd, this.course) - height(rx - .4, rd, this.course)) / .8, 1, (height(rx, rd + .4, this.course) - height(rx, rd - .4, this.course)) / .8).normalize();
+            const normal = rail
+                ? new T.Vector3(0, 1, rail.slope).normalize()
+                : new T.Vector3(
+                      -(height(rx + 0.4, rd, this.course) - height(rx - 0.4, rd, this.course)) / 0.8,
+                      1,
+                      (height(rx, rd + 0.4, this.course) - height(rx, rd - 0.4, this.course)) / 0.8,
+                  ).normalize();
             const worldEdge = rail ? 0 : this.edgeAngle;
             const edgeRoll = worldEdge * Math.cos(rs);
-            if (this.ground && !realityView) this.rider.position.addScaledVector(normal, Math.abs(Math.sin(edgeRoll)) * BOARD_WAIST_M * .48);
-            const takeoffPitch = clamp(Math.atan2(this.vy, Math.max(1, this.speed)), -.42, .50);
+            if (this.ground && !realityView) this.rider.position.addScaledVector(normal, Math.abs(Math.sin(edgeRoll)) * BOARD_WAIST_M * 0.48);
+            const takeoffPitch = clamp(Math.atan2(this.vy, Math.max(1, this.speed)), -0.42, 0.5);
             const savedPitch = this.state === 'replay' ? this.replayLandingPitch : this.parkFlight?.landingPitch;
             const slopePitch = savedPitch ?? Math.atan(pathSlope(rx, rd, rh, this.course));
-            const pitch = T.MathUtils.lerp(takeoffPitch * (.25 + .75 * this.pop), slopePitch, this.extension);
+            const pitch = T.MathUtils.lerp(takeoffPitch * (0.25 + 0.75 * this.pop), slopePitch, this.extension);
             const targetRotation = this.ground
-                ? new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), normal)
-                    .multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), Math.PI / 2 - rh - this.skidAngle + rs))
-                    .multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), edgeRoll))
-                : new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), -rh - this.skidAngle)
-                    .multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), rf + pitch))
-                    .multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), Math.PI / 2 + rs));
+                ? new T.Quaternion()
+                      .setFromUnitVectors(new T.Vector3(0, 1, 0), normal)
+                      .multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), Math.PI / 2 - rh - this.skidAngle + rs))
+                      .multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), edgeRoll))
+                : new T.Quaternion()
+                      .setFromAxisAngle(new T.Vector3(0, 1, 0), -rh - this.skidAngle)
+                      .multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), rf + pitch))
+                      .multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), Math.PI / 2 + rs));
             if (realityView) {
                 // The board's orientation IS the simulation's: no smoothing toward a target, only interpolation between
                 // the last two 120 Hz states.
@@ -1630,68 +2255,142 @@ export class SnowGame {
                     // Falling (not a ragdoll): the body goes onto its side, and while it slides fast it tumbles, log-rolling
                     // about the slide direction (a somersault after a nose dive), turning about its centre so it stays on
                     // the snow, then comes to rest on its back or front. Limbs splay out (rig pose).
-                    if (this.crashVisual < .03) { this.crashRoll = 0; this.crashRollRate = 0; this.crashPitch = this.reality?.crashKind === 'NOSE DIVE'; }
-                    const target = this.speed > 5 ? Math.min(9, (this.speed - 4) / .55) : 0;
+                    if (this.crashVisual < 0.03) {
+                        this.crashRoll = 0;
+                        this.crashRollRate = 0;
+                        this.crashPitch = this.reality?.crashKind === 'NOSE DIVE';
+                    }
+                    const target = this.speed > 5 ? Math.min(9, (this.speed - 4) / 0.55) : 0;
                     this.crashRollRate = T.MathUtils.damp(this.crashRollRate, target, 4, dt);
                     this.crashRoll += this.crashRollRate * dt;
                     if (target === 0) this.crashRoll = T.MathUtils.damp(this.crashRoll, Math.round(this.crashRoll / Math.PI) * Math.PI, 3, dt);
                     const settle = Math.min(1, (this.crashVisual || 1) * 2.4);
-                    const along = new T.Vector3(Math.cos(rh), 0, Math.sin(rh)), across = new T.Vector3(-Math.sin(rh), 0, Math.cos(rh));
+                    const along = new T.Vector3(Math.cos(rh), 0, Math.sin(rh)),
+                        across = new T.Vector3(-Math.sin(rh), 0, Math.cos(rh));
                     q.premultiply(new T.Quaternion().setFromAxisAngle(along, settle * 1.35 + (this.crashPitch ? 0 : this.crashRoll)));
                     if (this.crashPitch) q.premultiply(new T.Quaternion().setFromAxisAngle(across, this.crashRoll));
-                    const c = new T.Vector3(0, .62, 0);
-                    this.body.position.copy(normal).multiplyScalar(T.MathUtils.lerp(.62, .3, settle)).sub(c.applyQuaternion(q));
+                    const c = new T.Vector3(0, 0.62, 0);
+                    this.body.position
+                        .copy(normal)
+                        .multiplyScalar(T.MathUtils.lerp(0.62, 0.3, settle))
+                        .sub(c.applyQuaternion(q));
                 } else if (this.body.position.lengthSq() > 0) this.body.position.set(0, 0, 0);
                 this.body.quaternion.copy(q);
-                const turnEdge = clamp(this.edgeAngle * (this.reality?.ctl.travelSign ?? 1) / .61, -1, 1);
+                const turnEdge = clamp((this.edgeAngle * (this.reality?.ctl.travelSign ?? 1)) / 0.61, -1, 1);
                 // Body mechanics from the simulation: lateral acceleration (speed x yaw rate) in g, snow softness, fore/aft press.
-                const rr = this.reality, bv = rr?.sim.board.v;
-                const carveG = rr && this.ground && bv ? Math.sign(turnEdge) * Math.min(2, Math.hypot(bv.x, bv.z) * Math.abs(rr.sim.board.w.y) / 9.81) : 0;
+                const rr = this.reality,
+                    bv = rr?.sim.board.v;
+                const carveG = rr && this.ground && bv ? Math.sign(turnEdge) * Math.min(2, (Math.hypot(bv.x, bv.z) * Math.abs(rr.sim.board.w.y)) / 9.81) : 0;
                 const regular = (this.settings.stance ?? 'regular') === 'regular';
-                const press = rr ? clamp(rr.ctl.cmd.copX / .12, -1, 1) * (regular ? -1 : 1) : 0;
-                this.rig.pose({ skate: Math.abs(rr?.ctl.cmd.skate ?? 0), crash: this.bailTimer > 0 ? 1 : 0, tumble: this.crashRollRate, carveG, soft: rr?.ctl.soft ?? 0, press, dt, time: this.time, turn: rh, edge: turnEdge, speed: this.speed, air: !this.ground, grab: this.visualGrab, landing: this.landingImpact, menu: false, tuck: this.visualTuck, load: this.load, pop: this.pop, extension: this.extension, spinVelocity: this.spinVelocity, flipVelocity: 0, spin: rs, landingSpin: rs, grabKind: this.grabLocked >= 0 ? this.grabLocked : this.grabKind, rail: this.railActive >= 0, spinInput: this.spinInput });
+                const press = rr ? clamp(rr.ctl.cmd.copX / 0.12, -1, 1) * (regular ? -1 : 1) : 0;
+                this.rig.pose({
+                    skate: Math.abs(rr?.ctl.cmd.skate ?? 0),
+                    crash: this.bailTimer > 0 ? 1 : 0,
+                    tumble: this.crashRollRate,
+                    carveG,
+                    soft: rr?.ctl.soft ?? 0,
+                    press,
+                    dt,
+                    time: this.time,
+                    turn: rh,
+                    edge: turnEdge,
+                    speed: this.speed,
+                    air: !this.ground,
+                    grab: this.visualGrab,
+                    landing: this.landingImpact,
+                    menu: false,
+                    tuck: this.visualTuck,
+                    load: this.load,
+                    pop: this.pop,
+                    extension: this.extension,
+                    spinVelocity: this.spinVelocity,
+                    flipVelocity: 0,
+                    spin: rs,
+                    landingSpin: rs,
+                    grabKind: this.grabLocked >= 0 ? this.grabLocked : this.grabKind,
+                    rail: this.railActive >= 0,
+                    spinInput: this.spinInput,
+                });
             } else {
-            if (this.bailTimer > 0)
-                targetRotation.multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 0, 1), 1.4));
-            this.body.quaternion.slerp(targetRotation, 1 - Math.exp(-dt * (this.ground ? 20 : 48)));
-            const landingSpin = this.state === 'replay' ? this.replayLandingSpin : this.parkFlight?.alignment?.spinTarget;
-            this.rig.pose({ dt, time: this.time, turn: rh, edge: worldEdge / .61, speed: this.speed, air: !this.ground, grab: this.visualGrab, landing: this.landingImpact, menu: false, tuck: this.visualTuck, load: this.load, pop: this.pop, extension: this.extension, spinVelocity: this.spinVelocity, flipVelocity: this.flipVelocity, spin: rs, landingSpin, grabKind: this.grabLocked >= 0 ? this.grabLocked : this.grabKind, rail: this.railActive >= 0, spinInput: this.spinInput });
+                if (this.bailTimer > 0) targetRotation.multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 0, 1), 1.4));
+                this.body.quaternion.slerp(targetRotation, 1 - Math.exp(-dt * (this.ground ? 20 : 48)));
+                const landingSpin = this.state === 'replay' ? this.replayLandingSpin : this.parkFlight?.alignment?.spinTarget;
+                this.rig.pose({
+                    dt,
+                    time: this.time,
+                    turn: rh,
+                    edge: worldEdge / 0.61,
+                    speed: this.speed,
+                    air: !this.ground,
+                    grab: this.visualGrab,
+                    landing: this.landingImpact,
+                    menu: false,
+                    tuck: this.visualTuck,
+                    load: this.load,
+                    pop: this.pop,
+                    extension: this.extension,
+                    spinVelocity: this.spinVelocity,
+                    flipVelocity: this.flipVelocity,
+                    spin: rs,
+                    landingSpin,
+                    grabKind: this.grabLocked >= 0 ? this.grabLocked : this.grabKind,
+                    rail: this.railActive >= 0,
+                    spinInput: this.spinInput,
+                });
             }
             const angle = this.photo ? this.photoAngle : this.cameraMode === 2 ? 1.3 : 0;
             const chase = this.cameraMode === 0 && !this.photo;
-            const airtimeView = this.ground ? 0 : T.MathUtils.smoothstep(this.airTime, .08, .75) * (1 - this.extension);
-            const radius = this.photo ? 12 : this.cameraMode === 1 ? .2
-                : chase ? CHASE_DISTANCE + (this.speed - 12) * .046 + airtimeView * 1.55 : 7.8 + this.speed * .06 + airtimeView * 1.8;
-            const eyeHeight = this.cameraMode === 1 && !this.photo ? 1.7 : (chase ? CHASE_HEIGHT : 3) - .64 * airtimeView;
+            const airtimeView = this.ground ? 0 : T.MathUtils.smoothstep(this.airTime, 0.08, 0.75) * (1 - this.extension);
+            const radius = this.photo
+                ? 12
+                : this.cameraMode === 1
+                  ? 0.2
+                  : chase
+                    ? CHASE_DISTANCE + (this.speed - 12) * 0.046 + airtimeView * 1.55
+                    : 7.8 + this.speed * 0.06 + airtimeView * 1.8;
+            const eyeHeight = this.cameraMode === 1 && !this.photo ? 1.7 : (chase ? CHASE_HEIGHT : 3) - 0.64 * airtimeView;
             const orbit = angle - rh;
             const pos = new T.Vector3(rx + Math.sin(orbit) * radius, ry + eyeHeight, -rd + Math.cos(orbit) * radius);
             const lookAhead = this.cameraMode === 1 ? 18 : (chase ? 5.15 : 8) - 2.2 * airtimeView;
-            const look = new T.Vector3(rx + Math.sin(rh) * lookAhead, ry + 1.05 - .45 * this.extension, -rd - Math.cos(rh) * lookAhead);
+            const look = new T.Vector3(rx + Math.sin(rh) * lookAhead, ry + 1.05 - 0.45 * this.extension, -rd - Math.cos(rh) * lookAhead);
             if (this.state === 'replay' || this.photo) {
                 this.camera.position.lerp(pos, 1 - Math.exp(-dt * 7));
                 this.cameraFocus.lerp(look, 1 - Math.exp(-dt * 7));
                 this.cameraSpring.reset(this.camera.position);
                 this.focusSpring.reset(this.cameraFocus);
-            }
-            else {
+            } else {
                 this.cameraSpring.step(pos, 2.1, dt, this.camera.position);
                 this.focusSpring.step(look, 2.2, dt, this.cameraFocus);
             }
-            this.camera.position.y=Math.max(this.camera.position.y,height(this.camera.position.x,-this.camera.position.z,this.course)+1.2);
+            this.camera.position.y = Math.max(this.camera.position.y, height(this.camera.position.x, -this.camera.position.z, this.course) + 1.2);
             this.camera.lookAt(this.cameraFocus);
             this.rider.visible = this.cameraMode !== 1 || this.photo;
-            const desired = this.settings.fov + (this.settings.motion ? this.speed * .14 : 0), fov = T.MathUtils.damp(this.camera.fov, desired, 3, dt);
-            if (Math.abs(this.camera.fov - fov) > .01) {
+            const desired = this.settings.fov + (this.settings.motion ? this.speed * 0.14 : 0),
+                fov = T.MathUtils.damp(this.camera.fov, desired, 3, dt);
+            if (Math.abs(this.camera.fov - fov) > 0.01) {
                 this.camera.fov = fov;
                 this.camera.updateProjectionMatrix();
             }
             if (this.state === 'ride' || (this.state === 'replay' && this.replayPlaying && !this.photo)) {
                 const grounded = this.ground && !rail;
-                this.powder.update(dt, {
-                    x: rx, y: grounded ? height(rx, rd, this.course) : ry, z: -rd, heading: rh, speed: this.speed,
-                    edge: this.edgeAngle / .61, skid: this.skidAngle, depth: grounded ? snowDepth(rx, rd, this.course) : 0,
-                    landing: this.landingImpact, slopeX: -normal.x / normal.y, slopeZ: -normal.z / normal.y, grounded,
-                }, this.renderer.domElement.height);
+                this.powder.update(
+                    dt,
+                    {
+                        x: rx,
+                        y: grounded ? height(rx, rd, this.course) : ry,
+                        z: -rd,
+                        heading: rh,
+                        speed: this.speed,
+                        edge: this.edgeAngle / 0.61,
+                        skid: this.skidAngle,
+                        depth: grounded ? snowDepth(rx, rd, this.course) : 0,
+                        landing: this.landingImpact,
+                        slopeX: -normal.x / normal.y,
+                        slopeZ: -normal.z / normal.y,
+                        grounded,
+                    },
+                    this.renderer.domElement.height,
+                );
             }
         }
         if (menu) {
@@ -1702,19 +2401,22 @@ export class SnowGame {
             for (let i = 0; i < 400; i++) {
                 const j = i * 3;
                 this.snowPositions[j + 1] -= dt * 3;
-                if (this.snowPositions[j + 1] < 0)
-                    this.snowPositions[j + 1] = 45;
+                if (this.snowPositions[j + 1] < 0) this.snowPositions[j + 1] = 45;
             }
             this.snow.geometry.attributes.position.needsUpdate = true;
         }
         // wind on the clothes: the rider's own motion through the air (from the drawn position) plus a light breeze
         if (dt > 0) {
             const v = this.clothVel.copy(this.rider.position).sub(this.clothLast).divideScalar(dt);
-            if (v.lengthSq() > 60 * 60) v.set(0, 0, 0);          // a teleport (start, reset, lift), not motion
+            if (v.lengthSq() > 60 * 60) v.set(0, 0, 0); // a teleport (start, reset, lift), not motion
             this.clothSmooth.lerp(v, 1 - Math.exp(-dt * 6));
             this.clothLast.copy(this.rider.position);
         }
-        updateClothWind(this.debugWind ? this.clothVel.set(-this.debugWind.x, -this.debugWind.y, -this.debugWind.z) : this.clothSmooth, this.camera, performance.now() * .001);
+        updateClothWind(
+            this.debugWind ? this.clothVel.set(-this.debugWind.x, -this.debugWind.y, -this.debugWind.z) : this.clothSmooth,
+            this.camera,
+            performance.now() * 0.001,
+        );
         const sun = this.scene.getObjectByName('sun') as T.DirectionalLight;
         this.sky.position.copy(this.camera.position);
         sun.position.copy(this.rider.position).add(this.settings.weather === 'dusk' ? DUSK_LIGHT : DAYLIGHT);
@@ -1723,26 +2425,35 @@ export class SnowGame {
     }
     // ---- frame pacing: automatic resolution and the benchmark ---------------------------------------------------------------
     /** Current automatic resolution factor (1 = the chosen resolution). */
-    autoScale = 1; private frameEma = 16; private scaleTimer = 0;
+    autoScale = 1;
+    private frameEma = 16;
+    private scaleTimer = 0;
     private bench?: { t: number; seconds: number; frames: number[]; done: (r: BenchResult) => void; warm: number };
-    private basePixelRatio() { return Math.min(devicePixelRatio, preset(this.settings.quality).pixel) * (this.settings.renderScale ?? 1); }
+    private basePixelRatio() {
+        return Math.min(devicePixelRatio, preset(this.settings.quality).pixel) * (this.settings.renderScale ?? 1);
+    }
     private pace(raw: number) {
-        if (raw <= 0 || raw > 1) return;                       // tab switch or stall: not a measure of rendering
-        this.frameEma += (raw * 1000 - this.frameEma) * .05;
+        if (raw <= 0 || raw > 1) return; // tab switch or stall: not a measure of rendering
+        this.frameEma += (raw * 1000 - this.frameEma) * 0.05;
         if (this.freeView) this.freeView.budgetMs = this.frameEma > 26 ? 2.5 : 4;
         this.scaleTimer += raw;
         const live = this.state === 'ride' || this.state === 'lift' || this.state === 'replay';
         if (this.settings.autoResolution !== false && live && this.scaleTimer > 1.5) {
             this.scaleTimer = 0;
             const before = this.autoScale;
-            if (this.frameEma > 26) this.autoScale = Math.max(.55, this.autoScale - .1);           // under ~38 fps: lower
-            else if (this.frameEma < 15 && this.autoScale < 1) this.autoScale = Math.min(1, this.autoScale + .05);   // over ~66 fps: raise
+            if (this.frameEma > 26)
+                this.autoScale = Math.max(0.55, this.autoScale - 0.1); // under ~38 fps: lower
+            else if (this.frameEma < 15 && this.autoScale < 1) this.autoScale = Math.min(1, this.autoScale + 0.05); // over ~66 fps: raise
             if (this.autoScale !== before) this.renderer.setPixelRatio(this.basePixelRatio() * this.autoScale);
         }
         if (this.bench) {
             const b = this.bench;
-            if (b.warm > 0) { b.warm -= raw; return; }
-            b.frames.push(raw * 1000); b.t += raw;
+            if (b.warm > 0) {
+                b.warm -= raw;
+                return;
+            }
+            b.frames.push(raw * 1000);
+            b.t += raw;
             if (b.t >= b.seconds) this.finishBenchmark();
         }
     }
@@ -1753,28 +2464,40 @@ export class SnowGame {
     startBenchmark(seconds: number, done: (r: BenchResult) => void) {
         (this as unknown as { readIntent: (dt: number) => RiderIntent }).readIntent = (_dt: number) => {
             const t = this.time;
-            Object.assign(this.intent, IDLE_INTENT, { steer: Math.sin(t * .9) * .55, brake: this.speed > 15 ? .6 : 0, tuck: this.speed < 3 });
+            Object.assign(this.intent, IDLE_INTENT, { steer: Math.sin(t * 0.9) * 0.55, brake: this.speed > 15 ? 0.6 : 0, tuck: this.speed < 3 });
             return this.intent;
         };
         this.bench = { t: 0, seconds, frames: [], done, warm: 2 };
     }
     private finishBenchmark() {
-        const b = this.bench!; this.bench = undefined;
+        const b = this.bench!;
+        this.bench = undefined;
         delete (this as unknown as { readIntent?: unknown }).readIntent;
-        const sorted = [...b.frames].sort((a, c) => a - c), n = sorted.length;
+        const sorted = [...b.frames].sort((a, c) => a - c),
+            n = sorted.length;
         const total = b.frames.reduce((a, c) => a + c, 0);
-        const p99 = sorted[Math.min(n - 1, Math.floor(n * .99))];
-        const gl = this.renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info');
+        const p99 = sorted[Math.min(n - 1, Math.floor(n * 0.99))];
+        const gl = this.renderer.getContext(),
+            ext = gl.getExtension('WEBGL_debug_renderer_info');
         b.done({
-            seconds: Math.round(total / 1000), frames: n, avgFps: +(n / (total / 1000)).toFixed(1), low1Fps: +(1000 / p99).toFixed(1), worstMs: Math.round(sorted[n - 1]),
-            quality: this.settings.quality, resolution: `${this.renderer.domElement.width}x${this.renderer.domElement.height}`, autoScale: +this.autoScale.toFixed(2),
-            gpu: ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : String(gl.getParameter(gl.RENDERER)), userAgent: navigator.userAgent,
+            seconds: Math.round(total / 1000),
+            frames: n,
+            avgFps: +(n / (total / 1000)).toFixed(1),
+            low1Fps: +(1000 / p99).toFixed(1),
+            worstMs: Math.round(sorted[n - 1]),
+            quality: this.settings.quality,
+            resolution: `${this.renderer.domElement.width}x${this.renderer.domElement.height}`,
+            autoScale: +this.autoScale.toFixed(2),
+            gpu: ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : String(gl.getParameter(gl.RENDERER)),
+            userAgent: navigator.userAgent,
         });
     }
     // ---- free ride --------------------------------------------------------------------------------------------------------
     /** Downhill direction at a point, as the yaw that place() expects (board pointing down the fall line). */
     fallLineYaw(x: number, d: number) {
-        const c = this.course, gx = height(x + 2, d, c) - height(x - 2, d, c), gd = height(x, d + 2, c) - height(x, d - 2, c);
+        const c = this.course,
+            gx = height(x + 2, d, c) - height(x - 2, d, c),
+            gd = height(x, d + 2, c) - height(x, d - 2, c);
         // downhill = -gradient in (x, d), i.e. world (x, z) = (-gx, +gd); the sim's yaw turns +x toward -z: yaw = atan2(-wz, wx)
         return Math.atan2(-gd, -gx);
     }
@@ -1784,120 +2507,275 @@ export class SnowGame {
      * player (a lift, the map, the menu).
      */
     startFree(e: number, n: number, mode: Mode = 'freeride') {
-        const r = resortLoaded(); if (!r) throw new Error('resort not loaded');
+        const r = resortLoaded();
+        if (!r) throw new Error('resort not loaded');
         surfaceMap ??= new SurfaceMap(r);
-        const sm = surfaceMap, run = new FreeTerrain(Math.round(e), Math.round(n), (we, wn) => sm.at(we, wn));
+        const sm = surfaceMap,
+            run = new FreeTerrain(Math.round(e), Math.round(n), (we, wn) => sm.at(we, wn));
         setFreeTerrain(run);
-        this.lift?.dispose(); this.lift = undefined;
+        this.lift?.dispose();
+        this.lift = undefined;
         this.freeStart = { x: e - Math.round(e), d: n - Math.round(n), yaw: 0 };
-        this.course = FREE_COURSE;            // so that height() below reads the free terrain
+        this.course = FREE_COURSE; // so that height() below reads the free terrain
         this.freeStart.yaw = this.fallLineYaw(this.freeStart.x, this.freeStart.d);
         this.setCourse(FREE_COURSE);
-        this.freeDistance = 0; this.freeDescent = 0; this.freeInfoTimer = 0; this.freeLast = undefined;
+        this.freeDistance = 0;
+        this.freeDescent = 0;
+        this.freeInfoTimer = 0;
+        this.freeLast = undefined;
         this.suspended = false;
         this.start(mode);
         this.freeInfo = this.freeView?.info(this.x, this.d, 0);
     }
     /** World position (LV95) of the rider in free ride. */
-    freeWorld() { const run = this.freeView?.run; return run ? run.world(this.x, this.d) : undefined; }
+    freeWorld() {
+        const run = this.freeView?.run;
+        return run ? run.world(this.x, this.d) : undefined;
+    }
     private updateFree(dt: number) {
         const v = this.freeView!;
         v.update(this.x, this.d, dt);
         this.obstacles = v.obstacles;
         const step = this.freeLast ? Math.hypot(this.x - this.freeLast.x, this.d - this.freeLast.d) : 0;
-        if (this.state === 'ride' && step < 20) { this.freeDistance += step; if (this.freeLast && this.freeLast.y > this.y) this.freeDescent += this.freeLast.y - this.y; }
+        if (this.state === 'ride' && step < 20) {
+            this.freeDistance += step;
+            if (this.freeLast && this.freeLast.y > this.y) this.freeDescent += this.freeLast.y - this.y;
+        }
         this.freeLast = { x: this.x, d: this.d, y: this.y };
         this.freeInfoTimer -= dt;
-        if (this.freeInfoTimer <= 0) { this.freeInfoTimer = .3; this.freeInfo = v.info(this.x, this.d, this.speed); }
+        if (this.freeInfoTimer <= 0) {
+            this.freeInfoTimer = 0.3;
+            this.freeInfo = v.info(this.x, this.d, this.speed);
+        }
     }
     // ---- lifts ----------------------------------------------------------------------------------------------------------
     /** Ride a lift in the game world. The course must be liftCourse(lift) and its terrain loaded (loadLift). */
     startLift(liftId: string, course: Course, multiplier = 4) {
         this.tutorialTick(0, true);
-        this.lift?.dispose(); this.lift = undefined;
+        this.lift?.dispose();
+        this.lift = undefined;
         this.setCourse(course);
-        const run = verbierRun(course.dem!), courseLift = run.h.lifts.find(l => l.id === liftId);
+        const run = verbierRun(course.dem!),
+            courseLift = run.h.lifts.find(l => l.id === liftId);
         if (!courseLift) throw new Error(`lift ${liftId} is not on its own course`);
         this.lift = new LiftRide(courseLift, (x, d) => height(x, d, course), this.settings.quality);
         this.lift.multiplier = multiplier;
         this.world.add(this.lift.group);
-        if (!this.liftRope) { this.liftRope = new T.Mesh(new T.CylinderGeometry(.015, .015, 1, 6), new T.MeshStandardMaterial({ color: 0x24292d, roughness: .6 })); this.scene.add(this.liftRope); }
+        if (!this.liftRope) {
+            this.liftRope = new T.Mesh(new T.CylinderGeometry(0.015, 0.015, 1, 6), new T.MeshStandardMaterial({ color: 0x24292d, roughness: 0.6 }));
+            this.scene.add(this.liftRope);
+        }
         this.liftRope.visible = false;
-        this.reality = undefined; this.powder.clear(); this.boardTracks.clear();
-        this.liftId = liftId; this.liftEnded = false; this.state = 'lift'; this.time = 0; this.cameraMode = 0; this.photo = false;
+        this.reality = undefined;
+        this.powder.clear();
+        this.boardTracks.clear();
+        this.liftId = liftId;
+        this.liftEnded = false;
+        this.state = 'lift';
+        this.time = 0;
+        this.cameraMode = 0;
+        this.photo = false;
         this.liftFrame = this.lift.update(0);
-        this.camera.position.copy(this.liftFrame.root).add(new T.Vector3(0, 3, 0)).addScaledVector(this.liftFrame.dir, -8);
-        this.cameraFocus.copy(this.liftFrame.root); this.cameraSpring.reset(this.camera.position); this.focusSpring.reset(this.cameraFocus);
+        this.camera.position
+            .copy(this.liftFrame.root)
+            .add(new T.Vector3(0, 3, 0))
+            .addScaledVector(this.liftFrame.dir, -8);
+        this.cameraFocus.copy(this.liftFrame.root);
+        this.cameraSpring.reset(this.camera.position);
+        this.focusSpring.reset(this.cameraFocus);
         this.clock.getDelta();
     }
-    setLiftSpeed(multiplier: number) { if (this.lift) this.lift.multiplier = multiplier; }
-    skipLift() { this.lift?.skip(); }
+    setLiftSpeed(multiplier: number) {
+        if (this.lift) this.lift.multiplier = multiplier;
+    }
+    skipLift() {
+        this.lift?.skip();
+    }
     /** For the lift HUD. */
     liftStatus() {
-        const f = this.liftFrame, l = this.lift; if (!f || !l) return undefined;
-        return { phase: f.phase, kind: f.kind, progress: f.progress, elevation: Math.round(f.elevation), remainingReal: Math.round(f.remainingReal), multiplier: l.multiplier, kmh: Math.round(f.speed * 3.6), rideSeconds: Math.round(l.rideSeconds) };
+        const f = this.liftFrame,
+            l = this.lift;
+        if (!f || !l) return undefined;
+        return {
+            phase: f.phase,
+            kind: f.kind,
+            progress: f.progress,
+            elevation: Math.round(f.elevation),
+            remainingReal: Math.round(f.remainingReal),
+            multiplier: l.multiplier,
+            kmh: Math.round(f.speed * 3.6),
+            rideSeconds: Math.round(l.rideSeconds),
+        };
     }
     private updateLift(dt: number) {
         if (!this.lift) return;
         this.time += dt;
         this.liftFrame = this.lift.update(dt);
         // a clunk each time the rider's vehicle crosses a tower
-        const prof = this.lift.profile, sNow = this.liftFrame.phase === 'ride' ? this.liftFrame.progress * prof.length : -1;
-        if (this.soundscape && this.liftS >= 0 && sNow > this.liftS && this.settings.volume > 0 && prof.heads.some(h => !h.station && h.s > this.liftS && h.s <= sNow)) this.soundscape.clunk(this.settings.volume);
+        const prof = this.lift.profile,
+            sNow = this.liftFrame.phase === 'ride' ? this.liftFrame.progress * prof.length : -1;
+        if (
+            this.soundscape &&
+            this.liftS >= 0 &&
+            sNow > this.liftS &&
+            this.settings.volume > 0 &&
+            prof.heads.some(h => !h.station && h.s > this.liftS && h.s <= sNow)
+        )
+            this.soundscape.clunk(this.settings.volume);
         this.liftS = sNow;
-        if (this.liftFrame.phase === 'done' && !this.liftEnded) { this.liftEnded = true; this.onLiftEnd(this.liftId!); }
+        if (this.liftFrame.phase === 'done' && !this.liftEnded) {
+            this.liftEnded = true;
+            this.onLiftEnd(this.liftId!);
+        }
     }
     private visualLift(dt: number) {
-        const f = this.liftFrame; if (!f) return;
-        const up = new T.Vector3(0, 1, 0), right = new T.Vector3(-f.dir.z, 0, f.dir.x);
-        this.rider.position.copy(f.root); this.d = -f.root.z;
+        const f = this.liftFrame;
+        if (!f) return;
+        const up = new T.Vector3(0, 1, 0),
+            right = new T.Vector3(-f.dir.z, 0, f.dir.x);
+        this.rider.position.copy(f.root);
+        this.d = -f.root.z;
         const q = new T.Quaternion();
         if (f.pose === 'tow') {
             // towed on the snow: the board points up the track, flat on the slope
-            const x = f.root.x, d = -f.root.z, c = this.course;
-            const n = new T.Vector3(-(height(x + .4, d, c) - height(x - .4, d, c)) / .8, 1, (height(x, d + .4, c) - height(x, d - .4, c)) / .8).normalize();
+            const x = f.root.x,
+                d = -f.root.z,
+                c = this.course;
+            const n = new T.Vector3(
+                -(height(x + 0.4, d, c) - height(x - 0.4, d, c)) / 0.8,
+                1,
+                (height(x, d + 0.4, c) - height(x, d - 0.4, c)) / 0.8,
+            ).normalize();
             q.setFromUnitVectors(up, n).multiply(new T.Quaternion().setFromAxisAngle(up, Math.atan2(-f.dir.z, f.dir.x)));
         } else q.setFromAxisAngle(up, Math.atan2(-f.dir.x, -f.dir.z)).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), f.swing));
         this.body.quaternion.slerp(q, f.phase === 'ride' ? 1 : 1 - Math.exp(-dt * 10));
         this.rider.updateMatrixWorld(true);
         if (f.pose === 'tow') {
-            const towing = f.bar > .5;
-            const handWorld = f.root.clone().add(new T.Vector3(0, 1.25, 0)).addScaledVector(f.dir, .15);
+            const towing = f.bar > 0.5;
+            const handWorld = f.root
+                .clone()
+                .add(new T.Vector3(0, 1.25, 0))
+                .addScaledVector(f.dir, 0.15);
             const hold = towing ? this.body.worldToLocal(handWorld.clone()) : undefined;
             this.rig.pose({ dt, time: this.time, turn: 0, edge: 0, speed: towing ? 3 : 0, air: false, grab: false, landing: 0, menu: !towing, hold });
             if (this.liftRope) {
                 this.rider.updateMatrixWorld(true);
-                const hand = new T.Vector3(); (this.rig.hands[0].position.distanceTo(this.body.worldToLocal(handWorld.clone())) < this.rig.hands[1].position.distanceTo(this.body.worldToLocal(handWorld.clone())) ? this.rig.hands[0] : this.rig.hands[1]).getWorldPosition(hand);
+                const hand = new T.Vector3();
+                (this.rig.hands[0].position.distanceTo(this.body.worldToLocal(handWorld.clone())) <
+                this.rig.hands[1].position.distanceTo(this.body.worldToLocal(handWorld.clone()))
+                    ? this.rig.hands[0]
+                    : this.rig.hands[1]
+                ).getWorldPosition(hand);
                 const top = towing ? f.cable : f.cable.clone().add(new T.Vector3(0, -1.8, 0));
                 const bottom = towing ? hand : f.cable.clone().add(new T.Vector3(0, -1.8, 0));
-                this.liftRope.visible = towing; this.liftRope.position.copy(top).add(bottom).multiplyScalar(.5);
-                this.liftRope.scale.set(1, Math.max(.01, top.distanceTo(bottom)), 1);
+                this.liftRope.visible = towing;
+                this.liftRope.position.copy(top).add(bottom).multiplyScalar(0.5);
+                this.liftRope.scale.set(1, Math.max(0.01, top.distanceTo(bottom)), 1);
                 this.liftRope.quaternion.setFromUnitVectors(up, top.clone().sub(bottom).normalize());
             }
         } else {
             if (this.liftRope) this.liftRope.visible = false;
-            this.rig.poseSeated({ dt, time: this.time, sit: f.sit, hands: (f.kind === 'chair' || f.kind === 'mixed') && f.bar > .5 ? 'bar' : f.pose === 'seat' ? 'knees' : 'side' });
+            this.rig.poseSeated({
+                dt,
+                time: this.time,
+                sit: f.sit,
+                hands: (f.kind === 'chair' || f.kind === 'mixed') && f.bar > 0.5 ? 'bar' : f.pose === 'seat' ? 'knees' : 'side',
+            });
         }
         // camera: 0 chase behind the vehicle, 1 beside it, 2 the rider's view
-        const seated = f.pose === 'seat', target = f.root.clone().add(new T.Vector3(0, seated ? .9 : 1.2, 0));
+        const seated = f.pose === 'seat',
+            target = f.root.clone().add(new T.Vector3(0, seated ? 0.9 : 1.2, 0));
         let pos: T.Vector3, look: T.Vector3;
-        if (this.cameraMode === 2) { pos = f.root.clone().add(new T.Vector3(0, seated ? 1.4 : 1.65, 0)).addScaledVector(f.dir, .25); look = pos.clone().addScaledVector(f.dir, 20).add(new T.Vector3(0, -4, 0)); }
-        else if (this.cameraMode === 1) { pos = target.clone().addScaledVector(right, 9).addScaledVector(f.dir, -2).add(new T.Vector3(0, .6, 0)); look = target; }
-        else { pos = target.clone().addScaledVector(f.dir, -7.5).addScaledVector(right, 1.8).add(new T.Vector3(0, 2.2, 0)); look = target.clone().addScaledVector(f.dir, 4); }
-        const ground = height(pos.x, -pos.z, this.course) + 1.2; if (pos.y < ground) pos.y = ground;
-        if (this.cameraMode === 2) { this.camera.position.copy(pos); this.cameraFocus.copy(look); this.cameraSpring.reset(pos); this.focusSpring.reset(look); }
-        else { this.cameraSpring.step(pos, 1.6, dt, this.camera.position); this.focusSpring.step(look, 2.2, dt, this.cameraFocus); }
+        if (this.cameraMode === 2) {
+            pos = f.root
+                .clone()
+                .add(new T.Vector3(0, seated ? 1.4 : 1.65, 0))
+                .addScaledVector(f.dir, 0.25);
+            look = pos
+                .clone()
+                .addScaledVector(f.dir, 20)
+                .add(new T.Vector3(0, -4, 0));
+        } else if (this.cameraMode === 1) {
+            pos = target
+                .clone()
+                .addScaledVector(right, 9)
+                .addScaledVector(f.dir, -2)
+                .add(new T.Vector3(0, 0.6, 0));
+            look = target;
+        } else {
+            pos = target
+                .clone()
+                .addScaledVector(f.dir, -7.5)
+                .addScaledVector(right, 1.8)
+                .add(new T.Vector3(0, 2.2, 0));
+            look = target.clone().addScaledVector(f.dir, 4);
+        }
+        const ground = height(pos.x, -pos.z, this.course) + 1.2;
+        if (pos.y < ground) pos.y = ground;
+        if (this.cameraMode === 2) {
+            this.camera.position.copy(pos);
+            this.cameraFocus.copy(look);
+            this.cameraSpring.reset(pos);
+            this.focusSpring.reset(look);
+        } else {
+            this.cameraSpring.step(pos, 1.6, dt, this.camera.position);
+            this.focusSpring.step(look, 2.2, dt, this.cameraFocus);
+        }
         this.camera.lookAt(this.cameraFocus);
         this.rider.visible = this.cameraMode !== 2;
-        if (Math.abs(this.camera.fov - this.settings.fov) > .01) { this.camera.fov = this.settings.fov; this.camera.updateProjectionMatrix(); }
+        if (Math.abs(this.camera.fov - this.settings.fov) > 0.01) {
+            this.camera.fov = this.settings.fov;
+            this.camera.updateProjectionMatrix();
+        }
     }
-    capture() { this.renderer.render(this.scene, this.camera); return this.renderer.domElement.toDataURL('image/png'); }
-    resume() { this.jumpPending = false; this.load = 0; this.state = 'ride'; this.keys.clear(); this.touch.clear(); this.clock.getDelta(); }
-    menu() { this.reality = undefined; this.powder.clear(); this.previous = undefined; this.state = 'menu'; this.d = 0; this.cameraMode = 0; this.photo = false; this.keys.clear(); this.touch.clear(); }
-    dispose() { cancelAnimationFrame(this.frameId); window.removeEventListener('keydown', this.keydown); window.removeEventListener('keyup', this.keyup); window.removeEventListener('blur', this.blur); document.removeEventListener('visibilitychange', this.visibility); this.resizeObserver.disconnect(); this.audio?.close().catch(() => { }); this.scene.add(this.rider); this.gearPreview.dispose(); this.powder.dispose(); this.scene.traverse(o => { if (o instanceof T.Mesh || o instanceof T.Points || o instanceof T.LineSegments) {
-        if (o instanceof T.InstancedMesh) o.dispose();
-        o.geometry.dispose();
-        const ms = Array.isArray(o.material) ? o.material : [o.material];
-        ms.forEach(m => m.dispose());
-    } }); (this.scene.getObjectByName('sun') as T.DirectionalLight).shadow.dispose(); this.rig.dispose(); this.environmentTarget?.dispose(); this.renderer.dispose(); this.renderer.domElement.remove(); this.performanceLabel?.remove(); this.diagnostics?.dispose(); }
+    capture() {
+        this.renderer.render(this.scene, this.camera);
+        return this.renderer.domElement.toDataURL('image/png');
+    }
+    resume() {
+        this.jumpPending = false;
+        this.load = 0;
+        this.state = 'ride';
+        this.keys.clear();
+        this.touch.clear();
+        this.clock.getDelta();
+    }
+    menu() {
+        this.reality = undefined;
+        this.powder.clear();
+        this.previous = undefined;
+        this.state = 'menu';
+        this.d = 0;
+        this.cameraMode = 0;
+        this.photo = false;
+        this.keys.clear();
+        this.touch.clear();
+    }
+    dispose() {
+        cancelAnimationFrame(this.frameId);
+        window.removeEventListener('keydown', this.keydown);
+        window.removeEventListener('keyup', this.keyup);
+        window.removeEventListener('blur', this.blur);
+        document.removeEventListener('visibilitychange', this.visibility);
+        this.resizeObserver.disconnect();
+        this.audio?.close().catch(() => {});
+        this.scene.add(this.rider);
+        this.gearPreview.dispose();
+        this.powder.dispose();
+        this.scene.traverse(o => {
+            if (o instanceof T.Mesh || o instanceof T.Points || o instanceof T.LineSegments) {
+                if (o instanceof T.InstancedMesh) o.dispose();
+                o.geometry.dispose();
+                const ms = Array.isArray(o.material) ? o.material : [o.material];
+                ms.forEach(m => m.dispose());
+            }
+        });
+        (this.scene.getObjectByName('sun') as T.DirectionalLight).shadow.dispose();
+        this.rig.dispose();
+        this.environmentTarget?.dispose();
+        this.renderer.dispose();
+        this.renderer.domElement.remove();
+        this.performanceLabel?.remove();
+        this.diagnostics?.dispose();
+    }
 }
