@@ -121,6 +121,16 @@ Riding was studied frame by frame in a reference recording and applied to EVADER
 
 See [docs/REALISM-PASS-0.8.md](docs/REALISM-PASS-0.8.md).
 
+## Clothes in the wind
+
+The rider wears a baggy cut:
+- wide trousers stacked over the boots;
+- a roomy jacket and wide sleeves.
+
+The fabric moves with the air, which comes from the rider's own motion plus a light breeze. Loose parts (the trouser legs below the knee, the jacket's hem and back, the sleeve ends) are blown downwind. They flutter in ripples that run along the fabric, faster and wider with speed. This works when carving, in the air, on lifts and in replays.
+
+It is done in the vertex shader (`lib/cloth-wind.ts`), so it adds no physics cost, and it does not change the rig, the poses or the grabs.
+
 ## What Reality physics does
 
 | System | Implementation | File |

@@ -1,6 +1,7 @@
 import * as T from 'three';
 import { wrapAngle } from './trick-motion.ts';
 import { ClothedLimb, springStep, VectorSpring, type Spring } from './motion.ts';
+import { windy, setLooseness } from './cloth-wind.ts';
 import { addBootBinding, alpineBaseTexture, applyWeatheredDeck, baseTexture, boardEdgeAt, makeBoardGeometry } from './snowboard-gear.ts';
 export { boardOutline, deckTexture, makeBoardGeometry } from './snowboard-gear.ts';
 // A clothed, articulated rider built in metres. Materials and silhouettes stay
@@ -71,8 +72,10 @@ function weaveTexture() { const c = document.createElement('canvas'); c.width = 
         ctx.fillStyle = (x / 4 + y / 4) % 2 ? '#9b9b9b' : '#888888';
         ctx.fillRect(x, y, 3, 1);
     } const t = new T.CanvasTexture(c); t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(12, 12); return t; }
-const JACKET_PROFILE = [[-.241, .235, .173], [-.202, .253, .178], [-.105, .258, .182], [.025, .239, .177],
-    [.18, .222, .154], [.31, .245, .146], [.411, .260, .137], [.485, .223, .116], [.55, .110, .088]];
+// A loose, baggy cut: the body is about 10 % roomier than a fitted shell (the neck stays fitted).
+const JACKET_PROFILE = ([[-.241, .235, .173], [-.202, .253, .178], [-.105, .258, .182], [.025, .239, .177],
+    [.18, .222, .154], [.31, .245, .146], [.411, .260, .137], [.485, .223, .116], [.55, .110, .088]] as [number, number, number][])
+    .map(([y, rx, rz], i, all) => { const k = i === all.length - 1 ? 1 : i === all.length - 2 ? 1.05 : 1.1; return [y, rx * k, rz * k]; });
 const SHELL_COLUMNS = 65;
 const FIT_SECTORS = 48;
 const FIT_ROWS = 24;
@@ -236,9 +239,10 @@ function shapeTrouser(geometry: T.BufferGeometry, side: number) {
     for (let i = 0; i < position.count; i++) {
         const t = uv.getY(i), a = uv.getX(i) * 2 * Math.PI;
         const knee = Math.exp(-(((t - .49 + .065 * Math.cos(a)) / .13) ** 2));
-        const hem = T.MathUtils.smoothstep(t, .73, .96);
-        const folds = knee * .089 * Math.sin(t * 65 - a * side * 2)
-            + hem * (.12 + .062 * Math.cos(t * 81 + a * 2));
+        const hem = T.MathUtils.smoothstep(t, .66, .96);
+        // baggy trousers: deep folds at the knee, fabric stacked in rings above the boot
+        const folds = knee * .11 * Math.sin(t * 65 - a * side * 2)
+            + hem * (.15 + .07 * Math.cos(t * 81 + a * 2) + .05 * Math.sin(t * 140 - a * 3));
         position.setXYZ(i, position.getX(i) * (1 + folds), position.getY(i) - hem * (.009 + .007 * Math.sin(a)),
             position.getZ(i) * (1 + folds * .76));
     }
@@ -372,8 +376,11 @@ export class RiderRig {
             this.boots.push(boot);
             this.board.add(boot);
             addBootBinding(boot, side, add, rubber, fabricBlack, trim);
-            const leg = new ClothedLimb(.44, .43, .110, legFabric, 'leg');
+            const leg = new ClothedLimb(.44, .43, .13, legFabric, 'leg');
             shapeTrouser(leg.mesh.geometry, side);
+            // loose below the knee, held at the waistband
+            const luv = leg.mesh.geometry.attributes.uv;
+            setLooseness(leg.mesh.geometry, i => .08 + .92 * T.MathUtils.smoothstep(luv.getY(i), .12, .95));
             this.legs.push(leg);
             root.add(leg.mesh);
         }
@@ -381,6 +388,11 @@ export class RiderRig {
         const raglan = sleeves.clone();
         raglan.vertexColors = true;
         this.chest = add(jacketGeometry(), [jacket, raglan], this.torso);
+        // the jacket hangs free at the hem and across the back; it is held at the shoulders and the collar
+        { const pos = this.chest.geometry.attributes.position;
+          setLooseness(this.chest.geometry, i => { const y = pos.getY(i), back = Math.max(0, pos.getZ(i)) / .2;
+              return (.18 + .82 * (1 - T.MathUtils.smoothstep(y, -.22, .34))) * (.8 + .35 * Math.min(1, back)); }); }
+        windy(jacket); windy(raglan); windy(sleeves); windy(legFabric);
         this.chest.frustumCulled = false;
         this.jacketRest = Float32Array.from(this.chest.geometry.attributes.position.array);
         this.jacketSectors = Uint8Array.from({ length: this.jacketRest.length / 3 },
@@ -408,7 +420,9 @@ export class RiderRig {
             });
             stitch(shoulderSeam, .0028, fabricBlack);
             this.shoulders.push(ellipsoid(.096, [1.00, .69, 1.03], sleeves, this.torso, [side * .246, .411, .003]));
-            const arm = new ClothedLimb(.31, .29, .084, sleeves, 'arm');
+            const arm = new ClothedLimb(.31, .29, .095, sleeves, 'arm');
+            const auv = arm.mesh.geometry.attributes.uv;
+            setLooseness(arm.mesh.geometry, i => .15 + .85 * T.MathUtils.smoothstep(auv.getY(i), .3, 1));
             this.arms.push(arm);
             root.add(arm.mesh);
             const cuff = add(new T.SphereGeometry(.067, 20, 12), sleeves, root);

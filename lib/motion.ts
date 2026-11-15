@@ -50,7 +50,7 @@ export class ClothedLimb {
             const t = i / rows, y = t * length;
             const shoulder = trouser ? 0 : 1 - T.MathUtils.smoothstep(t, 0, .16);
             const taper = trouser ? .66 + .45 * T.MathUtils.smoothstep(t, .08, .29) - .35 * t
-                + .11 * Math.sin(t * Math.PI) + .15 * T.MathUtils.smoothstep(t, .72, .96)
+                + .11 * Math.sin(t * Math.PI) + .30 * T.MathUtils.smoothstep(t, .66, .97)   // baggy: flared, stacked hem over the boot
                 : 1.05 - .31 * t + .045 * Math.sin(t * Math.PI) - .29 * shoulder;
             const joint = Math.exp(-Math.pow((t - .51) * 7, 2));
             const cuff = Math.exp(-Math.pow((t - .90) * 13, 2));
@@ -62,7 +62,7 @@ export class ClothedLimb {
                 const knee = trouser ? joint * .010 * front * front : 0;
                 const crease = Math.sin(t * 49 - a * 3) * joint * (.002 + .005 * back);
                 const bootFold = Math.sin(t * 76 + a * 2) * cuff * (trouser ? .0052 : .0031);
-                const drape = Math.cos(a * 3 - t * 2.8) * (trouser ? .007 : .004) * Math.sin(t * Math.PI);
+                const drape = Math.cos(a * 3 - t * 2.8) * (trouser ? .012 : .006) * Math.sin(t * Math.PI);
                 const r = radius * taper + crease + bootFold + drape + knee;
                 const panelX = Math.sign(cos) * Math.abs(cos) ** (trouser ? .84 : .90);
                 const panelZ = Math.sign(sin) * Math.abs(sin) ** .94;

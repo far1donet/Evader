@@ -20,6 +20,7 @@ import { verbierRun, lapseTemperature, RUNS as VERBIER_RUNS, type RunClass } fro
 import { liftGroup, poleGroup, skicrossGroup, skicrossShape } from './verbier/scenery.ts';
 import { SNOW, type SnowMaterial } from './sim/snow.ts';
 import { makeCloudSea } from './verbier/cloud-sea.ts';
+import { updateClothWind } from './cloth-wind.ts';
 import { LiftRide, type RideFrame } from './verbier/lift-ride.ts';
 import { FreeView, SurfaceMap, type FreeInfo } from './verbier/free-world.ts';
 import { FreeTerrain, setFreeTerrain, resortLoaded } from './verbier/terrain.ts';
@@ -331,6 +332,9 @@ export class SnowGame {
     keys = new Set<string>();
     touch = new Set<string>();
     frameId = 0;
+    private clothLast = new T.Vector3(); private clothVel = new T.Vector3(); private clothSmooth = new T.Vector3();
+    /** Debug / screenshots only: a fixed air velocity relative to the rider (world, m/s) instead of the measured one. */
+    debugWind?: { x: number; y: number; z: number };
     /** True while another full-screen view (the resort map) owns the GPU: the game stops rendering. */
     suspended = false;
     resizeObserver: ResizeObserver;
@@ -1098,6 +1102,8 @@ export class SnowGame {
                 this.rig.pose({ dt, time: performance.now() * .001, turn: 0, speed: headwear ? 0 : 12, air: false, grab: false, landing: 0, menu: headwear });
             }
             this.gearPreview.update(dt);
+            // the garage shows the clothes in a light breeze (or the debug wind)
+            updateClothWind(this.debugWind ? this.clothVel.set(-this.debugWind.x, -this.debugWind.y, -this.debugWind.z) : this.clothVel.set(0, 0, 0), this.gearPreview.camera, performance.now() * .001);
         } else {
             this.visual(dt);
         }
@@ -1651,6 +1657,14 @@ export class SnowGame {
             }
             this.snow.geometry.attributes.position.needsUpdate = true;
         }
+        // wind on the clothes: the rider's own motion through the air (from the drawn position) plus a light breeze
+        if (dt > 0) {
+            const v = this.clothVel.copy(this.rider.position).sub(this.clothLast).divideScalar(dt);
+            if (v.lengthSq() > 60 * 60) v.set(0, 0, 0);          // a teleport (start, reset, lift), not motion
+            this.clothSmooth.lerp(v, 1 - Math.exp(-dt * 6));
+            this.clothLast.copy(this.rider.position);
+        }
+        updateClothWind(this.debugWind ? this.clothVel.set(-this.debugWind.x, -this.debugWind.y, -this.debugWind.z) : this.clothSmooth, this.camera, performance.now() * .001);
         const sun = this.scene.getObjectByName('sun') as T.DirectionalLight;
         this.sky.position.copy(this.camera.position);
         sun.position.copy(this.rider.position).add(this.settings.weather === 'dusk' ? DUSK_LIGHT : DAYLIGHT);
