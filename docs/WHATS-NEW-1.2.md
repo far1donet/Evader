@@ -94,3 +94,16 @@ The **Verbier passport** (Career panel) counts stations visited, lifts ridden, v
   - `name_stations.py`
 
 - The two largest files, `lib/snow-game.ts` and `app/page.tsx`, are formatted with Prettier in a commit of their own, so the feature diff stays readable. `.prettierrc.json` holds the house style; run `npm run format` to reformat them.
+
+## Screenshots
+
+These were taken with the software renderer at Low quality, 960 × 540. They show that the features run, not how good they look on a real GPU.
+
+| | |
+| --- | --- |
+| ![Chalets at Verbier – Médran](screenshots/v12/buildings-medran.png) | ![Tutorial card](screenshots/v12/tutorial.png) |
+| Real buildings at Verbier – Médran (VECTOR25 + GWR) | Tutorial step 1 at Les Ruinettes |
+| ![Skating](screenshots/v12/skating.png) | ![Tumbling fall](screenshots/v12/fall-tumble.png) |
+| Skating: the rear boot is out on the snow | A fall at 46 km/h, tumbling |
+| ![Passport](screenshots/v12/passport.png) | |
+| Verbier passport in the Career panel | |
