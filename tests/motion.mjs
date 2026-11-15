@@ -107,7 +107,8 @@ assert(count(deepSpray) > 0, 'Snow already thrown should persist after takeoff')
 const positions = deepSpray.points.geometry.attributes.position;
 for (let i = 0; i < count(deepSpray); i++)
  assert(positions.getZ(i) > -20, 'Airborne motion must not drag the plume with the board');
-for (let step = 0; step < 160; step++)
+// Snow dust hangs up to ~2.5 s (powder plumes); after 3.3 s in the air nothing new may have been emitted.
+for (let step = 0; step < 400; step++)
  deepSpray.update(1/120,{...contact,z:-40-step*.15,y:3,grounded:false},1440);
 assert.equal(count(deepSpray),0,'Airborne rider should stop emitting new snow');
 deepSpray.update(1/120,{...contact,z:-70,speed:0,landing:1},1440);

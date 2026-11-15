@@ -19,6 +19,7 @@ import { Diagnostics } from './diagnostics.ts';
 import { verbierRun, lapseTemperature, RUNS as VERBIER_RUNS, type RunClass } from './verbier/terrain.ts';
 import { liftGroup, poleGroup, skicrossGroup, skicrossShape } from './verbier/scenery.ts';
 import { SNOW, type SnowMaterial } from './sim/snow.ts';
+import { makeCloudSea } from './verbier/cloud-sea.ts';
 
 /** Snow depth on a real-terrain run: groomed inside the piste width, deeper and varied off-piste, deepest on cold,
  *  north-facing, high slopes; an itinerary is ungroomed everywhere. Depths are game estimates, not measurements. */
@@ -188,8 +189,8 @@ const GRAB_KEYS = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', '
 const DAYLIGHT = new T.Vector3(-158, 118, -95);
 const DUSK_LIGHT = new T.Vector3(-158, 48, -95);
 const HARD_LANDING_SPEED = 8.5;
-const CHASE_HEIGHT = 2.22;
-const CHASE_DISTANCE = 5.4;
+const CHASE_HEIGHT = 2.0;
+const CHASE_DISTANCE = 5.0;
 export function center(d: number, c: Course) { if (c.dem) return verbierRun(c.dem).centreX(d); return Math.sin(d / (c.id === 2 ? 125 : 220)) * (c.id === 1 ? 6 : 16); }
 export function rampAt(d: number, x: number, c: Course) {
     if (c.dem === 'la-chaux-park') {
@@ -416,7 +417,7 @@ export class SnowGame {
         this.renderer.shadowMap.enabled = settings.quality !== 'low';
         this.renderer.shadowMap.type = T.PCFShadowMap;
         this.renderer.toneMapping = T.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.02;
+        this.renderer.toneMappingExposure = 1.15;
         this.renderer.setSize(host.clientWidth, host.clientHeight, false);
         this.camera.aspect = host.clientWidth / host.clientHeight;
         this.camera.updateProjectionMatrix();
@@ -429,8 +430,9 @@ export class SnowGame {
         this.diagnostics.setVisible(!!settings.diagnostics);
         this.renderer.domElement.setAttribute('aria-label', '3D snowboarding mountain');
         this.scene.add(this.world);
-        this.scene.add(new T.HemisphereLight(0xc2ddff, 0xa6b7ca, 1.25));
-        const sun = new T.DirectionalLight(0xfff0da, 2.7);
+        // High-key alpine light: strong low sun, shadows filled by the blue sky (snow shadows read blue, not grey).
+        this.scene.add(new T.HemisphereLight(0xaecbff, 0x8ea4bd, 1.2));
+        const sun = new T.DirectionalLight(0xfff0da, 3.1);
         sun.position.copy(DAYLIGHT);
         sun.castShadow = true;
         sun.shadow.mapSize.set(preset(settings.quality).shadow, preset(settings.quality).shadow);
@@ -438,7 +440,7 @@ export class SnowGame {
         sun.shadow.camera.right = 92;
         sun.shadow.camera.top = 92;
         sun.shadow.camera.bottom = -92;
-        sun.shadow.radius = 2;
+        sun.shadow.radius = 3;
         sun.shadow.camera.far = 700;
         sun.shadow.normalBias = .015;
         sun.shadow.bias = -.0001;
@@ -705,6 +707,8 @@ export class SnowGame {
             this.mesh(new T.BoxGeometry(.4, 8, .4), poleMat, fx + side * 20, fy + 4, -fd, finish);
         this.mesh(new T.BoxGeometry(40, 1, .5), flagMat, fx, fy + 8, -fd, finish);
         if (!c.dem) this.world.add(finish);
+        // Real terrain: valley cloud sea (winter inversion) below the lowest station, in clear weather.
+        if (c.dem) this.world.add(makeCloudSea(new T.Vector3(center(c.length / 2, c), 0, -c.length / 2)));
         this.setAtmosphere();
         this.x = center(0, c);
         this.y = height(this.x, 0, c);
@@ -728,18 +732,21 @@ export class SnowGame {
         const dusk = weather === 'dusk', snowing = weather === 'snow';
         const horizon = dusk ? 0xd6a9a8 : snowing ? 0xb5c9d6 : 0xd5e5f5;
         // High-altitude real terrain: clearer air (guide section 13.4), so distant ridges keep their contrast.
-        const clarity = this.course?.dem ? .45 : 1;
+        const clarity = this.course?.dem ? .32 : 1;
         this.scene.fog = new T.FogExp2(horizon, (snowing ? .0045 : dusk ? .0011 : .00066) * (snowing ? 1 : clarity));
         this.snow.visible = snowing;
         this.scene.environmentIntensity = dusk ? .35 : .52;
         const sun = this.scene.getObjectByName('sun') as T.DirectionalLight;
         sun.color.set(dusk ? 0xffae83 : snowing ? 0xdbe8fa : 0xfff0da);
-        sun.intensity = snowing ? .85 : dusk ? 2.1 : 2.7;
+        sun.intensity = snowing ? .85 : dusk ? 2.1 : 3.1;
+        this.powder.setSun(dusk ? DUSK_LIGHT : DAYLIGHT);
+        const sea = this.world.getObjectByName('cloud-sea') as T.Mesh<T.BufferGeometry, T.ShaderMaterial> | undefined;
+        if (sea) { sea.visible = !snowing; sea.material.uniforms.sunDirection.value.copy(dusk ? DUSK_LIGHT : DAYLIGHT).normalize(); }
         const { uniforms } = this.sky.material;
-        uniforms.zenith.value.set(dusk ? 0x4d6294 : snowing ? 0x8faabd : 0x377aba);
+        uniforms.zenith.value.set(dusk ? 0x4d6294 : snowing ? 0x8faabd : 0x2a68b4);
         uniforms.horizon.value.set(horizon);
         uniforms.sunDirection.value.copy(dusk ? DUSK_LIGHT : DAYLIGHT);
-        uniforms.clouds.value = snowing ? .35 : dusk ? .58 : .63;
+        uniforms.clouds.value = snowing ? .35 : dusk ? .58 : .74;   // clear: scattered cloud, deep blue sky
         uniforms.sunStrength.value = snowing ? .03 : 1;
     }
     setCourse(c: Course) { this.powder.clear(); this.course = c; this.state = 'menu'; this.boardTracks.clear(); this.buildWorld(); }
@@ -1541,7 +1548,12 @@ export class SnowGame {
                 }
                 this.body.quaternion.copy(q);
                 const turnEdge = clamp(this.edgeAngle * (this.reality?.ctl.travelSign ?? 1) / .61, -1, 1);
-                this.rig.pose({ dt, time: this.time, turn: rh, edge: turnEdge, speed: this.speed, air: !this.ground, grab: this.visualGrab, landing: this.landingImpact, menu: false, tuck: this.visualTuck, load: this.load, pop: this.pop, extension: this.extension, spinVelocity: this.spinVelocity, flipVelocity: 0, spin: rs, landingSpin: rs, grabKind: this.grabLocked >= 0 ? this.grabLocked : this.grabKind, rail: this.railActive >= 0, spinInput: this.spinInput });
+                // Body mechanics from the simulation: lateral acceleration (speed x yaw rate) in g, snow softness, fore/aft press.
+                const rr = this.reality, bv = rr?.sim.board.v;
+                const carveG = rr && this.ground && bv ? Math.sign(turnEdge) * Math.min(2, Math.hypot(bv.x, bv.z) * Math.abs(rr.sim.board.w.y) / 9.81) : 0;
+                const regular = (this.settings.stance ?? 'regular') === 'regular';
+                const press = rr ? clamp(rr.ctl.cmd.copX / .12, -1, 1) * (regular ? -1 : 1) : 0;
+                this.rig.pose({ carveG, soft: rr?.ctl.soft ?? 0, press, dt, time: this.time, turn: rh, edge: turnEdge, speed: this.speed, air: !this.ground, grab: this.visualGrab, landing: this.landingImpact, menu: false, tuck: this.visualTuck, load: this.load, pop: this.pop, extension: this.extension, spinVelocity: this.spinVelocity, flipVelocity: 0, spin: rs, landingSpin: rs, grabKind: this.grabLocked >= 0 ? this.grabLocked : this.grabKind, rail: this.railActive >= 0, spinInput: this.spinInput });
             } else {
             if (this.bailTimer > 0)
                 targetRotation.multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 0, 1), 1.4));

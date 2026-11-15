@@ -17,6 +17,7 @@ const capacity = 4095;
 const spacing = .24;
 const compacted = new T.Color(0x8ba6bd);
 const cut = new T.Color(0x57738d);
+const trench = new T.Color(0x7f9bba);
 const powderLip = new T.Color(0xeaf7ff);
 
 export class BoardTracks {
@@ -137,7 +138,8 @@ export class BoardTracks {
         const powder = T.MathUtils.smoothstep(sample.depth, .05, .45);
         const slip = Math.abs(Math.sin(sample.skidAngle));
         const edge = T.MathUtils.smoothstep(Math.abs(sample.edgeAngle), .045, .48);
-        const halfWidth = BOARD_WAIST_M / 2 + .125 * powder + .36 * slip;
+        // In powder the board leaves a trench wider than the board (snow pushed aside), shaded blue inside, with bright lips.
+        const halfWidth = BOARD_WAIST_M / 2 + .2 * powder + .36 * slip;
         const sideX = Math.cos(sample.heading), sideD = -Math.sin(sample.heading);
         const chatter = .93 + Math.sin(sample.d * 9.4 + sample.x * 12.7) * .07;
 
@@ -148,16 +150,18 @@ export class BoardTracks {
             const dx = (this.surface(x + .12, d) - this.surface(x - .12, d)) / .24;
             const dd = (this.surface(x, d + .12) - this.surface(x, d - .12)) / .24;
             const length = Math.hypot(dx, 1, dd);
-            this.positions.setXYZ(first + i, x, y + .017 + .009 * powder, -d);
+            const isLip = Math.abs(lane) === .81 || Math.abs(lane) === 1;
+            this.positions.setXYZ(first + i, x, y + .017 + .009 * powder + (isLip ? .045 * powder : 0), -d);
             this.normals.setXYZ(first + i, -dx / length, 1 / length, dd / length);
 
             const onEdge = lane * sample.edgeAngle > 0 ? edge : edge * .25;
             const cutProfile = Math.abs(lane) === .61 ? .46 + .54 * onEdge : .17;
             const isRim = Math.abs(lane) === .81;
             const alpha = Math.abs(lane) === 1 ? 0 : isRim
-                ? powder * (.17 + .16 * onEdge)
-                : (.17 + .21 * powder + .13 * cutProfile + .08 * slip) * chatter;
+                ? powder * (.3 + .2 * onEdge)
+                : (.17 + .2 * powder + .13 * cutProfile + .08 * slip) * chatter;
             this.tint.copy(compacted).lerp(isRim ? powderLip : cut, isRim ? powder : cutProfile);
+            if (!isRim) this.tint.lerp(trench, powder * .5);
             this.colors.setXYZW(first + i, this.tint.r, this.tint.g, this.tint.b, alpha);
         }
     }

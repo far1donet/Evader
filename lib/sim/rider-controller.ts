@@ -77,6 +77,8 @@ export class RiderController {
     copGain = 0;
     private prevSlip = 0; private havePrev = false; private brakeSign = 1;
     readonly cmd: RiderCommand = { ...NEUTRAL, edge: 0 };
+    /** Softness of the snow under the board, 0 (firm) .. 1 (fresh powder). Read by the renderer too. */
+    soft = 0;
     /** Seconds since the last touchdown (set by the caller); a short window where landing reflexes are strongest. */
     sinceLanding = 9;
     private ex = v3(); private ey = v3(); private ez = v3();
@@ -131,10 +133,19 @@ export class RiderController {
         c.comZ = 0;
         if (grounded) {
             // Crouch: legs follow the compression intent. Extension (negative crouch) only during the pop stroke.
-            c.crouch = this.pop === 'extend' ? -1 : this.pop === 'load' ? .35 + .65 * intent.crouch : intent.tuck ? .55 : .3 + .25 * Math.abs(intent.steer);
+            // Snow under the board: soft (powder) 1 .. firm (groomed) 0, from its bearing stiffness.
+            const mat = sim.terrain.material(b.p.x, b.p.z);
+            this.soft = 1 - Math.min(1, Math.max(0, (Math.log10(mat.bearing) - 4.9) / .9));
+            // Carving at speed: the legs flex further as the edge angle rises (lower centre of mass, hips toward the
+            // snow), as riders do in high-edge carves. In soft snow the rider rides deeper in the legs as well.
+            const carveFlex = Math.min(1, Math.abs(sim.edgeAngle) / .7) * Math.min(1, planar / 9);
+            c.crouch = this.pop === 'extend' ? -1 : this.pop === 'load' ? .35 + .65 * intent.crouch
+                : intent.tuck ? .55 : Math.min(.85, .3 + .25 * Math.abs(intent.steer) + .22 * carveFlex + .12 * this.soft);
             // Ollie / nollie: pressure stays on the loaded end through the first part of the snap, so the leg force
             // pivots the board about that end and the other end rises.
             let press = this.pop === 'load' || (this.pop === 'extend' && this.popTimer < .1) ? popX * .12 : clamp(intent.lean, -1, 1) * fwd * .11;
+            // Powder technique: with no deliberate press, weight drifts to the tail in soft snow so the nose planes up.
+            if (this.pop === 'none' && Math.abs(intent.lean) < .3) press -= fwd * .055 * this.soft;
 
             // ---- edging and braking ----
             const speed = planar;

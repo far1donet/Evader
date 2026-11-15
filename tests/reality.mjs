@@ -97,6 +97,13 @@ function ollie(load, extra = {}) {
     const sk = rig(0, 1); let skMax = 0;
     run(sk, 12, () => ({ ...IDLE_INTENT, tuck: true }), (t, st) => { skMax = Math.max(skMax, st.speed); });
     assert(sk.sim.speed > 2.5 && skMax < 5.2, `skating reaches walking pace and stays below 5 m/s (end ${sk.sim.speed.toFixed(2)}, max ${skMax.toFixed(2)} m/s)`);
+    // powder technique (video analysis): in soft snow the rider sits back (pressure toward the tail) and rides deeper
+    const pw = rig(8, 9, 'balanced', 'freshPowder'), gr = rig(8, 9, 'balanced', 'groomed'); let pwPress = 0, grPress = 0, pwCrouch = 0, grCrouch = 0, nPw = 0;
+    run(pw, 2, () => IDLE_INTENT, () => { pwPress += pw.ctl.cmd.copX * pw.ctl.travelSign; pwCrouch += pw.ctl.cmd.crouch; nPw++; });
+    let nGr = 0; run(gr, 2, () => IDLE_INTENT, () => { grPress += gr.ctl.cmd.copX * gr.ctl.travelSign; grCrouch += gr.ctl.cmd.crouch; nGr++; });
+    assert(pw.ctl.soft > .9 && gr.ctl.soft < .05, `snow softness read from the material (powder ${pw.ctl.soft.toFixed(2)}, groomed ${gr.ctl.soft.toFixed(2)})`);
+    assert(pwPress / nPw < grPress / nGr - .03 && pwCrouch / nPw > grCrouch / nGr + .05, 'powder: weight toward the tail and deeper flex than on groomed snow');
+    console.log(`Powder stance: tail pressure ${(100 * pwPress / nPw).toFixed(1)} cm vs ${(100 * grPress / nGr).toFixed(1)} cm groomed, crouch ${(pwCrouch / nPw).toFixed(2)} vs ${(grCrouch / nGr).toFixed(2)} passed.`);
     console.log(`Skating push on the flat: ${sk.sim.speed.toFixed(1)} m/s after 12 s, never above ${skMax.toFixed(1)} m/s passed.`);
     console.log(`Flat ground: no propulsion (end ${r.sim.speed.toFixed(2)} m/s). Braking from 12 m/s on 8 deg stops at ${stopped.toFixed(1)} s (free run reaches ${free.sim.speed.toFixed(1)} m/s at 6 s) passed.`);
 }

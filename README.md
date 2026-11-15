@@ -94,6 +94,17 @@ The eight featured runs are still in the menu.
 Rebuild the data with the scripts in `tools/verbier/`. See [docs/verbier/STATUS.md](docs/verbier/STATUS.md) for what
 is exact, what is estimated, and what is missing.
 
+## Realism pass 0.8
+
+Riding was studied frame by frame in a reference recording and applied to EVADER:
+- **Carving:** deeper flex and angulation from lateral g; the arms lead and the inside hand drags in the hardest turns.
+- **Powder:** the rider sits back toward the tail.
+- **Board:** it visibly flexes on presses and landings.
+- **Snow:** dust plumes and skid walls that hang in the air; powder trenches; groomed corduroy with sparkle.
+- **Light and camera:** high-key blue-shadow lighting, a valley sea of cloud on the Verbier terrain, and a lower chase camera.
+
+See [docs/REALISM-PASS-0.8.md](docs/REALISM-PASS-0.8.md).
+
 ## What Reality physics does
 
 | System | Implementation | File |

@@ -40,11 +40,17 @@ export function snowMaterial(length: number, spacing: number, park: boolean, det
    float drift = sin(windPhase) * (.58 + .42 * sin(snowXY.y * .41 + snowXY.x * .31));
    float smallerDrift = sin(windPhase * 2.31 + sin(snowXY.x * .58)) * sin(snowXY.y * 1.27);
    float grain = sin(snowXY.x * 88.0 + snowXY.y * 35.0) * sin(snowXY.y * 97.0 - snowXY.x * 53.0);
-   float groom = cos(snowXY.x * 39.0 + sin(snowXY.y * .5) * .18);
+   // Groomed corduroy: ~4.5 cm tiller ridges along the fall line, in ~4.2 m groomer passes with a slight seam ridge.
+   // Fades out before it can alias (it is far finer than a pixel beyond a few metres).
+   float cordDetail = 1.0 - smoothstep(.006, .03, footprint);
+   float passX = snowXY.x + sin(snowXY.y * .045) * 1.6;
+   float groom = cos(passX * 139.6 + sin(snowXY.y * .5) * .18);
+   float seam = 1.0 - smoothstep(.0, .22, abs(fract(passX / 4.2) - .5) * 4.2 - 1.88);
    float snowRelief = (.008 + .058 * powder) * drift + smallerDrift * powder * .019
-      + (.0011 * grain + .0014 * groom * piste) * nearDetail;
+      + .0011 * grain * nearDetail + (.0016 * groom * cordDetail + .006 * seam * nearDetail) * piste;
    diffuseColor.rgb *= .99 + powder * (.044 * drift + .018 * smallerDrift)
-      + nearDetail * (.017 * grain + .022 * groom * piste);
+      + nearDetail * .017 * grain + piste * (.03 * groom * cordDetail - .018 * seam * nearDetail);
+   diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(.93, .97, 1.04), piste * cordDetail * (.5 - .5 * groom) * .5);
    float jumpBase = snowXY.y - mod(snowXY.y - 100.0, jumpSpacing);
    float jumpD = snowXY.y - jumpBase;
    float jumpOffset = abs(snowXY.x - alpineCenters.y);
@@ -60,6 +66,15 @@ export function snowMaterial(length: number, spacing: number, park: boolean, det
   shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
    roughnessFactor = mix(roughnessFactor, .94, powder);
   `);
+  // Snow sparkle: individual ice crystals catching the sun. A crystal glints only for one viewing direction, so the
+  // glints twinkle as the camera moves; close range only.
+  shader.fragmentShader = shader.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+   vec2 crystal = floor(alpinePosition.xz * 55.0);
+   vec3 viewQ = floor(normalize(vViewPosition) * 9.0);
+   float glintSeed = fract(sin(dot(crystal, vec2(12.9898, 78.233)) + dot(viewQ, vec3(3.1, 5.7, 1.9))) * 43758.5453);
+   float glint = smoothstep(.9965, 1.0, glintSeed) * (1.0 - smoothstep(.004, .02, length(fwidth(alpinePosition.xz))));
+   totalEmissiveRadiance += vec3(1.0, .98, .95) * glint * 2.2;
+  `);
   if (detail) shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
    vec3 sx = dFdx(-vViewPosition), sy = dFdy(-vViewPosition);
    vec3 bx = cross(sy, normal), by = cross(normal, sx);
@@ -68,7 +83,7 @@ export function snowMaterial(length: number, spacing: number, park: boolean, det
    normal = normalize(max(abs(det), 1e-9) * normal - gradient);
   `);
  };
- material.customProgramCacheKey = () => detail ? 'alpine-snow-relief' : 'alpine-snow-color';
+ material.customProgramCacheKey = () => detail ? 'alpine-snow-relief-2' : 'alpine-snow-color-2';
  return material;
 }
 export function makeAlpineSky() {
@@ -114,7 +129,7 @@ export function makeAlpineSky() {
     float cover = smoothstep(clouds - .16, clouds + .14, vapor) * smoothstep(.01, .16, ray.y);
     vec3 litCloud = mix(vec3(.67,.77,.91), vec3(1.14,1.19,1.24), smoothstep(.43,.72,vapor));
     air = mix(air, litCloud, cover * .85);
-    air += sunStrength * (pow(angle, 16.0) * .14 + pow(angle, 180.0) * .6
+    air += sunStrength * (pow(angle, 4.0) * .07 + pow(angle, 16.0) * .2 + pow(angle, 180.0) * .75
       + smoothstep(.99975,.99994,angle) * (1.0-cover) * 5.0) * vec3(1.0,.88,.70);
     gl_FragColor = vec4(air, 1.0);
     #include <tonemapping_fragment>

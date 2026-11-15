@@ -26,6 +26,12 @@ export type RiderPose = {
     grabKind?: number;
     rail?: boolean;
     spinInput?: number;
+    /** Lateral acceleration in g, signed like `edge` (from the simulation's speed and yaw rate). */
+    carveG?: number;
+    /** Snow softness under the board, 0 firm .. 1 fresh powder. */
+    soft?: number;
+    /** Fore/aft pressure on the board, -1..1 toward the rig's +x end (drives the visible board flex). */
+    press?: number;
 };
 export type RiderKit = 'ochre' | 'shadow' | 'alpine';
 const UP = new T.Vector3(0, 1, 0);
@@ -298,6 +304,10 @@ export class RiderRig {
     grabSpring: Spring = { value: 0, velocity: 0 };
     leadSpring: Spring = { value: 1, velocity: 0 };
     tuckSpring: Spring = { value: 0, velocity: 0 };
+    carveSpring: Spring = { value: 0, velocity: 0 };
+    softSpring: Spring = { value: 0, velocity: 0 };
+    private boardRest?: Float32Array;
+    private flexState = { press: 0, load: 0 };
     groundedLead = 1;
     takeoffLead = 1;
     wasAirborne = false;
@@ -636,6 +646,7 @@ export class RiderRig {
         if (this.boardMesh) {
             this.boardMesh.geometry.dispose();
             this.boardMesh.geometry = makeBoardGeometry(length, width);
+            this.boardRest = undefined;
         }
         this.boots.forEach((boot, i) => { boot.position.x = (i === 0 ? -1 : 1) * stanceHalf; });
     }
@@ -677,7 +688,11 @@ export class RiderRig {
         const leadTarget = p.air ? T.MathUtils.lerp(this.takeoffLead, landingLead, opening) : this.groundedLead;
         const lead = springStep(this.leadSpring, leadTarget, 3.4 + opening * 1.5, p.dt);
         const bank = edge * speedWeight;
-        const groundCrouch = .064 + speedWeight * .012 + tuck * .144 + Math.abs(bank) * .104 + load * .34 + p.landing * .27;
+        // Carving: lateral g bends the legs (hips toward the snow); powder: the rider rides deeper and sits back.
+        const carve = springStep(this.carveSpring, p.air || p.menu ? 0 : T.MathUtils.clamp(p.carveG ?? 0, -1.4, 1.4), 4.2, p.dt);
+        const soft = springStep(this.softSpring, p.air || p.menu ? 0 : p.soft ?? 0, 2.4, p.dt);
+        const groundCrouch = .064 + speedWeight * .012 + tuck * .144 + Math.abs(bank) * .104 + Math.min(.16, Math.abs(carve) * .13)
+            + soft * .085 + load * .34 + p.landing * .27;
         const rotationCrouch = Math.min((Math.abs(flipVelocity) + .45 * Math.abs(spinVelocity)) / 6, 1) * .20;
         const compact = T.MathUtils.lerp(.265 + rotationCrouch, .055, pop) + (p.grab ? .39 : 0);
         const airCrouch = .07 + T.MathUtils.lerp(compact, .085, extension);
@@ -702,15 +717,17 @@ export class RiderRig {
         const spot = springStep(this.spotSpring, spotTarget, 3.4, p.dt);
         const rail = p.rail ? Math.sin(p.time * 3.1) * .055 : 0;
         const hipY = 1.145 - this.crouch;
-        const pressure = p.air ? .035 + pop * .035 : .055 - load * .105 - p.landing * .033;
+        const pressure = p.air ? .035 + pop * .035 : .055 - load * .105 - p.landing * .033 - soft * .085;
         const hipX = lead * pressure + rail * .35;
-        const hipZ = -.012 - flex * (p.air ? .16 : .38) - this.lean * .155;
+        const hipZ = -.012 - flex * (p.air ? .16 : .38) - this.lean * .24;
         this.pelvis.position.set(hipX, hipY + breathing, hipZ);
         const frontKneePressure = p.air ? .013 : -.035 + load * .063 + p.landing * .029;
         this.pelvis.rotation.set(-flex * .12, twist * (p.air ? -.24 : .28), this.lean * .10 + lead * frontKneePressure);
         this.pelvis.updateMatrix();
         this.torso.position.copy(this.pelvis.position);
-        const torsoPitch = (p.air ? -.045 : -.12) - flex * .63 - tuck * .17 - this.lean * .37
+        // Angulation: the legs and hips go to the inside of the turn, the chest counter-tilts to the outside so the
+        // shoulders stay closer to level than the board (a high-edge carve, not a lean of the whole body).
+        const torsoPitch = (p.air ? -.045 : -.12) - flex * .63 - tuck * .17 + this.lean * .30
             - T.MathUtils.clamp(flipVelocity * .018, -.11, .11);
         const contact = this.grabContact(this.activeGrabKind, lead, 1);
         const target = this.realBoard ? GRAB_TARGETS[this.activeGrabKind] ?? GRAB_TARGETS[0] : undefined;
@@ -719,11 +736,11 @@ export class RiderRig {
         const handWeights = this.grabHands(this.activeGrabKind, lead);
         const stanceHalf = this.realBoard?.stanceHalf ?? .39;
         this.torso.rotation.set(T.MathUtils.lerp(torsoPitch, grabPitch, this.grabWeight), twist,
-            this.lean * .22 + lead * (p.air ? .025 + pop * .045 : -.065) + rail + grabTilt * this.grabWeight);
+            this.lean * .22 + lead * (p.air ? .025 + pop * .045 : -.065 - soft * .09) + rail + grabTilt * this.grabWeight);
         this.torso.updateMatrix();
         this.shellMatrix.copy(this.torso.matrix).invert();
         this.garmentEnvelope.fill(0);
-        this.head.rotation.y = T.MathUtils.damp(this.head.rotation.y, p.menu ? -.13 : -.94 * lead + spot, 9, p.dt);
+        this.head.rotation.y = T.MathUtils.damp(this.head.rotation.y, p.menu ? -.13 : -.94 * lead + spot + lead * .32 * this.lean, 9, p.dt);
         this.head.rotation.x = T.MathUtils.damp(this.head.rotation.x, .025 + flex * .20 - extension * .16, 9, p.dt);
         for (let i = 0; i < 2; i++) {
             const side = i === 0 ? -1 : 1;
@@ -750,6 +767,16 @@ export class RiderRig {
                     hipZ - .023 - leading * .078 - this.lean * side * .21 + rail * side,
                 );
                 wrist.lerp(settledWrist, p.air ? opening * .65 : 1);
+            }
+            if (!p.air && !p.rail) {
+                // Carving arms: the front hand leads forward over the nose at waist-chest height, the rear hand stays low
+                // by the back knee; past ~0.8 g at speed the inside hand reaches down toward the snow.
+                const cw = T.MathUtils.smoothstep(Math.abs(carve), .15, .7) * speedWeight;
+                const inside = -Math.sign(this.lean || 1);                    // rig z of the turn's inside (toe = -z)
+                if (leading > 0) wrist.add(new T.Vector3(side * .13 * cw, .14 * cw, inside * .06 * cw));
+                else wrist.add(new T.Vector3(-side * .05 * cw, -.05 * cw, inside * .10 * cw));
+                const drag = T.MathUtils.smoothstep(Math.abs(carve), .75, 1.15) * T.MathUtils.smoothstep(p.speed, 8, 14);
+                if (drag > 0 && leading < 0) wrist.lerp(new T.Vector3(hipX + side * .30, .26, inside * .46), drag * .85);
             }
             wrist.lerp(new T.Vector3(hipX + side * .21, hipY + .04, hipZ + .14), tuck * (1 - load));
             if (!p.air) {
@@ -778,6 +805,25 @@ export class RiderRig {
             this.cuffs[i].quaternion.setFromUnitVectors(new T.Vector3(0, -1, 0), forearm);
         }
         this.fitJacket(flex, p.dt);
+        this.flexBoard(p.air ? 0 : p.press ?? 0, p.air ? 0 : Math.max(p.landing, load * .5), p.dt);
+    }
+    /** Visible board flex: a press bends the unweighted end up (nose / tail press), landings bend both ends up. */
+    private flexBoard(press: number, load: number, dt: number) {
+        const mesh = this.boardMesh; if (!mesh) return;
+        const fs = this.flexState;
+        fs.press = T.MathUtils.damp(fs.press, T.MathUtils.clamp(press, -1, 1), 14, dt);
+        fs.load = T.MathUtils.damp(fs.load, T.MathUtils.clamp(load, 0, 1), 14, dt);
+        const pos = mesh.geometry.attributes.position as T.BufferAttribute;
+        if (!this.boardRest || this.boardRest.length !== pos.array.length) this.boardRest = Float32Array.from(pos.array as Float32Array);
+        if (Math.abs(fs.press) < .01 && fs.load < .01 && (mesh.userData.flexed ?? 0) === 0) return;
+        const rest = this.boardRest, half = (this.realBoard?.length ?? 1.9) / 2;
+        for (let i = 0; i < pos.count; i++) {
+            const x = rest[i * 3] / half;
+            const lift = .085 * Math.max(0, -Math.sign(fs.press) * x) ** 2 * Math.abs(fs.press) + .03 * fs.load * x * x;
+            pos.setY(i, rest[i * 3 + 1] + lift);
+        }
+        pos.needsUpdate = true; mesh.geometry.computeVertexNormals();
+        mesh.userData.flexed = Math.abs(fs.press) < .01 && fs.load < .01 ? 0 : 1;
     }
     dispose() { this.legs.forEach(x => x.dispose()); this.arms.forEach(x => x.dispose()); this.jacket.bumpMap?.dispose(); this.deck.map?.dispose(); this.baseMap.dispose(); this.alpineBaseMap?.dispose(); }
 }

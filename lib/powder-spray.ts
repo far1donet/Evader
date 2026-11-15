@@ -2,11 +2,12 @@ import * as T from 'three';
 import { GRAVITY } from './alpine.ts';
 
 const budgets: Record<string, { capacity: number; rate: number }> = {
-    low: { capacity: 160, rate: 105 },
-    balanced: { capacity: 320, rate: 210 },
-    high: { capacity: 620, rate: 420 },
-    ultra: { capacity: 980, rate: 650 },
-    extreme: { capacity: 1480, rate: 900 },
+    low: { capacity: 260, rate: 150 },
+    balanced: { capacity: 560, rate: 300 },
+    high: { capacity: 1100, rate: 560 },
+    ultra: { capacity: 1800, rate: 860 },
+    extreme: { capacity: 2600, rate: 1200 },
+    cinematic: { capacity: 3600, rate: 1600 },
 };
 const clamp = T.MathUtils.clamp;
 const lerp = T.MathUtils.lerp;
@@ -29,17 +30,22 @@ type SprayContact = {
 
 function sprayMaterial() {
     return new T.ShaderMaterial({
-        uniforms: { ...T.UniformsUtils.clone(T.UniformsLib.fog), pixelScale: { value: 360 } },
+        uniforms: { ...T.UniformsUtils.clone(T.UniformsLib.fog), pixelScale: { value: 360 }, sunDirection: { value: new T.Vector3(-.6, .45, -.36).normalize() } },
         transparent: true,
         depthWrite: false,
         fog: true,
         vertexShader: `
             #include <fog_pars_vertex>
             uniform float pixelScale;
+            uniform vec3 sunDirection;
             attribute vec4 particleStyle;
             varying vec3 sprayStyle;
+            varying float sunScatter;
             void main() {
                 vec4 mvPosition = modelViewMatrix * vec4(position, 1.);
+                // Forward scattering: snow dust glows when the camera looks toward the sun through it.
+                vec3 sunView = normalize((viewMatrix * vec4(sunDirection, 0.)).xyz);
+                sunScatter = pow(max(0., dot(normalize(mvPosition.xyz), sunView)), 5.);
                 gl_Position = projectionMatrix * mvPosition;
                 gl_PointSize = clamp(particleStyle.x * pixelScale * projectionMatrix[1][1] / max(.08, -mvPosition.z), 1., 128.);
                 sprayStyle = particleStyle.yzw;
@@ -49,6 +55,7 @@ function sprayMaterial() {
         fragmentShader: `
             #include <fog_pars_fragment>
             varying vec3 sprayStyle;
+            varying float sunScatter;
             void main() {
                 vec2 uv = gl_PointCoord - .5;
                 float angle = sprayStyle.z * 6.283185;
@@ -58,9 +65,11 @@ function sprayMaterial() {
                 float cloudRadius = length(p * vec2(.84, 1.19)) + drift * .038;
                 float cloud = exp(-9. * cloudRadius * cloudRadius) * (1. - smoothstep(.27, .49, cloudRadius));
                 float flake = 1. - smoothstep(.17, .47, length(p));
-                float alpha = sprayStyle.x * mix(flake, cloud, sprayStyle.y);
+                float alpha = sprayStyle.x * mix(flake, cloud, sprayStyle.y) * (1. + sunScatter * .6);
                 if (alpha < .008) discard;
-                vec3 ice = mix(vec3(.59, .72, .88), vec3(.97, .99, 1.), .55 - .43 * p.y);
+                // lit from above, shaded blue underneath (self-shadowing), bright and warm toward the sun
+                vec3 ice = mix(vec3(.62, .74, .90), vec3(.98, .99, 1.), .55 - .55 * p.y);
+                ice = mix(ice, vec3(1.25, 1.2, 1.12), sunScatter * .75);
                 gl_FragColor = vec4(ice, alpha);
                 #include <tonemapping_fragment>
                 #include <colorspace_fragment>
@@ -74,14 +83,14 @@ export class PowderSpray {
     readonly points: T.Points<T.BufferGeometry, T.ShaderMaterial>;
     private readonly geometry = new T.BufferGeometry();
     private readonly material = sprayMaterial();
-    private readonly positions = new Float32Array(budgets.extreme.capacity * 3);
-    private readonly velocities = new Float32Array(budgets.extreme.capacity * 3);
-    private readonly planes = new Float32Array(budgets.extreme.capacity * 3);
-    private readonly style = new Float32Array(budgets.extreme.capacity * 4);
-    private readonly size = new Float32Array(budgets.extreme.capacity);
-    private readonly age = new Float32Array(budgets.extreme.capacity);
-    private readonly lifetime = new Float32Array(budgets.extreme.capacity);
-    private readonly opacity = new Float32Array(budgets.extreme.capacity);
+    private readonly positions = new Float32Array(budgets.cinematic.capacity * 3);
+    private readonly velocities = new Float32Array(budgets.cinematic.capacity * 3);
+    private readonly planes = new Float32Array(budgets.cinematic.capacity * 3);
+    private readonly style = new Float32Array(budgets.cinematic.capacity * 4);
+    private readonly size = new Float32Array(budgets.cinematic.capacity);
+    private readonly age = new Float32Array(budgets.cinematic.capacity);
+    private readonly lifetime = new Float32Array(budgets.cinematic.capacity);
+    private readonly opacity = new Float32Array(budgets.cinematic.capacity);
     private previous?: SprayContact;
     private budget = budgets.high;
     private count = 0;
@@ -119,12 +128,12 @@ export class PowderSpray {
         const previous = this.previous;
         this.previous = contact;
         if (contact.grounded) {
-            const speed = smoothstep(contact.speed, 1.7, 24);
+            const speed = smoothstep(contact.speed, 1.5, 12);   // m/s: full spray from ~43 km/h
             const carve = smoothstep(Math.abs(contact.edge), .08, .58);
             const skid = smoothstep(Math.abs(contact.skid), .045, .7);
             const powder = smoothstep(contact.depth, .025, .43);
             const force = Math.min(1, .26 * carve + .54 * skid + .63 * powder);
-            this.carry += dt * this.budget.rate * speed * (.036 + .96 * force);
+            this.carry += dt * this.budget.rate * speed * (.03 + 1.1 * force);
             const generated = Math.floor(this.carry);
             this.carry -= generated;
             const moving = previous?.grounded ? previous : contact;
@@ -168,21 +177,25 @@ export class PowderSpray {
         this.positions[point + 2] = z + cosine * tail + sine * offset;
         this.positions[point + 1] = y + contact.slopeX * (-sine * tail + cosine * offset)
             + contact.slopeZ * (cosine * tail + sine * offset) + .025 + Math.random() * (.085 + powder * .13);
-        const forward = contact.speed * (.16 + Math.random() * .30) - 1.2 * landing;
-        const lateral = side * (.34 + Math.random() * (1.20 + force * 4.0 + landing * 3.0));
+        // Thrown snow keeps little of the rider's speed (it is kicked off the edge, not carried): it hangs where it was thrown.
+        const forward = contact.speed * (.05 + Math.random() * .17) - 1.2 * landing;
+        const skidWall = smoothstep(Math.abs(contact.skid), .35, 1.0) * smoothstep(contact.speed, 4, 12);
+        const lateral = side * (.34 + Math.random() * (1.20 + force * 4.0 + landing * 3.0 + skidWall * 3.5));
         this.velocities[point] = sine * forward + cosine * lateral;
         this.velocities[point + 2] = -cosine * forward + sine * lateral;
-        this.velocities[point + 1] = .38 + .62 * powder + Math.random() * (.76 + powder * 1.14 + force * 2.6 + landing * 3.1)
+        // powder rooster tail and skid-stop walls rise to roughly rider height
+        this.velocities[point + 1] = .38 + .9 * powder + Math.random() * (.76 + powder * 2.1 + force * 2.6 + landing * 3.1 + skidWall * 2.4)
             + contact.slopeX * this.velocities[point] + contact.slopeZ * this.velocities[point + 2];
         this.planes[point] = y - x * contact.slopeX - z * contact.slopeZ;
         this.planes[point + 1] = contact.slopeX;
         this.planes[point + 2] = contact.slopeZ;
         this.age[index] = 0;
-        this.lifetime[index] = cloud ? .43 + Math.random() * (.41 + powder * .28) : .28 + Math.random() * .34;
-        this.size[index] = cloud ? .16 + Math.random() * (.23 + powder * .31) : .027 + Math.random() * .046;
-        this.opacity[index] = cloud ? (.13 + force * .15 + powder * .12) : .36 + Math.random() * .39;
+        // Lingering snow dust: clouds 0.2-1.5 m that keep growing and hang for 0.7-2.5 s (powder plumes, skid walls).
+        this.lifetime[index] = cloud ? .7 + Math.random() * (.55 + powder * 1.25 + skidWall * .7) : .3 + Math.random() * .4;
+        this.size[index] = cloud ? .2 + Math.random() * (.32 + powder * .62 + skidWall * .45) : .027 + Math.random() * .05;
+        this.opacity[index] = cloud ? (.2 + force * .2 + powder * .2 + skidWall * .16) : .36 + Math.random() * .39;
         this.style[style] = this.size[index];
-        this.style[style + 1] = this.opacity[index] * (cloud ? .58 : 1);
+        this.style[style + 1] = this.opacity[index] * (cloud ? .8 : 1);
         this.style[style + 2] = cloud ? 1 : 0;
         this.style[style + 3] = Math.random();
     }
@@ -196,7 +209,7 @@ export class PowderSpray {
             const drag = cloud ? mistDrag : flakeDrag;
             this.velocities[point] *= drag;
             this.velocities[point + 2] *= drag;
-            this.velocities[point + 1] = this.velocities[point + 1] * drag - GRAVITY * dt * (cloud ? .27 : 1);
+            this.velocities[point + 1] = this.velocities[point + 1] * drag - GRAVITY * dt * (cloud ? .12 : 1);
             this.positions[point] += this.velocities[point] * dt;
             this.positions[point + 1] += this.velocities[point + 1] * dt;
             this.positions[point + 2] += this.velocities[point + 2] * dt;
@@ -210,9 +223,9 @@ export class PowderSpray {
                 this.positions[point + 1] = floor + .065;
                 this.velocities[point + 1] = 0;
             }
-            this.style[style] = this.size[i] * (cloud ? 1 + progress * 1.6 : 1);
+            this.style[style] = this.size[i] * (cloud ? 1 + progress * 2.5 : 1);
             this.style[style + 1] = this.opacity[i] * (1 - progress) ** (cloud ? 1.5 : .65)
-                * (cloud ? lerp(.58, 1, clamp(progress * 6, 0, 1)) : 1);
+                * (cloud ? lerp(.8, 1, clamp(progress * 6, 0, 1)) : 1);
             i++;
         }
     }
@@ -229,6 +242,9 @@ export class PowderSpray {
         this.lifetime[index] = this.lifetime[last];
         this.opacity[index] = this.opacity[last];
     }
+
+    /** World direction toward the sun (for forward scattering in the snow dust). */
+    setSun(direction: T.Vector3) { this.material.uniforms.sunDirection.value.copy(direction).normalize(); }
 
     dispose() {
         this.points.removeFromParent();
