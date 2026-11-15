@@ -2,11 +2,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as T from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { ChevronLeft, Map as MapIcon, Box, X, Play, CableCar, ArrowRight, Navigation, FastForward, Info } from 'lucide-react';
+import { ChevronLeft, Map as MapIcon, Box, X, Play, CableCar, ArrowRight, Navigation, Info } from 'lucide-react';
 import { loadResort, overviewGrid, overviewHeight, type Resort, type ResortLift, type RouteSummary, type Station } from '@/lib/verbier/terrain';
 import { reliefImage, drawMap, mapTexture, pick, along, PISTE_COLOUR, type View } from '@/lib/verbier/map-render';
+import { planJourney, type JourneyStep } from '@/lib/verbier/journey';
 
-export type Arrival = { title: string; detail: string; onReplay?: () => void };
+export type Arrival = { title: string; detail: string; onReplay?: () => void; eyebrow?: string };
 type Selection = { kind: 'station'; item: Station } | { kind: 'lift'; item: ResortLift } | { kind: 'route'; item: RouteSummary } | null;
 type Ride = { lift: ResortLift; t: number; duration: number };
 const CLASS_NAME: Record<string, string> = { blue: 'Blue', red: 'Red', black: 'Black', itinerary: 'Itinerary', park: 'Snowpark', skicross: 'Ski cross' };
@@ -17,13 +18,16 @@ const km = (m: number) => m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.ro
  * Verbier 4 Vallées resort map: where you are, the lifts you can take from here and the pistes you can ride down.
  * Real geography: swissALTI3D relief, OpenStreetMap piste and lift lines, official station names. 2D and 3D views.
  */
-export default function ResortMap({ station, onStation, onRide, onClose, arrival, onDismissArrival, loading }: {
+export default function ResortMap({ station, onStation, onRide, onLift, onJourney, onClose, arrival, onDismissArrival, loading }: {
     station: string; onStation: (id: string) => void; onRide: (r: RouteSummary) => void; onClose: () => void;
+    /** Ride a lift in the game world (from the current station). */ onLift: (l: ResortLift) => void;
+    /** Play a planned sequence of lifts and runs. */ onJourney: (steps: JourneyStep[], destination: string) => void;
     arrival: Arrival | null; onDismissArrival: () => void; loading: boolean;
 }) {
     const [resort, setResort] = useState<Resort | null>(null), [err, setErr] = useState('');
     const [mode, setMode] = useState<'2d' | '3d'>(() => { try { return (localStorage.getItem('evader-map-view') as '2d' | '3d') || '2d'; } catch { return '2d'; } });
-    const [sel, setSel] = useState<Selection>(null), [ride, setRide] = useState<Ride | null>(null);
+    const [sel, setSel] = useState<Selection>(null);
+    const ride: Ride | null = null;   // lifts are ridden in the game world now (see onLift)
     useEffect(() => { let live = true; loadResort().then(r => { if (live) setResort(r); }).catch(() => setErr('The resort map could not be loaded. Check the connection and try again.')); return () => { live = false; }; }, []);
     useEffect(() => { try { localStorage.setItem('evader-map-view', mode); } catch { /* per-viewer convenience only */ } }, [mode]);
     const relief = useMemo(() => resort ? reliefImage(resort) : null, [resort]);
@@ -41,21 +45,7 @@ export default function ResortMap({ station, onStation, onRide, onClose, arrival
     const highlight = useMemo(() => new Set(routesFrom.map(r => r.id)), [routesFrom]);
     const stationName = (id: string | null) => resort?.stations.find(s => s.id === id)?.name ?? 'end of the mapped line';
 
-    // lift ride: accelerated playback of the real ride (real duration shown)
-    useEffect(() => {
-        if (!ride) return;
-        let raf = 0, last = performance.now();
-        const step = (now: number) => {
-            const dt = (now - last) / 1000; last = now;
-            setRide(r => r && { ...r, t: Math.min(1, r.t + dt / r.duration) });
-            raf = requestAnimationFrame(step);
-        };
-        raf = requestAnimationFrame(step);
-        return () => cancelAnimationFrame(raf);
-    }, [ride?.lift.id]); // eslint-disable-line react-hooks/exhaustive-deps
-    useEffect(() => { if (ride && ride.t >= 1) { onStation(ride.lift.to); setSel(null); setRide(null); } }, [ride, onStation]);
-    const startLift = (l: ResortLift) => { onDismissArrival(); setSel(null); setRide({ lift: l, t: 0, duration: Math.min(18, Math.max(6, l.rideS / 18)) }); };
-    const rider = ride ? along(ride.lift.points, ride.t) : null;
+    const rider = null;
     const onPick = (e: number, n: number, tol: number) => { if (!resort || ride) return; setSel(pick(resort, e, n, tol, highlight)); };
 
     if (err) return <div className="resort"><div className="resort-error">{err}<button className="secondary-button" onClick={onClose}>Back</button></div></div>;
@@ -74,32 +64,26 @@ export default function ResortMap({ station, onStation, onRide, onClose, arrival
             </div>
             <div className="resort-legend"><span><i style={{ background: PISTE_COLOUR.blue }} />Blue</span><span><i style={{ background: PISTE_COLOUR.red }} />Red</span><span><i style={{ background: PISTE_COLOUR.black }} />Black</span><span><i className="dash" style={{ background: PISTE_COLOUR.itinerary }} />Itinerary</span><span><i className="lift" />Lift</span></div>
             <p className="resort-credit">© swisstopo · © OpenStreetMap contributors (ODbL)</p>
-            {ride && <div className="lift-ride">
-                <span className="eyebrow">{ride.lift.typeLabel.toUpperCase()} · RIDING</span>
-                <strong>{ride.lift.name}</strong>
-                <span>{stationName(ride.lift.from)} → {stationName(ride.lift.to)}</span>
-                <div className="progress-track"><div style={{ width: `${ride.t * 100}%` }} /></div>
-                <span className="lift-ride-stats">{Math.round(ride.lift.bottomZ + (ride.lift.topZ - ride.lift.bottomZ) * ride.t).toLocaleString()} m · real ride {mmss(ride.lift.rideS)}</span>
-                <button className="text-button" onClick={() => setRide(r => r && { ...r, t: 1 })}><FastForward size={15} />Skip</button>
-            </div>}
         </div>
         <aside className="resort-panel">
-            {arrival && <div className="arrival"><button className="icon-button" aria-label="Close" onClick={onDismissArrival}><X size={16} /></button><span className="eyebrow">RUN COMPLETE</span><strong>{arrival.title}</strong><p>{arrival.detail}</p>{arrival.onReplay && <button className="text-button" onClick={arrival.onReplay}>Watch the replay</button>}</div>}
+            {arrival && <div className="arrival"><button className="icon-button" aria-label="Close" onClick={onDismissArrival}><X size={16} /></button><span className="eyebrow">{arrival.eyebrow ?? 'RUN COMPLETE'}</span><strong>{arrival.title}</strong><p>{arrival.detail}</p>{arrival.onReplay && <button className="text-button" onClick={arrival.onReplay}>Watch the replay</button>}</div>}
             <span className="eyebrow">YOU ARE AT</span>
             <h1 className="station-title">{here.name}</h1>
             <p className="station-meta">{Math.round(here.z).toLocaleString()} m · {here.liftsUp.length} lift{here.liftsUp.length === 1 ? '' : 's'} · {routesFrom.length} run{routesFrom.length === 1 ? '' : 's'} down</p>
             {sel && <Detail sel={sel} resort={resort} here={here} stationName={stationName} loading={loading}
-                onClose={() => setSel(null)} onRide={onRide} onLift={startLift} onTravel={id => { onDismissArrival(); setSel(null); onStation(id); }} />}
+                onClose={() => setSel(null)} onRide={onRide} onLift={l => { onDismissArrival(); setSel(null); onLift(l); }}
+                onJourney={(steps, dest) => { onDismissArrival(); setSel(null); onJourney(steps, dest); }}
+                onTravel={id => { onDismissArrival(); setSel(null); onStation(id); }} />}
             {!sel && <>
                 <h2 className="panel-heading"><CableCar size={16} />Lifts from here</h2>
-                {liftsUp.length ? <div className="lift-list">{liftsUp.map(l => <button key={l.id} className="lift-row" disabled={!!ride} onClick={() => setSel({ kind: 'lift', item: l })}>
+                {liftsUp.length ? <div className="lift-list">{liftsUp.map(l => <button key={l.id} className="lift-row" onClick={() => setSel({ kind: 'lift', item: l })}>
                     <span className="lift-type">{l.typeLabel}</span><strong>{l.name}</strong>
                     <span className="lift-to"><ArrowRight size={13} />{stationName(l.to)} · +{l.vertical} m · {mmss(l.rideS)}</span>
                 </button>)}</div> : <p className="panel-note">No lift leaves from this station. Ride down to the next one.</p>}
                 <h2 className="panel-heading"><Navigation size={16} />Ride down to</h2>
                 {byDest.length ? byDest.map(([dest, list]) => <div key={dest} className="dest-group">
                     <span className="dest-name">{stationName(dest)}</span>
-                    <div className="route-chips">{list.map(r => <button key={r.id} disabled={!!ride} className="route-chip" onClick={() => setSel({ kind: 'route', item: r })}>
+                    <div className="route-chips">{list.map(r => <button key={r.id} className="route-chip" onClick={() => setSel({ kind: 'route', item: r })}>
                         <i style={{ background: PISTE_COLOUR[r.klass] }} />{CLASS_NAME[r.klass]} · {km(r.length)} · −{r.drop} m
                     </button>)}</div>
                 </div>) : <p className="panel-note">No mapped piste leaves from here. Take a lift.</p>}
@@ -110,9 +94,30 @@ export default function ResortMap({ station, onStation, onRide, onClose, arrival
 }
 const order = (k: string) => ({ blue: 1, red: 2, black: 3, itinerary: 4, park: 5, skicross: 6 } as Record<string, number>)[k] ?? 9;
 
-function Detail({ sel, resort, here, stationName, loading, onClose, onRide, onLift, onTravel }: {
+function Plan({ resort, from, to, extra, stationName, onJourney, onTravel, label }: {
+    resort: Resort; from: string; to: string; extra?: JourneyStep; stationName: (id: string | null) => string;
+    onJourney: (steps: JourneyStep[], dest: string) => void; onTravel: (id: string) => void; label: string;
+}) {
+    const plan = useMemo(() => planJourney(resort, from, to), [resort, from, to]);
+    const steps = plan ? [...plan.steps, ...(extra ? [extra] : [])] : null;
+    const dest = extra?.kind === 'lift' ? extra.lift.to : extra?.kind === 'run' ? extra.route.toStation ?? to : to;
+    return <div className="plan">
+        {steps ? <>
+            <span className="eyebrow">HOW TO GET THERE · ABOUT {Math.max(1, Math.round(((plan?.seconds ?? 0) + (extra?.kind === 'lift' ? extra.lift.rideS + 90 : extra?.kind === 'run' ? extra.route.length / 8 : 0)) / 60))} MIN</span>
+            <ol className="plan-steps">{steps.map((st, i) => <li key={i} className={st.kind}>
+                {st.kind === 'lift' ? <><CableCar size={14} /><span><strong>{st.lift.name}</strong> · {st.lift.typeLabel.toLowerCase()} to {stationName(st.lift.to)} · {mmss(st.lift.rideS)}</span></>
+                    : <><i style={{ background: PISTE_COLOUR[st.route.klass] }} /><span><strong>Ride down</strong> to {stationName(st.route.toStation)} · {CLASS_NAME[st.route.klass].toLowerCase()} {km(st.route.length)}</span></>}
+            </li>)}</ol>
+            <button className="drop-button" onClick={() => onJourney(steps, dest)}><Play size={17} />{label}</button>
+        </> : <p className="panel-note">Lifts and pistes do not connect from here to there.</p>}
+        <button className="text-button" onClick={() => onTravel(extra?.kind === 'lift' ? extra.lift.from : extra?.kind === 'run' ? extra.route.fromStation! : to)}><Navigation size={14} />Jump there instead</button>
+    </div>;
+}
+
+function Detail({ sel, resort, here, stationName, loading, onClose, onRide, onLift, onJourney, onTravel }: {
     sel: NonNullable<Selection>; resort: Resort; here: Station; stationName: (id: string | null) => string; loading: boolean;
     onClose: () => void; onRide: (r: RouteSummary) => void; onLift: (l: ResortLift) => void; onTravel: (id: string) => void;
+    onJourney: (steps: JourneyStep[], dest: string) => void;
 }) {
     return <div className="detail-card">
         <button className="icon-button detail-close" aria-label="Close details" onClick={onClose}><X size={16} /></button>
@@ -128,8 +133,8 @@ function Detail({ sel, resort, here, stationName, loading, onClose, onRide, onLi
                     {l.occupancy && <div><dt>Seats</dt><dd>{l.occupancy}</dd></div>}{l.guide && <div><dt>Guide</dt><dd>{l.guide.name} · {l.guide.type}</dd></div>}
                 </dl>
                 {l.note && <p className="panel-note small">{l.note}</p>}
-                {atBottom ? <button className="drop-button" onClick={() => onLift(l)}><CableCar size={17} />Ride this lift</button>
-                    : <button className="secondary-button" onClick={() => onTravel(l.from)}><Navigation size={16} />Go to {stationName(l.from)}</button>}
+                {atBottom ? <button className="drop-button" disabled={loading} onClick={() => onLift(l)}><CableCar size={17} />{loading ? 'Loading…' : `Get on the ${l.typeLabel.toLowerCase()}`}</button>
+                    : <Plan resort={resort} from={here.id} to={l.from} extra={{ kind: 'lift', lift: l }} stationName={stationName} onJourney={onJourney} onTravel={onTravel} label={`Go and ride ${l.name}`} />}
             </>;
         })()}
         {sel.kind === 'route' && (() => {
@@ -141,7 +146,7 @@ function Detail({ sel, resort, here, stationName, loading, onClose, onRide, onLi
                 <dl><div><dt>Length</dt><dd>{km(r.length)}</dd></div><div><dt>Drop</dt><dd>{r.drop} m</dd></div>
                     <div><dt>Start</dt><dd>{Math.round(r.startElevation).toLocaleString()} m</dd></div><div><dt>Finish</dt><dd>{Math.round(r.endElevation).toLocaleString()} m</dd></div></dl>
                 {fromHere || !r.fromStation ? <button className="drop-button" disabled={loading} onClick={() => onRide(r)}><Play size={17} />{loading ? 'Loading terrain…' : 'Drop in'}</button>
-                    : <button className="secondary-button" onClick={() => onTravel(r.fromStation!)}><Navigation size={16} />Go to {stationName(r.fromStation)}</button>}
+                    : <Plan resort={resort} from={here.id} to={r.fromStation} extra={{ kind: 'run', route: r }} stationName={stationName} onJourney={onJourney} onTravel={onTravel} label="Go there and ride it" />}
             </>;
         })()}
         {sel.kind === 'station' && (() => {
@@ -150,7 +155,7 @@ function Detail({ sel, resort, here, stationName, loading, onClose, onRide, onLi
                 <span className="eyebrow">STATION · {Math.round(s.z).toLocaleString()} M</span><h2>{s.name}</h2>
                 <p>{s.liftsUp.length} lift{s.liftsUp.length === 1 ? '' : 's'} up ({s.liftsUp.map(id => resort.lifts.find(l => l.id === id)?.name).join(', ') || 'none'}) · {s.routesFrom.length} run{s.routesFrom.length === 1 ? '' : 's'} down</p>
                 <p className="panel-note small">Name: {s.nameSource}</p>
-                {s.id !== here.id && <button className="secondary-button" onClick={() => onTravel(s.id)}><Navigation size={16} />Go to this station</button>}
+                {s.id !== here.id && <Plan resort={resort} from={here.id} to={s.id} stationName={stationName} onJourney={onJourney} onTravel={onTravel} label={`Go to ${s.name}`} />}
             </>;
         })()}
     </div>;

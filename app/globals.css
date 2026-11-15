@@ -11,7 +11,7 @@
 @media(prefers-reduced-motion:reduce){button{transition:none}}
 
 .performance-label{position:absolute;bottom:6px;left:12px;z-index:4;color:#dceaf0;font:10px monospace;letter-spacing:.06em;pointer-events:none;background:#102433b0;padding:3px 6px;border-radius:3px}
-.screen-ride .vignette,.screen-replay .vignette {
+.screen-ride .vignette,.screen-replay .vignette,.screen-lift .vignette {
   background:linear-gradient(180deg,#142b404d,transparent 16%),linear-gradient(0deg,#142b4026,transparent 13%);
 }
 .ride-top,.hud-score,.hud-progress,.hud-speed,.trick-toast {
@@ -169,3 +169,21 @@
 .resort-loading,.resort-error{grid-column:1/-1;display:flex;flex-direction:column;gap:14px;align-items:center;justify-content:center;font-size:15px;color:#cfdde6}
 @media(max-width:900px) and (orientation:portrait){.resort{grid-template-columns:1fr;grid-template-rows:56svh 1fr}.resort-panel{border-left:0;border-top:1px solid #ffffff14;padding:16px 16px 26px}.station-title{font-size:24px}.lift-ride{bottom:44px}.resort-legend{bottom:22px;font-size:10px}}
 @media(max-width:900px) and (orientation:landscape){.resort{grid-template-columns:minmax(0,1fr) 300px}.resort-panel{padding:14px}.station-title{font-size:22px}}
+
+/* ---- lift ride HUD and journey plans --------------------------------------------------------------------------------- */
+.lift-hud{position:fixed;inset:auto 0 0 0;z-index:12;display:flex;justify-content:space-between;align-items:flex-end;gap:12px;padding:16px;pointer-events:none}
+.lift-hud>*{pointer-events:auto}
+.lift-hud-card{display:flex;flex-direction:column;gap:5px;width:min(420px,100%);padding:14px 16px;border-radius:8px;background:#101e28e8;border:1px solid #ffffff22;color:#f3f5f4}
+.lift-hud-card strong{font-size:22px;letter-spacing:-.3px}
+.lift-hud-route{font-size:13px;color:#cfdde6}.lift-hud-stats{font-size:12px;color:#a8bec9}.lift-hud-journey{font-size:12px;color:#d7fa65}
+.lift-hud-card .progress-track{height:5px;background:#ffffff22;border-radius:3px;overflow:hidden}.lift-hud-card .progress-track div{height:100%;background:#d7fa65;transition:width .2s linear}
+.lift-hud-controls{display:flex;gap:4px;padding:5px;border-radius:8px;background:#101e28e8;border:1px solid #ffffff22}
+.lift-hud-controls button{display:flex;align-items:center;justify-content:center;min-width:44px;height:38px;padding:0 10px;border:0;border-radius:5px;background:#ffffff10;color:#e6eff3;font-weight:700;font-size:13px}
+.lift-hud-controls button[aria-pressed=true]{background:#d7fa65;color:#152125}
+.plan{margin-top:6px}
+.plan-steps{list-style:none;margin:8px 0 12px;padding:0;display:flex;flex-direction:column;gap:6px}
+.plan-steps li{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:#dce7ee;line-height:1.35}
+.plan-steps li svg{flex:none;margin-top:2px;color:#d7fa65}
+.plan-steps li>i{flex:none;width:10px;height:10px;margin-top:4px;border-radius:50%;border:1px solid #ffffff66}
+.plan .text-button{display:flex;align-items:center;gap:6px;margin-top:8px}
+@media(max-width:760px){.lift-hud{flex-direction:column;align-items:stretch;padding:10px}.lift-hud-card strong{font-size:18px}.lift-hud-controls{justify-content:space-between}}

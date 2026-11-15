@@ -5,8 +5,10 @@ import * as T from 'three';
 import { PISTES, LIFTS, ANCHORS, ITINERARIES, SNOWPARK, infrastructureFor, FUN_ZONES } from '../lib/verbier/registry.ts';
 import { verbierRun, moguls, RUNS, resortSync, worldHeight, tileLoaded } from '../lib/verbier/terrain.ts';
 import { curvature } from '../lib/verbier/scenery.ts';
+import { LiftRide } from '../lib/verbier/lift-ride.ts';
+import { planJourney } from '../lib/verbier/journey.ts';
 import { LA_CHAUX_FEATURES } from '../lib/park-jumps.ts';
-import { COURSES, height, snowDepth, SnowGame, center, routeCourse } from '../lib/snow-game.ts';
+import { COURSES, height, snowDepth, SnowGame, center, routeCourse, liftCourse } from '../lib/snow-game.ts';
 import { makeParkRails } from '../lib/park-rails.ts';
 import { IDLE_INTENT } from '../lib/sim/rider-controller.ts';
 import { lineFollower } from '../tools/gamebot.mjs';
@@ -82,6 +84,48 @@ import { lineFollower } from '../tools/gamebot.mjs';
     for (const n of ['Mont-Fort', 'Tortin', 'Savoleyres', 'La Chaux', 'Les Attelas', 'Siviez']) assert(seen.has(station(n).id), `${n} reachable from Verbier`);
     const network = r.routes.filter(x => !x.featured);
     console.log(`Resort: ${r.lifts.length} mapped lifts, ${r.stations.length} named stations, ${network.length} station-to-station runs, all ending where a lift goes up; ${seen.size} stations reachable from Verbier – Médran passed.`);
+}
+
+// ---- lifts: real lines, clearance, speeds from the mapped durations, every ride boards and gets off at the top ---------------
+{
+    const r = resortSync();
+    const below = { chair: 2.95, gondola: 3.4, mixed: 3.4, cablecar: 7, surface: 0 }, need = { chair: 1, gondola: 1.5, mixed: 1.5, cablecar: 3, surface: 4 };
+    let rides = 0, inserted = 0, mapped = 0;
+    for (const l of r.lifts) {
+        const course = liftCourse(l), run = verbierRun(course.dem), cl = run.h.lifts.find(x => x.id === l.id);
+        assert(cl, `${l.name}: on its own lift course`);
+        const ride = new LiftRide(cl, (x, d) => height(x, d, course), 'low');
+        const p = ride.profile;
+        mapped += p.heads.filter(h => h.mapped && !h.station).length; inserted += p.heads.filter(h => !h.mapped).length;
+        assert(p.minClearance(below[p.kind]) >= need[p.kind], `${l.name}: vehicle clearance ${p.minClearance(below[p.kind]).toFixed(1)} m`);
+        // speed from the mapped ride time (OpenStreetMap) within the typical range of the lift type
+        assert(Math.abs(ride.dyn.ride - l.rideS) / l.rideS < .02 || ride.dyn.v === p.spec.speed[0] || ride.dyn.v === p.spec.speed[1], `${l.name}: ride time follows the mapped duration`);
+        ride.multiplier = 40;
+        const phases = []; let f, t = 0;
+        while (t < 600) { f = ride.update(1 / 30); t += 1 / 30; if (phases.at(-1) !== f.phase) phases.push(f.phase); if (f.phase === 'done') break; }
+        assert.equal(f.phase, 'done', `${l.name}: the ride ends (${phases.join(' > ')})`);
+        assert.deepEqual(phases, ['wait', 'board', 'depart', 'ride', 'arrive', 'alight', 'done'], `${l.name}: boards, rides and gets off in order`);
+        // (the 68 m Haute-Nendaz funicular runs in a cutting: its ends are below the ground model beside the line)
+        if (l.type !== 'funicular') assert(Math.abs(f.root.y - l.topZ) < 12, `${l.name}: rider ends at the top station (${f.root.y.toFixed(0)} vs ${l.topZ})`);
+        rides++;
+    }
+    console.log(`Lifts: all ${rides} lifts ridden end to end (board, ride, get off at the top) at their mapped speeds; ${mapped} mapped pylons, ${inserted} towers added for clearance passed.`);
+}
+
+// ---- journeys: lifts up, runs down, from one station to any other -------------------------------------------------------------
+{
+    const r = resortSync(), st = n => r.stations.find(s => s.name === n).id;
+    const plan = planJourney(r, st('Verbier – Médran'), st('Mont-Fort'));
+    assert(plan && plan.steps.length >= 3, 'Verbier to Mont-Fort needs several steps');
+    let at = st('Verbier – Médran');
+    for (const s of plan.steps) {
+        if (s.kind === 'lift') { assert.equal(s.lift.from, at, 'each lift starts where the previous step ended'); assert(s.lift.topZ > s.lift.bottomZ); at = s.lift.to; }
+        else { assert.equal(s.route.fromStation, at, 'each run starts where the previous step ended'); at = s.route.toStation; }
+    }
+    assert.equal(at, st('Mont-Fort'), 'the journey ends at Mont-Fort');
+    assert.equal(plan.steps.at(-1).kind, 'lift'); assert.equal(plan.steps.at(-1).lift.name, 'Mont-Fort', 'the last step is the Mont-Fort cable car');
+    assert.equal(planJourney(r, st('Verbier – Médran'), st('Le Châble')), null, 'Le Châble cannot be reached on lifts and pistes from above (the gondola only goes up)');
+    console.log(`Journeys: Verbier – Médran to Mont-Fort in ${plan.steps.length} connected steps (${plan.steps.map(s => s.kind === 'lift' ? s.lift.name : 'run').join(' > ')}) passed.`);
 }
 
 // ---- runs: real descents along the mapped lines --------------------------------------------------------------------------

@@ -20,6 +20,7 @@ import { verbierRun, lapseTemperature, RUNS as VERBIER_RUNS, type RunClass } fro
 import { liftGroup, poleGroup, skicrossGroup, skicrossShape } from './verbier/scenery.ts';
 import { SNOW, type SnowMaterial } from './sim/snow.ts';
 import { makeCloudSea } from './verbier/cloud-sea.ts';
+import { LiftRide, type RideFrame } from './verbier/lift-ride.ts';
 
 /** Snow depth on a real-terrain run: groomed inside the piste width, deeper and varied off-piste, deepest on cold,
  *  north-facing, high slopes; an itinerary is ungroomed everywhere. Depths are game estimates, not measurements. */
@@ -106,6 +107,11 @@ const VERBIER_COURSES: Course[] = VERBIER_RUNS.map((r, i) => ({
     rails: r.klass === 'park' ? 4 : 0, seed: 300 + i, dem: r.id, runClass: r.klass as RunClass,
 }));
 /** A playable course for any resort route (station to station along mapped pistes). Load it with loadRun first. */
+/** The scene for riding a lift: the corridor along its real line (load it with loadLift first). */
+export function liftCourse(l: { id: string; name: string; typeLabel: string; vertical: number; length: number }): Course {
+    return { id: 2000, name: l.name.toUpperCase(), region: 'VERBIER · 4 VALLÉES', subtitle: l.typeLabel, length: Math.round(l.length), drop: -l.vertical,
+        difficulty: l.typeLabel.toUpperCase(), spacing: 1e9, rails: 0, seed: 900, dem: `lift-${l.id}`, runClass: 'red' };
+}
 export function routeCourse(r: { id: string; name: string; description: string; klass: string; length: number; drop: number }, index = 0): Course {
     return { id: 1000 + index, name: r.name, region: 'VERBIER · 4 VALLÉES', subtitle: r.description, length: r.length, drop: r.drop,
         difficulty: CLASS_LABEL[r.klass] ?? r.klass.toUpperCase(), spacing: 1e9, rails: r.klass === 'park' ? 4 : 0, seed: 500 + index, dem: r.id, runClass: r.klass as RunClass };
@@ -305,7 +311,10 @@ export class SnowGame {
     look: Look;
     course = COURSES[0];
     mode: Mode = 'freeride';
-    state: 'menu' | 'ride' | 'pause' | 'result' | 'replay' | 'garage' = 'menu';
+    state: 'menu' | 'ride' | 'pause' | 'result' | 'replay' | 'garage' | 'lift' = 'menu';
+    /** The lift being ridden (state 'lift'), its latest frame, and the callback when the rider has got off at the top. */
+    lift?: LiftRide; liftFrame?: RideFrame; liftId?: string; private liftEnded = false; private liftRope?: T.Mesh;
+    onLiftEnd: (liftId: string) => void = () => {};
     keys = new Set<string>();
     touch = new Set<string>();
     frameId = 0;
@@ -669,7 +678,8 @@ export class SnowGame {
         this.world.add(rocks);
         if (c.dem) {
             const run = verbierRun(c.dem), h = (x: number, d: number) => height(x, d, c);
-            this.world.add(liftGroup(run, h), poleGroup(run, h, d => center(d, c)));
+            this.world.add(liftGroup(run, h, this.settings.quality));
+            if (!run.h.lift) this.world.add(poleGroup(run, h, d => center(d, c)));
             if (c.dem === 'la-chaux-skicross') this.world.add(skicrossGroup(run, h));
         }
         const poleMat = new T.MeshStandardMaterial({ color: 0x18343d, roughness: .54 });
@@ -1050,7 +1060,7 @@ export class SnowGame {
         }
     }
     else
-        this.physicsAccumulator = 0; if (this.state === 'replay')
+        this.physicsAccumulator = 0; if (this.state === 'lift') this.updateLift(dt); if (this.state === 'replay')
         this.updateReplay(dt);
         const inspectingGear = this.state === 'garage' && this.garageHost;
         if (inspectingGear) {
@@ -1501,7 +1511,8 @@ export class SnowGame {
     }
     visual(dt: number) {
         const menu = this.state === 'menu' || this.state === 'garage';
-        if (menu) {
+        if (this.state === 'lift') this.visualLift(dt);
+        else if (menu) {
             this.rider.position.set(center(0, this.course), height(center(0, this.course), 0, this.course), 0);
             this.body.quaternion.slerp(new T.Quaternion().setFromEuler(new T.Euler(0, .18, 0)), 1 - Math.exp(-dt * 8));
             this.rig.pose({ dt, time: performance.now() * .001, turn: 0, speed: 0, air: false, grab: false, landing: 0, menu: true });
@@ -1616,6 +1627,82 @@ export class SnowGame {
         sun.position.copy(this.rider.position).add(this.settings.weather === 'dusk' ? DUSK_LIGHT : DAYLIGHT);
         sun.target.position.copy(this.rider.position);
         sun.target.updateMatrixWorld();
+    }
+    // ---- lifts ----------------------------------------------------------------------------------------------------------
+    /** Ride a lift in the game world. The course must be liftCourse(lift) and its terrain loaded (loadLift). */
+    startLift(liftId: string, course: Course, multiplier = 4) {
+        this.lift?.dispose(); this.lift = undefined;
+        this.setCourse(course);
+        const run = verbierRun(course.dem!), courseLift = run.h.lifts.find(l => l.id === liftId);
+        if (!courseLift) throw new Error(`lift ${liftId} is not on its own course`);
+        this.lift = new LiftRide(courseLift, (x, d) => height(x, d, course), this.settings.quality);
+        this.lift.multiplier = multiplier;
+        this.world.add(this.lift.group);
+        if (!this.liftRope) { this.liftRope = new T.Mesh(new T.CylinderGeometry(.015, .015, 1, 6), new T.MeshStandardMaterial({ color: 0x24292d, roughness: .6 })); this.scene.add(this.liftRope); }
+        this.liftRope.visible = false;
+        this.reality = undefined; this.powder.clear(); this.boardTracks.clear();
+        this.liftId = liftId; this.liftEnded = false; this.state = 'lift'; this.time = 0; this.cameraMode = 0; this.photo = false;
+        this.liftFrame = this.lift.update(0);
+        this.camera.position.copy(this.liftFrame.root).add(new T.Vector3(0, 3, 0)).addScaledVector(this.liftFrame.dir, -8);
+        this.cameraFocus.copy(this.liftFrame.root); this.cameraSpring.reset(this.camera.position); this.focusSpring.reset(this.cameraFocus);
+        this.clock.getDelta();
+    }
+    setLiftSpeed(multiplier: number) { if (this.lift) this.lift.multiplier = multiplier; }
+    skipLift() { this.lift?.skip(); }
+    /** For the lift HUD. */
+    liftStatus() {
+        const f = this.liftFrame, l = this.lift; if (!f || !l) return undefined;
+        return { phase: f.phase, kind: f.kind, progress: f.progress, elevation: Math.round(f.elevation), remainingReal: Math.round(f.remainingReal), multiplier: l.multiplier, kmh: Math.round(f.speed * 3.6), rideSeconds: Math.round(l.rideSeconds) };
+    }
+    private updateLift(dt: number) {
+        if (!this.lift) return;
+        this.time += dt;
+        this.liftFrame = this.lift.update(dt);
+        if (this.liftFrame.phase === 'done' && !this.liftEnded) { this.liftEnded = true; this.onLiftEnd(this.liftId!); }
+    }
+    private visualLift(dt: number) {
+        const f = this.liftFrame; if (!f) return;
+        const up = new T.Vector3(0, 1, 0), right = new T.Vector3(-f.dir.z, 0, f.dir.x);
+        this.rider.position.copy(f.root); this.d = -f.root.z;
+        const q = new T.Quaternion();
+        if (f.pose === 'tow') {
+            // towed on the snow: the board points up the track, flat on the slope
+            const x = f.root.x, d = -f.root.z, c = this.course;
+            const n = new T.Vector3(-(height(x + .4, d, c) - height(x - .4, d, c)) / .8, 1, (height(x, d + .4, c) - height(x, d - .4, c)) / .8).normalize();
+            q.setFromUnitVectors(up, n).multiply(new T.Quaternion().setFromAxisAngle(up, Math.atan2(-f.dir.z, f.dir.x)));
+        } else q.setFromAxisAngle(up, Math.atan2(-f.dir.x, -f.dir.z)).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), f.swing));
+        this.body.quaternion.slerp(q, f.phase === 'ride' ? 1 : 1 - Math.exp(-dt * 10));
+        this.rider.updateMatrixWorld(true);
+        if (f.pose === 'tow') {
+            const towing = f.bar > .5;
+            const handWorld = f.root.clone().add(new T.Vector3(0, 1.25, 0)).addScaledVector(f.dir, .15);
+            const hold = towing ? this.body.worldToLocal(handWorld.clone()) : undefined;
+            this.rig.pose({ dt, time: this.time, turn: 0, edge: 0, speed: towing ? 3 : 0, air: false, grab: false, landing: 0, menu: !towing, hold });
+            if (this.liftRope) {
+                this.rider.updateMatrixWorld(true);
+                const hand = new T.Vector3(); (this.rig.hands[0].position.distanceTo(this.body.worldToLocal(handWorld.clone())) < this.rig.hands[1].position.distanceTo(this.body.worldToLocal(handWorld.clone())) ? this.rig.hands[0] : this.rig.hands[1]).getWorldPosition(hand);
+                const top = towing ? f.cable : f.cable.clone().add(new T.Vector3(0, -1.8, 0));
+                const bottom = towing ? hand : f.cable.clone().add(new T.Vector3(0, -1.8, 0));
+                this.liftRope.visible = towing; this.liftRope.position.copy(top).add(bottom).multiplyScalar(.5);
+                this.liftRope.scale.set(1, Math.max(.01, top.distanceTo(bottom)), 1);
+                this.liftRope.quaternion.setFromUnitVectors(up, top.clone().sub(bottom).normalize());
+            }
+        } else {
+            if (this.liftRope) this.liftRope.visible = false;
+            this.rig.poseSeated({ dt, time: this.time, sit: f.sit, hands: (f.kind === 'chair' || f.kind === 'mixed') && f.bar > .5 ? 'bar' : f.pose === 'seat' ? 'knees' : 'side' });
+        }
+        // camera: 0 chase behind the vehicle, 1 beside it, 2 the rider's view
+        const seated = f.pose === 'seat', target = f.root.clone().add(new T.Vector3(0, seated ? .9 : 1.2, 0));
+        let pos: T.Vector3, look: T.Vector3;
+        if (this.cameraMode === 2) { pos = f.root.clone().add(new T.Vector3(0, seated ? 1.4 : 1.65, 0)).addScaledVector(f.dir, .25); look = pos.clone().addScaledVector(f.dir, 20).add(new T.Vector3(0, -4, 0)); }
+        else if (this.cameraMode === 1) { pos = target.clone().addScaledVector(right, 9).addScaledVector(f.dir, -2).add(new T.Vector3(0, .6, 0)); look = target; }
+        else { pos = target.clone().addScaledVector(f.dir, -7.5).addScaledVector(right, 1.8).add(new T.Vector3(0, 2.2, 0)); look = target.clone().addScaledVector(f.dir, 4); }
+        const ground = height(pos.x, -pos.z, this.course) + 1.2; if (pos.y < ground) pos.y = ground;
+        if (this.cameraMode === 2) { this.camera.position.copy(pos); this.cameraFocus.copy(look); this.cameraSpring.reset(pos); this.focusSpring.reset(look); }
+        else { this.cameraSpring.step(pos, 1.6, dt, this.camera.position); this.focusSpring.step(look, 2.2, dt, this.cameraFocus); }
+        this.camera.lookAt(this.cameraFocus);
+        this.rider.visible = this.cameraMode !== 2;
+        if (Math.abs(this.camera.fov - this.settings.fov) > .01) { this.camera.fov = this.settings.fov; this.camera.updateProjectionMatrix(); }
     }
     capture() { this.renderer.render(this.scene, this.camera); return this.renderer.domElement.toDataURL('image/png'); }
     resume() { this.jumpPending = false; this.load = 0; this.state = 'ride'; this.keys.clear(); this.touch.clear(); this.clock.getDelta(); }

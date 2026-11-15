@@ -16,7 +16,8 @@ import { RUNS_META } from './runs-meta.ts';
  */
 export type RunClass = 'blue' | 'red' | 'black' | 'itinerary' | 'park' | 'skicross';
 export type Zone = { d0: number; d1: number; name: string | null; grooming: 'groomed' | 'moguls' | 'ungroomed'; difficulty: string | null; osm: string[] };
-export type Lift = { name: string | null; type: string | null; osm: string[]; points: [number, number, number][] };
+export type Lift = { id?: string; name: string | null; type: string | null; osm: string[]; points: [number, number, number][];
+    occupancy?: number | null; capacity?: number | null; rideS?: number; length?: number };
 type Grid = { e0: number; n1: number; cell: number; nx: number; ny: number; base: number; scale: number };
 
 export type Station = { id: string; name: string; nameSource: string; e: number; n: number; z: number; liftsUp: string[]; liftsArrive: string[]; routesFrom: string[]; routesTo: string[] };
@@ -41,6 +42,8 @@ type RouteDoc = {
     frame: { mode: 'rotated' | 'curvilinear'; e0: number; n0: number; ue: number; un: number };
     path: { step: number; e: number[]; n: number[]; te: number[]; tn: number[]; s: number[] } | null;
     centre: number[]; zones: Zone[]; park: { world: [number, number][] } | null; fromStation: string | null; toStation: string | null; featured: boolean; sources: string[];
+    /** Set on a lift course (the corridor along a lift line, used for the lift ride): the lift's id. */
+    lift?: string;
 };
 export type RunHeader = Omit<RouteDoc, 'centre' | 'path' | 'park'> & { trees: number; lifts: Lift[]; park: { polygon: [number, number][] } | null };
 
@@ -171,7 +174,7 @@ export class VerbierRun {
             const pts = l.points.map(([e, n, z]) => { const c = this.toCourse(e, n); return c ? [c.x, c.d, z] as [number, number, number] : null; });
             if (pts.some(p => !p)) continue;
             if (!pts.some(p => Math.abs(p![0] - this.centreX(p![1])) < 2000 && p![1] > -1200 && p![1] < this.length + 1200)) continue;
-            lifts.push({ name: l.name, type: l.type, osm: l.osm, points: pts as [number, number, number][] });
+            lifts.push({ id: l.id, name: l.name, type: l.type, osm: l.osm, points: pts as [number, number, number][], occupancy: l.occupancy, capacity: l.capacity, rideS: l.rideS, length: l.length });
         }
         const trees: number[] = [];
         for (const [k, t] of store.tiles) {
@@ -353,10 +356,48 @@ export function loadRun(id: string): Promise<VerbierRun> {
 export function verbierRun(id: string): VerbierRun {
     const have = runs.get(id); if (have) return have;
     if (!node()) throw new Error(`Verbier run ${id} is not loaded yet (call loadRun first)`);
-    resortSync();
-    const doc = JSON.parse(new TextDecoder().decode(readBytes(`routes/${id}.json`, false))) as RouteDoc;
+    const r = resortSync();
+    const lift = id.startsWith('lift-') ? r.lifts.find(l => `lift-${l.id}` === id) : undefined;
+    const doc = lift ? liftRouteDoc(lift) : JSON.parse(new TextDecoder().decode(readBytes(`routes/${id}.json`, false))) as RouteDoc;
     for (const k of corridorTiles(doc)) if (!store.tiles.has(k)) { const te = Math.floor(k / 10000), tn = k % 10000; setTile(te, tn, readBytes(`tiles/${te}_${tn}.bin`, true)); }
     const run = makeRun(doc); runs.set(id, run); return run;
+}
+/** Margin of terrain before the bottom and after the top station on a lift course, m. */
+export const LIFT_MARGIN = 160;
+/** A course along a lift line (rotated frame, d uphill from 160 m below the bottom station): the lift ride's scene. */
+export function liftRouteDoc(l: ResortLift): RouteDoc {
+    const a = l.points[0], b = l.points[l.points.length - 1];
+    let ue = b[0] - a[0], un = b[1] - a[1]; const L = Math.hypot(ue, un); ue /= L; un /= L;
+    const e0 = a[0] - ue * LIFT_MARGIN, n0 = a[1] - un * LIFT_MARGIN, length = Math.ceil(L + 2 * LIFT_MARGIN);
+    const proj = l.points.map(([e, n]) => ({ d: (e - e0) * ue + (n - n0) * un, x: (e - e0) * un - (n - n0) * ue }));
+    const centre = Array.from({ length: length + 1 }, (_, d) => {
+        if (d <= proj[0].d) return proj[0].x;
+        for (let i = 0; i < proj.length - 1; i++) if (d <= proj[i + 1].d) return proj[i].x + (proj[i + 1].x - proj[i].x) * (d - proj[i].d) / Math.max(1e-6, proj[i + 1].d - proj[i].d);
+        return proj[proj.length - 1].x;
+    });
+    const surface = liftKindOf(l.type) === 'surface';
+    return {
+        id: `lift-${l.id}`, name: l.name.toUpperCase(), description: `${l.typeLabel}`, klass: surface ? 'blue' : 'red', length, halfWidth: surface ? 5 : 6,
+        startElevation: l.bottomZ, endElevation: l.topZ, backtrack: 0, frame: { mode: 'rotated', e0, n0, ue, un }, path: null, centre,
+        zones: [{ d0: 0, d1: length, name: l.name, grooming: 'groomed', difficulty: null, osm: l.osm }], park: null,
+        fromStation: l.from, toStation: l.to, featured: false, lift: l.id,
+        sources: ['swissALTI3D 2 m 2024 (c) swisstopo', 'OpenSkiData / OpenStreetMap contributors, ODbL (lift line)'],
+    };
+}
+const liftKindOf = (t: string | null) => t === 'platter' || t === 't-bar' || t === 'drag_lift' || t === 'rope_tow' || t === 'j-bar' ? 'surface' : 'aerial';
+/** Load the terrain for a lift ride (corridor along the lift line). Run id: `lift-<lift id>`. */
+export function loadLift(liftId: string): Promise<VerbierRun> {
+    const id = `lift-${liftId}`, have = runs.get(id); if (have) return Promise.resolve(have);
+    if (!isBrowser) return Promise.resolve(verbierRun(id));
+    return once(`run:${id}`, async () => {
+        const r = await loadResort(), lift = r.lifts.find(l => l.id === liftId);
+        if (!lift) throw new Error(`unknown lift ${liftId}`);
+        const doc = liftRouteDoc(lift);
+        await Promise.all(corridorTiles(doc).filter(k => !store.tiles.has(k)).map(async k => {
+            const te = Math.floor(k / 10000), tn = k % 10000; setTile(te, tn, await fetchBytes(`tiles/${te}_${tn}.bin`, true));
+        }));
+        const run = makeRun(doc); runs.set(id, run); return run;
+    });
 }
 /** True if the 2 m tile containing (e, n) is in memory. */
 export function tileLoaded(e: number, n: number) { return store.tiles.has(tileKey(Math.floor(e / 1000), Math.floor(n / 1000))); }

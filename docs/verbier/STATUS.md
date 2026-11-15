@@ -1,4 +1,4 @@
-# Verbier – 4 Vallées: what is in the game (EVADER 0.7)
+# Verbier – 4 Vallées: what is in the game (EVADER 0.9)
 
 Status date: 15 November 2026.
 
@@ -11,10 +11,10 @@ Sources:
 Open **Verbier resort map** from the menu.
 - **Views:** 2D (shaded piste map) or 3D (the real mountains with the piste map draped on them).
 - **Starting point:** Verbier – Médran.
-- **Lifts:** take any lift from your station. Each ride plays sped up; its real ride time is shown.
+- **Lifts:** take any lift from your station and ride it in the 3D world: seated on the chair, in the gondola cabin or the cable car, or towed on a surface lift. Each lift runs at its real speed; you can play the ride at ×1, ×4 or ×16. See [LIFTS.md](LIFTS.md).
 - **Pistes:** ride down to another station along mapped pistes. Every run ends where a lift goes up.
 - **Arrival:** at the end of a run you arrive at that station and choose your next lift or run. There is no finish line.
-- **Fast travel:** tap any lift, run or station to travel there.
+- **Journeys:** tap any lift, run or station. EVADER plans the lifts and runs to get there and plays every step; you can also jump straight there.
 
 | | Count | Source |
 | --- | --- | --- |
@@ -81,7 +81,7 @@ This is how real riders leave station platforms and cross flats. With no input, 
 
 ## Not done
 
-- You don't ride inside a lift cabin in the game world; lift rides are animated on the map.
+- There are no lift queues and no real station architecture (see [LIFTS.md](LIFTS.md)).
 - No buildings or villages: the OpenStreetMap Overpass service was unreachable from the build machine.
 - No AI skiers, groomers or queues.
 - Gentianes is still unresolved: the gazetteer point is the lift building, 50 m below the published label.

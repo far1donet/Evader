@@ -32,7 +32,10 @@ export type RiderPose = {
     soft?: number;
     /** Fore/aft pressure on the board, -1..1 toward the rig's +x end (drives the visible board flex). */
     press?: number;
+    /** Rig-space target for the front hand (surface lifts: holding the hanger). */
+    hold?: T.Vector3;
 };
+export type SeatedPose = { dt: number; time: number; sit: number; hands: 'bar' | 'knees' | 'side'; look?: number };
 export type RiderKit = 'ochre' | 'shadow' | 'alpine';
 const UP = new T.Vector3(0, 1, 0);
 const GRAB_CONTACTS = [boardEdgeAt(.31, -1), boardEdgeAt(-.18, -1), boardEdgeAt(-.31, 1)];
@@ -779,6 +782,7 @@ export class RiderRig {
                 if (drag > 0 && leading < 0) wrist.lerp(new T.Vector3(hipX + side * .30, .26, inside * .46), drag * .85);
             }
             wrist.lerp(new T.Vector3(hipX + side * .21, hipY + .04, hipZ + .14), tuck * (1 - load));
+            if (p.hold && leading > 0) wrist.copy(p.hold);
             if (!p.air) {
                 const reach = .577 + Math.abs(bank) * .011;
                 wrist.sub(shoulder).clampLength(0, reach).add(shoulder);
@@ -806,6 +810,49 @@ export class RiderRig {
         }
         this.fitJacket(flex, p.dt);
         this.flexBoard(p.air ? 0 : p.press ?? 0, p.air ? 0 : Math.max(p.landing, load * .5), p.dt);
+    }
+    /**
+     * On a lift: standing on the board (sit 0) blending to seated (sit 1). Seated: hips 0.58 m above the board and 0.38 m
+     * behind it (the board rests on the chair's footrest), knees up, back against the backrest, hands on the safety bar or
+     * the knees. The board stays strapped on, as riders keep at least the front foot in.
+     */
+    poseSeated(o: SeatedPose) {
+        const k = T.MathUtils.clamp(o.sit, 0, 1), s = k * k * (3 - 2 * k), lerp = T.MathUtils.lerp;
+        const stanceHalf = this.realBoard?.stanceHalf ?? .39;
+        this.crouch = springStep(this.crouchSpring, .1, 4, o.dt);
+        this.pelvis.position.set(0, lerp(1.145 - this.crouch, .80, s), lerp(-.03, .42, s));
+        this.pelvis.rotation.set(lerp(-.02, .2, s), 0, 0);
+        this.pelvis.updateMatrix();
+        this.torso.position.copy(this.pelvis.position);
+        this.torso.rotation.set(lerp(-.12, .17, s), lerp(-.06, 0, s), 0);
+        this.torso.updateMatrix();
+        this.shellMatrix.copy(this.torso.matrix).invert();
+        this.garmentEnvelope.fill(0);
+        this.grabWeight = springStep(this.grabSpring, 0, 5, o.dt);
+        const look = (o.look ?? 0) + Math.sin(o.time * .23) * .35 * s;
+        this.head.rotation.y = T.MathUtils.damp(this.head.rotation.y, lerp(-.5, look, s), 3, o.dt);
+        this.head.rotation.x = T.MathUtils.damp(this.head.rotation.x, lerp(.04, .12 + Math.sin(o.time * .17) * .08, s), 3, o.dt);
+        for (let i = 0; i < 2; i++) {
+            const side = i === 0 ? -1 : 1;
+            const ankle = new T.Vector3(side * stanceHalf, .305, 0), hip = new T.Vector3(side * .17, -.015, 0).applyMatrix4(this.pelvis.matrix);
+            const kneePole = new T.Vector3(side * .34, lerp(.57, 1.4, s), lerp(-.65, -1.1, s));
+            const knee = this.legs[i].pose(hip, ankle, kneePole).joint;
+            this.sampleTrouser(this.legs[i], hip, knee);
+            const shoulder = new T.Vector3(side * .263, .41, 0).applyMatrix4(this.torso.matrix);
+            const rest = new T.Vector3(side * .36, this.pelvis.position.y - .15, this.pelvis.position.z - .03);
+            const seated = o.hands === 'bar' ? new T.Vector3(side * .25, this.pelvis.position.y + .36, -.12)
+                : o.hands === 'knees' ? new T.Vector3(side * .19, knee.y + .07, knee.z + .1)
+                : new T.Vector3(side * .42, this.pelvis.position.y + .02, this.pelvis.position.z - .05);
+            const wrist = rest.lerp(seated, s);
+            this.wristSprings[i].step(wrist, 4, o.dt, wrist);
+            const ik = this.arms[i].pose(shoulder, wrist, shoulder.clone().add(new T.Vector3(side * .3, -.3, .22)));
+            this.cuffs[i].position.copy(ik.end); this.hands[i].position.copy(ik.end);
+            const forearm = ik.end.clone().sub(ik.joint).normalize();
+            this.hands[i].quaternion.setFromUnitVectors(new T.Vector3(0, -1, 0), forearm);
+            this.cuffs[i].quaternion.setFromUnitVectors(new T.Vector3(0, -1, 0), forearm);
+        }
+        this.fitJacket(.08 + .32 * s, o.dt);
+        this.flexBoard(0, 0, o.dt);
     }
     /** Visible board flex: a press bends the unweighted end up (nose / tail press), landings bend both ends up. */
     private flexBoard(press: number, load: number, dt: number) {

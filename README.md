@@ -81,6 +81,15 @@ to the main menu. You can also tap any lift, run or station on the map and trave
 
 At walking pace, tuck (**W**, or tilt the phone forward) to skate out of stations and across flats.
 
+**Lifts are ridden in the 3D world**, in the right vehicle:
+- **Chairlifts:** you sit down, the bar comes down, and the board rests on the footrest.
+- **Gondolas:** you step in from the platform.
+- **Télémixte:** chairs and cabins share the rope; you take a chair.
+- **Cable cars:** you stand in the cabin.
+- **T-bars and platters:** you are towed on the snow.
+
+Every lift runs at its real speed from its mapped ride time. You can play rides at ×1, ×4 or ×16, skip them, and change the camera. Tap any station, lift or run on the map, and EVADER plans the lifts and runs to get there and plays every step. See [docs/verbier/LIFTS.md](docs/verbier/LIFTS.md).
+
 | Data | Source |
 | --- | --- |
 | Terrain | swissALTI3D 2 m (2024) © swisstopo, covering Bruson to Thyon |
