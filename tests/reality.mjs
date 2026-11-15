@@ -13,6 +13,7 @@ import { FreestyleTracker, GRABS } from '../lib/sim/freestyle.ts';
 import { shapeStick } from '../lib/input.ts';
 import { SnowGame, COURSES, center, height } from '../lib/snow-game.ts';
 import { makeParkRails } from '../lib/park-rails.ts';
+import { lineFollower } from '../tools/gamebot.mjs';
 
 const rig = (deg = 3, speed = 8, assist = 'balanced', mat = 'groomed', rider = DEFAULT_RIDER) => {
     const sim = new SnowboardSim(BOARDS['all-mountain'], new PlaneTerrain(deg * Math.PI / 180, SNOW[mat]), rider);
@@ -149,9 +150,12 @@ function game(course, settings = {}) {
 }
 {
     for (const course of COURSES) {
-        const g = game(course); let n = 0;
-        while (g.state === 'ride' && n++ < 120 * 40) { g.keys.clear(); const off = center(g.d + 20, course) - g.x; if (off > 2) g.keys.add('KeyD'); if (off < -2) g.keys.add('KeyA'); if (g.speed > 15) g.keys.add('KeyS'); g.update(1 / 120); assert(Number.isFinite(g.x + g.y + g.d + g.speed), 'finite state'); }
-        assert(g.d > 60, `${course.name}: the rider descends under gravity alone (${g.d.toFixed(0)} m in 40 s)`);
+        const g = game(course), y0 = g.y; let n = 0;
+        // Pure-pursuit rider along the mapped line (key bang-bang steering stalls on real cross-slopes and diagonal lines).
+        g.readIntent = lineFollower(g, course, center, { maxSpeed: 12 });
+        while (g.state === 'ride' && n++ < 120 * 40) { g.update(1 / 120); assert(Number.isFinite(g.x + g.y + g.d + g.speed), 'finite state'); }
+        // progress measured as height lost (frame-independent: mapped lines can run diagonally across the course frame)
+        assert(g.d > 60 || (course.dem && y0 - g.y > 12), `${course.name}: the rider descends under gravity alone (${g.d.toFixed(0)} m, ${(y0 - g.y).toFixed(0)} m lower in 40 s)`);
         assert(g.frames.length > 100 && g.frames.every(f => f.q && f.q.every(Number.isFinite)), 'every recorded frame carries the board orientation');
         const q = g.frames[50].q; assert(Math.abs(Math.hypot(...q) - 1) < 1e-6, 'recorded quaternions are normalised');
     }
@@ -162,7 +166,7 @@ function game(course, settings = {}) {
     // replay interpolates the recorded orientation
     a.run = { time: a.frames.at(-1).t, frames: a.frames }; a.replayTime = a.frames[200].t + 1 / 120; a.replayPlaying = false; a.updateReplay(0);
     assert(a.replayHasQ && Math.abs(a.renderQ.length() - 1) < 1e-9, 'replay slerps the recorded board orientation');
-    console.log('Game: all three mountains ride under Reality physics, frames record orientation, deterministic ticks, replay orientation passed.');
+    console.log('Game: every course (incl. the eight real Verbier runs) rides under Reality physics, frames record orientation, deterministic ticks, replay orientation passed.');
 }
 
 // ---- real-scale rig ----------------------------------------------------------------------------------------------------

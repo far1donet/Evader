@@ -1,0 +1,254 @@
+[
+ {
+  "id": "attelas",
+  "name": "ATTELAS",
+  "segments": 2,
+  "length": 2346,
+  "drop": 486,
+  "maxSlope": 27.9,
+  "meanSlope": 11.7,
+  "backtrack": 108.5,
+  "trees": 1024,
+  "lifts": [],
+  "bytes": 899976,
+  "zones": [
+   [
+    "Attelas",
+    "groomed",
+    0.0,
+    1802.0
+   ],
+   [
+    "Attelas",
+    "groomed",
+    1802.0,
+    2346.0
+   ]
+  ]
+ },
+ {
+  "id": "hattey-clambin",
+  "name": "HATTEY → CLAMBIN",
+  "segments": 4,
+  "length": 2287,
+  "drop": 476,
+  "maxSlope": 30.1,
+  "meanSlope": 11.7,
+  "backtrack": 38.5,
+  "trees": 13048,
+  "lifts": [
+   "Médran 2"
+  ],
+  "bytes": 1026844,
+  "zones": [
+   [
+    "Hattey",
+    "groomed",
+    0.0,
+    624.0
+   ],
+   [
+    "Piste de Clambin, Hattey",
+    "groomed",
+    624.0,
+    722.0
+   ],
+   [
+    "Piste de Clambin, Clambin",
+    "ungroomed",
+    722.0,
+    1752.0
+   ],
+   [
+    "Clambin",
+    "ungroomed",
+    1756.0,
+    2287.5
+   ]
+  ]
+ },
+ {
+  "id": "la-chaux-park",
+  "name": "LA CHAUX SNOWPARK",
+  "segments": 1,
+  "length": 511,
+  "drop": 86,
+  "maxSlope": 20.0,
+  "meanSlope": 9.5,
+  "backtrack": 0.0,
+  "trees": 107,
+  "lifts": [
+   "Mont-Gelé",
+   "Chaux Express",
+   "Chaux 2",
+   "Médran 2"
+  ],
+  "bytes": 334580,
+  "zones": [
+   [
+    null,
+    "groomed",
+    96.6,
+    441.6
+   ]
+  ]
+ },
+ {
+  "id": "la-chaux-skicross",
+  "name": "LA CHAUX SKI CROSS",
+  "segments": 1,
+  "length": 583,
+  "drop": 95,
+  "maxSlope": 19.1,
+  "meanSlope": 6.9,
+  "backtrack": 0.0,
+  "trees": 102,
+  "lifts": [
+   "Mont-Gelé",
+   "Chaux Express",
+   "Chaux 2",
+   "Médran 2"
+  ],
+  "bytes": 396312,
+  "zones": [
+   [
+    "Ski Cross",
+    "groomed",
+    0.0,
+    583.4
+   ]
+  ]
+ },
+ {
+  "id": "mont-fort",
+  "name": "MONT-FORT",
+  "segments": 3,
+  "length": 1466,
+  "drop": 471,
+  "maxSlope": 38.0,
+  "meanSlope": 15.5,
+  "backtrack": 0.0,
+  "trees": 0,
+  "lifts": [],
+  "bytes": 951116,
+  "zones": [
+   [
+    "Mont-Fort",
+    "groomed",
+    0.0,
+    44.2
+   ],
+   [
+    "Mont-Fort",
+    "moguls",
+    44.2,
+    348.6
+   ],
+   [
+    "Mont-Fort",
+    "groomed",
+    348.6,
+    1466.5
+   ]
+  ]
+ },
+ {
+  "id": "chassoure-tortin",
+  "name": "CHASSOURE → TORTIN",
+  "segments": 4,
+  "length": 3801,
+  "drop": 700,
+  "maxSlope": 37.8,
+  "meanSlope": 10.4,
+  "backtrack": 113.2,
+  "trees": 10266,
+  "lifts": [],
+  "bytes": 1451296,
+  "zones": [
+   [
+    "Chassoure-Tortin",
+    "groomed",
+    0.0,
+    74.0
+   ],
+   [
+    "Chassoure-Tortin",
+    "ungroomed",
+    94.0,
+    950.0
+   ],
+   [
+    "Chassoure-Tortin",
+    "groomed",
+    950.0,
+    1080.0
+   ],
+   [
+    "Chassoure-Tortin",
+    "groomed",
+    1080.0,
+    3801.3
+   ]
+  ]
+ },
+ {
+  "id": "fis",
+  "name": "FIS",
+  "segments": 2,
+  "length": 2161,
+  "drop": 791,
+  "maxSlope": 32.2,
+  "meanSlope": 14.3,
+  "backtrack": 0.0,
+  "trees": 7775,
+  "lifts": [
+   "Mont-Gelé",
+   "Chaux Express",
+   "Lac des Vaux 2",
+   null,
+   "Chaux 2",
+   "Médran 2"
+  ],
+  "bytes": 2036212,
+  "zones": [
+   [
+    "FIS",
+    "groomed",
+    0.0,
+    1677.4
+   ],
+   [
+    "FIS",
+    "groomed",
+    1677.4,
+    2161.5
+   ]
+  ]
+ },
+ {
+  "id": "mont-gele-chaux",
+  "name": "MONT-GELÉ → LA CHAUX",
+  "segments": 1,
+  "length": 1326,
+  "drop": 489,
+  "maxSlope": 37.6,
+  "meanSlope": 18.0,
+  "backtrack": 0.0,
+  "trees": 0,
+  "lifts": [
+   "Mont-Gelé",
+   "Chaux Express",
+   "Lac des Vaux 2",
+   "Chaux 2"
+  ],
+  "bytes": 780744,
+  "zones": [
+   [
+    "Mt-Gelé - La Chaux",
+    "ungroomed",
+    0.0,
+    1327.3
+   ]
+  ]
+ }
+]

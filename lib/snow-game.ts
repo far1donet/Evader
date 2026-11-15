@@ -16,7 +16,8 @@ import { GRABS, type FreestyleEvent } from './sim/freestyle.ts';
 import { BOARDS, type BoardCategory } from './sim/boards.ts';
 import { readGamepad, type PadConfig } from './input.ts';
 import { Diagnostics } from './diagnostics.ts';
-import { verbierRun, lapseTemperature, treeline, type RunClass } from './verbier/terrain.ts';
+import { verbierRun, lapseTemperature, RUNS as VERBIER_RUNS, type RunClass } from './verbier/terrain.ts';
+import { liftGroup, poleGroup, skicrossGroup, skicrossShape } from './verbier/scenery.ts';
 import { SNOW, type SnowMaterial } from './sim/snow.ts';
 
 /** Snow depth on a real-terrain run: groomed inside the piste width, deeper and varied off-piste, deepest on cold,
@@ -26,7 +27,7 @@ import { SNOW, type SnowMaterial } from './sim/snow.ts';
 export function demSurface(x: number, d: number, c: Course, weather: string): SnowMaterial | undefined {
     const run = verbierRun(c.dem!);
     if (run.mogulAmplitude(x, d) > .2) return SNOW.hardpack;
-    if (Math.abs(x) < run.pisteHalfWidth) return undefined;
+    if (Math.abs(x - run.centreX(d)) < run.pisteHalfWidth) return undefined;
     const s = run.slopeAt(x, d);
     if (s.deg > 40) return SNOW.icy;
     if (weather !== 'snow' && s.downN < -.35 && s.elevation < 2700) return SNOW.crust;
@@ -35,7 +36,7 @@ export function demSurface(x: number, d: number, c: Course, weather: string): Sn
 }
 function demSnowDepth(x: number, d: number, c: Course) {
     const run = verbierRun(c.dem!);
-    const off = Math.abs(x) - run.pisteHalfWidth;
+    const off = Math.abs(x - run.centreX(d)) - run.pisteHalfWidth;
     if (off < 0) return .025;
     const s = run.slopeAt(x, d);
     const north = Math.max(0, s.downN);                     // 1 = faces north (shaded, keeps powder)
@@ -96,19 +97,13 @@ export type Course = {
     /** Published piste class of a real-terrain run. */
     runClass?: RunClass;
 };
-/** Real-terrain runs in Verbier – 4 Vallées (lib/verbier). Lengths and drops are measured on the DEM line. */
-const VERBIER_COURSES: Course[] = [
-    ['attelas-ruinettes', 'ATTELAS → RUINETTES', 'Red piste. Alpine start, steep transitions, real DEM terrain.', 'RED', 0],
-    ['ruinettes-medran', 'RUINETTES → MÉDRAN', 'Red into the forest, down to the village.', 'RED', 0],
-    ['la-chaux-park', 'LA CHAUX SNOWPARK', 'Five table-tops, then kickers of 9, 11 and 13 m, plus jibs.', 'PARK', 4],
-    ['mont-fort', 'MONT FORT → GENTIANES', 'Black from 3,300 m. Moguls on the first 250 m near 35°.', 'BLACK', 0],
-    ['chassoure-tortin', 'CHASSOURE → TORTIN', 'Yellow itinerary: ungroomed, north-facing, moguls and powder.', 'ITINERARY', 0],
-].map(([dem, name, subtitle, difficulty, rails], i) => {
-    const run = verbierRun(dem as string);
-    return { id: 10 + i, name: name as string, region: 'VERBIER · 4 VALLÉES', subtitle: subtitle as string, length: run.length,
-        drop: Math.round(run.startElevation - run.endElevation), difficulty: difficulty as string, spacing: 1e9, rails: rails as number,
-        seed: 300 + i, dem: dem as string, runClass: run.klass };
-});
+/** Real-terrain runs in Verbier – 4 Vallées (lib/verbier): mapped run lines on swissALTI3D 2 m terrain. */
+const CLASS_LABEL: Record<string, string> = { blue: 'BLUE', red: 'RED', black: 'BLACK', itinerary: 'ITINERARY', park: 'PARK', skicross: 'SKI CROSS' };
+const VERBIER_COURSES: Course[] = VERBIER_RUNS.map((r, i) => ({
+    id: 10 + i, name: r.name, region: 'VERBIER · 4 VALLÉES', subtitle: r.description, length: r.length,
+    drop: Math.round(r.startElevation - r.endElevation), difficulty: CLASS_LABEL[r.klass] ?? r.klass.toUpperCase(), spacing: 1e9,
+    rails: r.klass === 'park' ? 4 : 0, seed: 300 + i, dem: r.id, runClass: r.klass as RunClass,
+}));
 export const COURSES: Course[] = [
     { id: 0, name: 'AIGUILLE NOIRE', region: 'THE ALPINE RANGE', subtitle: 'Big lines. Bigger possibilities.', length: 1600, drop: 416, difficulty: 'INTERMEDIATE', spacing: 190, rails: 5, seed: 27 },
     { id: 1, name: 'NORTHLINE PARK', region: 'THE NORTHERN RIDGE', subtitle: 'A perfectly imperfect playground.', length: 1200, drop: 300, difficulty: 'BEGINNER', spacing: 125, rails: 8, seed: 56 },
@@ -190,8 +185,17 @@ const DUSK_LIGHT = new T.Vector3(-158, 48, -95);
 const HARD_LANDING_SPEED = 8.5;
 const CHASE_HEIGHT = 2.22;
 const CHASE_DISTANCE = 5.4;
-export function center(d: number, c: Course) { if (c.dem) return 0; return Math.sin(d / (c.id === 2 ? 125 : 220)) * (c.id === 1 ? 6 : 16); }
+export function center(d: number, c: Course) { if (c.dem) return verbierRun(c.dem).centreX(d); return Math.sin(d / (c.id === 2 ? 125 : 220)) * (c.id === 1 ? 6 : 16); }
 export function rampAt(d: number, x: number, c: Course) {
+    if (c.dem === 'la-chaux-park') {
+        // Park lanes side by side (S, M, L): every feature whose footprint contains this point adds its rise.
+        let h = 0;
+        for (const f of LA_CHAUX_FEATURES) {
+            const t = d - f.base; if (t < 0 || t > f.profile.runout) continue;
+            h += kickerRise(t, Math.abs(x - (center(f.base + f.profile.lip, c) + f.x)), f.profile);
+        }
+        return h;
+    }
     const { base, profile, exists } = kickerAt(d, c);
     if (!exists) return 0;
     const offset = Math.abs(x - center(base + (c.classicFeatures ? 12 : profile.lip), c));
@@ -217,7 +221,7 @@ export function snowDepth(x: number, d: number, c: Course) {
     return .025 + shoulder * (.07 + .09 * wind) + backcountry * (.10 + .32 * wind);
 }
 export function height(x: number, d: number, c: Course) {
- if (c.dem) return verbierRun(c.dem).height(x, d) + rampAt(d, x, c);
+ if (c.dem) { const run = verbierRun(c.dem); return run.height(x, d) + rampAt(d, x, c) + (c.dem === 'la-chaux-skicross' ? skicrossShape(run, x, d) : 0); }
  const buildup = Math.max(0, snowDepth(x, d, c) - .04);
  return 180 - d * (c.drop / c.length) + Math.sin(d * .024) * .9
     + Math.sin(x * .15 + d * .012) * .25 + bankRise(x, d, c) + rampAt(d, x, c)
@@ -230,6 +234,14 @@ function supportHeight(x: number, d: number, c: Course, speed: number) {
 }
 /** 0 outside a kicker, 1 on its takeoff ramp, 2 on its knuckle / landing. Used to pick park snow for the simulation. */
 export function parkZone(x: number, d: number, c: Course): 0 | 1 | 2 {
+    if (c.dem === 'la-chaux-park') {
+        for (const f of LA_CHAUX_FEATURES) {
+            const t = d - f.base; if (t < 0 || t > f.profile.runout) continue;
+            if (Math.abs(x - (center(f.base + f.profile.lip, c) + f.x)) > f.profile.shoulder) continue;
+            return t <= f.profile.lip ? 1 : 2;
+        }
+        return 0;
+    }
     const k = kickerAt(d, c);
     if (!k.exists) return 0;
     const off = Math.abs(x - center(k.base + (c.classicFeatures ? 12 : k.profile.lip), c));
@@ -615,7 +627,7 @@ export class SnowGame {
             mm.receiveShadow = true;
             this.world.add(mm);
         }
-        const trees = Array.from({ length: detail.trees }, (_, index) => {
+        const trees = c.dem ? this.realTrees(c, detail.trees) : Array.from({ length: detail.trees }, (_, index) => {
             const canReach = index < 300;
             const sample = rand() * c.length;
             const side = rand() > .5 ? 1 : -1;
@@ -626,11 +638,6 @@ export class SnowGame {
             const x = canReach ? middle + side * (26 + offset * 100)
                 : middle + side * T.MathUtils.lerp(glade, 145 - side * middle, offset);
             const treeHeight = 7 + rand() * 11;
-            if (c.dem) {
-                // Larch / spruce only below the treeline and off cliff faces; none on the groomed piste.
-                const run = verbierRun(c.dem), sl = run.slopeAt(x, d), loc = run.toLocal(x, d);
-                if (sl.elevation > treeline(loc.e, loc.n) || sl.deg > 38 || Math.abs(x) < run.pisteHalfWidth + 4) return null;
-            }
             if (canReach) this.obstacles.push({ x, d, r: 1.25 });
             return { x, y: height(x, d, c), d, height: treeHeight, index };
         }).filter((t): t is NonNullable<typeof t> => t !== null);
@@ -638,15 +645,11 @@ export class SnowGame {
         const obj = new T.Object3D();
         seed=c.seed+981; // Stable obstacle layout across all graphics presets.
         const rockG = new T.IcosahedronGeometry(1, 2);
-        const rocks = new T.InstancedMesh(rockG, new T.MeshStandardMaterial({ color: 0x73828a, roughness: 1 }), 100);
+        // Real terrain already carries its rock outcrops (2 m DEM, rock-coloured by slope): no invented boulders there.
+        const rocks = new T.InstancedMesh(rockG, new T.MeshStandardMaterial({ color: 0x73828a, roughness: 1 }), c.dem ? 0 : 100);
         rocks.castShadow = true;
-        for (let i = 0; i < 100; i++) {
-            let d = rand() * c.length, x = center(d, c) + (rand() > .5 ? 1 : -1) * (33 + rand() * 55);
-            if (c.dem) {
-                // Boulders and outcrops where the real terrain is steep or high (a few tries, then accept).
-                const run = verbierRun(c.dem);
-                for (let k = 0; k < 6; k++) { const sl = run.slopeAt(x, d); if (sl.deg > 30 || sl.elevation > 2500) break; d = rand() * c.length; x = (rand() > .5 ? 1 : -1) * (run.pisteHalfWidth + 12 + rand() * 70); }
-            }
+        for (let i = 0; i < (c.dem ? 0 : 100); i++) {
+            const d = rand() * c.length, x = center(d, c) + (rand() > .5 ? 1 : -1) * (33 + rand() * 55);
             this.obstacles.push({x,d,r:3});
             obj.position.set(x, height(x, d, c), -d);
             obj.scale.set(2 + rand() * 4, 2 + rand() * 3, 2 + rand() * 3);
@@ -655,15 +658,21 @@ export class SnowGame {
             rocks.setMatrixAt(i, obj.matrix);
         }
         this.world.add(rocks);
+        if (c.dem) {
+            const run = verbierRun(c.dem), h = (x: number, d: number) => height(x, d, c);
+            this.world.add(liftGroup(run, h), poleGroup(run, h, d => center(d, c)));
+            if (c.dem === 'la-chaux-skicross') this.world.add(skicrossGroup(run, h));
+        }
         const poleMat = new T.MeshStandardMaterial({ color: 0x18343d, roughness: .54 });
         const flagMat = new T.MeshStandardMaterial({ color: 0x56d2ca, side: T.DoubleSide, roughness: .8 });
         const kickerBases: number[] = [];
+        const laneOf = (base: number) => LA_CHAUX_FEATURES.find(f => f.base === base)?.x ?? 0;
         if (c.dem === 'la-chaux-park') kickerBases.push(...LA_CHAUX_FEATURES.map(f => f.base));
         else if (!c.dem) for (let d = FIRST_KICKER; d < c.length - 50; d += c.spacing) kickerBases.push(d);
         for (const d of kickerBases) {
             const { profile, exists } = kickerAt(d, c);
             if (!exists) continue;
-            const lip = d + profile.lip, line = center(c.classicFeatures ? d + 12 : lip, c);
+            const lip = d + profile.lip, line = center(c.classicFeatures ? d + 12 : lip, c) + (c.dem === 'la-chaux-park' ? laneOf(d) : 0);
             const group = new T.Group();
             for (let side of [-1, 1]) {
                 const x = line + side * (profile.width + 2.5), y = height(x, lip, c);
@@ -694,6 +703,17 @@ export class SnowGame {
         this.rider.position.set(this.x, this.y, 0);
         this.camera.position.set(this.x + 11, this.y + 5, 16);
         this.camera.lookAt(this.x, this.y + 1, -15);
+    }
+    /** Trees detected in SWISSIMAGE for a real-terrain run, thinned to the graphics preset; near ones are solid. */
+    realTrees(c: Course, budget: number) {
+        const run = verbierRun(c.dem!), t = run.trees, n = t.length / 3, keep = Math.min(n, Math.max(budget * 3, 1500));
+        const out: { x: number; y: number; d: number; height: number; index: number }[] = [];
+        for (let k = 0; k < keep; k++) {
+            const i = Math.floor(k * n / keep), x = t[i * 3], d = t[i * 3 + 1];
+            if (Math.abs(x - center(d, c)) < 140) this.obstacles.push({ x, d, r: 1.1 });
+            out.push({ x, y: height(x, d, c), d, height: t[i * 3 + 2], index: k });
+        }
+        return out;
     }
     setAtmosphere() {
         const weather = this.settings.weather;
@@ -755,8 +775,8 @@ export class SnowGame {
         this.configureReality(ride);
         this.reality = ride;
         // A rider drops in from a standstill with a short push (about 3 m/s); gravity does the rest.
-        // Real-terrain runs start on summits and stations where the fall line can point anywhere: face down the run.
-        ride.place(center(2, c), 2, 3, c.dem ? Math.PI / 2 : undefined);
+        // Real-terrain runs start on summits and stations where the fall line can point anywhere: face along the mapped line.
+        ride.place(center(2, c), 2, 3, c.dem ? Math.atan2(1, (center(12, c) - center(2, c)) / 10) : undefined);
         this.syncReality(1 / 120);
         this.prevRenderQ.copy(this.renderQ);
         this.feedback = this.mode === 'training'
@@ -1089,9 +1109,9 @@ export class SnowGame {
         this.spinInput = spin;
         this.visualTuck = !!boost;
         this.landingImpact = Math.max(0, this.landingImpact - dt * 2.6);
-        const kicker = kickerAt(this.d, this.course);
+        const kicker = kickerAt(this.d, this.course, this.x - center(this.d, this.course));
         const lipD = kicker.base + kicker.profile.lip;
-        const kickerCenter = center(kicker.base + (this.course.classicFeatures ? 12 : kicker.profile.lip), this.course);
+        const kickerCenter = center(kicker.base + (this.course.classicFeatures ? 12 : kicker.profile.lip), this.course) + (kicker.x ?? 0);
         const onApproach = kicker.exists && this.d < lipD && Math.abs(this.x - kickerCenter) < kicker.profile.width + 1;
         if (this.jumpPending) {
             this.load = Math.min(1, this.load + dt / .38);

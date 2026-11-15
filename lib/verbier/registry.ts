@@ -4,7 +4,7 @@
  * accuracy status. Geometry the guide does not supply is null; it is never invented.
  */
 import { PISTES, LIFTS } from './registry-data.ts';
-import { VERBIER_ANCHORS } from './terrain.ts';
+import { ANCHORS as GAZETTEER_ANCHORS } from './anchors-data.ts';
 export { PISTES, LIFTS };
 
 export const REGISTRY_DATE = '2026-11-14';
@@ -18,8 +18,9 @@ export const DOMAIN = {
 
 export type Status = 'published' | 'approximate' | 'game-design' | 'not-supplied';
 
-/** Elevation anchors: published label elevations, with the DEM-snapped position and its confidence (see terrain-report). */
-export const ANCHORS = VERBIER_ANCHORS;
+/** Elevation anchors: published label elevations, located with the swisstopo gazetteer (or a lift station mapped in
+ *  OpenStreetMap) and measured on swissALTI3D 2 m. Unresolved ones say why. */
+export const ANCHORS = GAZETTEER_ANCHORS;
 
 /** Marked freeride itineraries: published figures, kept as published even where they do not reconcile with endpoints. */
 export const ITINERARIES = [
@@ -90,8 +91,9 @@ export const SOURCES = [
     { name: 'Freeride itineraries', url: 'https://verbier4vallees.ch/en/experiences-in-verbier/freeriding' },
     { name: 'Fun zones', url: 'https://verbier4vallees.ch/en/experiences-in-verbier/fun-zones' },
     { name: 'New Savoleyres project', url: 'https://tmx-savoleyres.ch/en' },
-    { name: 'swissALTI3D (not reachable from the build environment; not used yet)', url: 'https://www.swisstopo.admin.ch/en/height-model-swissalti3d' },
-    { name: 'SRTM GL1 via AWS Terrain Tiles (used for elevation; NASA/USGS, public domain)', url: 'https://registry.opendata.aws/terrain-tiles/' },
-    { name: 'OpenSkiData (not reachable from the build environment; not used yet)', url: 'https://openskidata.org/' },
+    { name: 'swissALTI3D 2 m, 2024 (terrain) © swisstopo', url: 'https://www.swisstopo.admin.ch/en/height-model-swissalti3d' },
+    { name: 'SWISSIMAGE (tree positions) © swisstopo', url: 'https://www.swisstopo.admin.ch/en/orthoimage-swissimage-10' },
+    { name: 'swisstopo gazetteer / search service (anchor positions)', url: 'https://api3.geo.admin.ch/' },
+    { name: 'OpenSkiData: run and lift lines from OpenStreetMap contributors (ODbL)', url: 'https://openskidata.org/' },
 ] as const;
-export const RIGHTS = 'Place and run names are factual references. No resort logos, piste-map artwork or branding are used. Elevation: SRTM (public domain). swisstopo data, if added later, requires "© swisstopo"; OSM-derived data is ODbL.';
+export const RIGHTS = 'Place and run names are factual references. No resort logos, piste-map artwork or branding are used. Terrain and imagery-derived data © swisstopo (free geodata, attribution required). Run and lift lines © OpenStreetMap contributors, available under the Open Database License (ODbL), via OpenSkiData.';

@@ -1,137 +1,146 @@
-import { DEM_BASE64, DEM_META } from './dem-data.ts';
-import { ANCHORS, ROUTES } from './routes-data.ts';
+import { RUNS_META } from './runs-meta.ts';
 
 /**
- * Real terrain for the Verbier courses.
+ * Real terrain for the Verbier courses, built by tools/verbier/build_runs.py from:
+ *  - swissALTI3D 2 m (2024) © swisstopo, smoothed for snow cover (groomed pistes more than off-piste);
+ *  - run and lift lines from OpenSkiData / OpenStreetMap contributors (ODbL);
+ *  - tree positions detected in SWISSIMAGE © swisstopo.
  *
- * Elevation: SRTM 1-arc-second DEM (about 21 x 31 m cells here), sampled with Catmull-Rom bicubic interpolation so the
- * surface and its normals are smooth. Rendering and physics use this same function, so what you see is what you ride.
- *
- * Course frame: the game describes a run by lateral offset x (metres, + = right of travel) and distance d along the run.
- * Close to the run line (|x| < 150 m) a point maps to `line(d) + x * right(d)`; farther out the frame blends into a straight
- * frame along the start-to-end direction, so distant mountains keep their real shape instead of folding around bends.
- * Consequence (documented): the run is drawn straightened; elevations, gradients and cross-slopes are real, plan-view
- * curvature is not shown.
- *
- * Added on top of the DEM (game design, not measured): irregular moguls where the guide reports them, small snow relief,
- * and park features on the La Chaux course.
+ * Course frame: x = metres right of travel, d = metres down the course.
+ *  - 'rotated' runs: the map is only rotated, so every bend of the real run is drawn as it is (centreX(d) follows it).
+ *  - 'curvilinear' runs (real hairpins): d is the distance along the real line and x the offset across it; heights along
+ *    and beside the line are real, the bends are drawn unrolled.
+ * Rendering and physics sample the same function.
  */
-const M = DEM_META;
-let dem: Int16Array | null = null;
-function grid() {
-    if (dem) return dem;
-    const bin = typeof atob === 'function' ? atob(DEM_BASE64) : '';
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const view = new DataView(bytes.buffer);
-    dem = new Int16Array(M.width * M.height);
-    for (let i = 0; i < dem.length; i++) dem[i] = view.getInt16(i * 2, true);
-    return dem;
-}
+export type RunClass = 'blue' | 'red' | 'black' | 'itinerary' | 'park' | 'skicross';
+type Grid = { x0: number; d0: number; nx: number; nd: number; cell: number; base: number; scale: number };
+export type Zone = { d0: number; d1: number; name: string | null; grooming: 'groomed' | 'moguls' | 'ungroomed'; difficulty: string | null; osm: string[] };
+export type Lift = { name: string | null; type: string | null; osm: string[]; points: [number, number, number][] };
+export type RunHeader = {
+    id: string; name: string; description: string; klass: RunClass; length: number; halfWidth: number;
+    startElevation: number; endElevation: number; backtrack: number;
+    frame: { mode: 'rotated' | 'curvilinear'; e0: number; n0: number; ue: number; un: number };
+    zones: Zone[]; centre: { count: number; step: number }; near: Grid; far: Grid; trees: number; lifts: Lift[];
+    park: { polygon: [number, number][] } | null; sources: string[];
+};
+
 const cr = (p0: number, p1: number, p2: number, p3: number, t: number) =>
     p1 + .5 * t * (p2 - p0 + t * (2 * p0 - 5 * p1 + 4 * p2 - p3 + t * (3 * (p1 - p2) + p3 - p0)));
-/** DEM elevation (m) at local metres e (east) and n (north) from the crop's south-west corner. */
-export function demHeight(e: number, n: number) {
-    const g = grid(), W = M.width, H = M.height;
-    const fx = Math.min(Math.max(e / M.dx, 0), W - 1.0001), fy = Math.min(Math.max((H - 1) - n / M.dy, 0), H - 1.0001);
-    const x = Math.floor(fx), y = Math.floor(fy), tx = fx - x, ty = fy - y;
-    const at = (cx: number, cy: number) => g[Math.min(Math.max(cy, 0), H - 1) * W + Math.min(Math.max(cx, 0), W - 1)];
-    const row = (cy: number) => cr(at(x - 1, cy), at(x, cy), at(x + 1, cy), at(x + 2, cy), tx);
-    return cr(row(y - 1), row(y), row(y + 1), row(y + 2), ty);
-}
-export function latLonToLocal(lat: number, lon: number) { return { e: (lon - M.originLon) * M.metresPerDegEast, n: (lat - M.originLat) * M.metresPerDegNorth }; }
-
-export type RunClass = 'blue' | 'red' | 'black' | 'itinerary' | 'park';
-export type RouteId = typeof ROUTES[number]['id'];
-const hash = (a: number, b: number) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+const smooth = (x: number, a: number, b: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 export class VerbierRun {
-    id: string; name: string; klass: RunClass; length: number;
-    private e: Float64Array; private n: Float64Array; private re: Float64Array; private rn: Float64Array;
-    private sE: number; private sN: number; private tE: number; private tN: number; private scale: number;
-    readonly startElevation: number; readonly endElevation: number;
-    /** Half-width of the groomed piste (m); 0 for an ungroomed itinerary. Typical widths, not measured. */
-    pisteHalfWidth: number;
-    constructor(route: typeof ROUTES[number]) {
-        this.id = route.id; this.name = route.name; this.klass = route.klass as RunClass;
-        const p = route.path, k = p.length;
-        this.e = new Float64Array(k); this.n = new Float64Array(k); this.re = new Float64Array(k); this.rn = new Float64Array(k);
-        for (let i = 0; i < k; i++) { this.e[i] = p[i][0]; this.n[i] = p[i][1]; }
-        // Right-hand normal of the travel direction, smoothed over +-40 m so the corridor does not kink.
-        for (let i = 0; i < k; i++) {
-            const a = Math.max(0, i - 8), b = Math.min(k - 1, i + 8);
-            const te = this.e[b] - this.e[a], tn = this.n[b] - this.n[a], l = Math.hypot(te, tn) || 1;
-            this.re[i] = tn / l; this.rn[i] = -te / l;
-        }
-        this.length = 5 * (k - 1);
-        this.sE = this.e[0]; this.sN = this.n[0];
-        const de = this.e[k - 1] - this.sE, dn = this.n[k - 1] - this.sN, dl = Math.hypot(de, dn) || 1;
-        this.tE = de / dl; this.tN = dn / dl; this.scale = dl / this.length;
-        this.startElevation = route.startElevation; this.endElevation = route.endElevation;
-        this.pisteHalfWidth = { blue: 22, red: 18, black: 14, itinerary: 0, park: 28 }[this.klass];
+    readonly h: RunHeader; readonly id: string; readonly name: string; readonly klass: RunClass; readonly length: number;
+    readonly pisteHalfWidth: number; readonly startElevation: number; readonly endElevation: number;
+    readonly centre: Float32Array; readonly near: Int16Array; readonly far: Int16Array;
+    /** Trees from the aerial imagery: x, d, estimated height (m), repeated. */
+    readonly trees: Float32Array;
+    constructor(buf: ArrayBuffer) {
+        const view = new DataView(buf), hl = view.getUint32(0, true);
+        this.h = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 4, hl)));
+        let o = 4 + hl;
+        this.centre = new Float32Array(buf.slice(o, o + this.h.centre.count * 4)); o += this.h.centre.count * 4;
+        const nn = this.h.near.nx * this.h.near.nd; this.near = new Int16Array(buf.slice(o, o + nn * 2)); o += nn * 2; o += (4 - (nn * 2) % 4) % 4;
+        const fn = this.h.far.nx * this.h.far.nd; this.far = new Int16Array(buf.slice(o, o + fn * 2)); o += fn * 2; o += (4 - (fn * 2) % 4) % 4;
+        this.trees = new Float32Array(buf.slice(o, o + this.h.trees * 12));
+        this.id = this.h.id; this.name = this.h.name; this.klass = this.h.klass; this.length = this.h.length;
+        this.pisteHalfWidth = this.h.halfWidth; this.startElevation = this.h.startElevation; this.endElevation = this.h.endElevation;
     }
-    /** Local DEM metres for course coordinates (x lateral, d along the run). */
-    toLocal(x: number, d: number, out = { e: 0, n: 0 }) {
-        const f = Math.min(Math.max(d / 5, 0), this.e.length - 1.0001), i = Math.floor(f), t = f - i;
-        const pe = this.e[i] + (this.e[i + 1] - this.e[i]) * t, pn = this.n[i] + (this.n[i + 1] - this.n[i]) * t;
-        const re = this.re[i] + (this.re[i + 1] - this.re[i]) * t, rn = this.rn[i] + (this.rn[i + 1] - this.rn[i]) * t;
-        const rl = Math.hypot(re, rn) || 1;
-        const extra = Math.max(0, d - this.length) + Math.min(0, d);   // beyond the ends: continue straight
-        let ne = pe + this.tE * extra + x * re / rl, nn = pn + this.tN * extra + x * rn / rl;
-        const ax = Math.abs(x);
-        if (ax > 150) {
-            // far field: straight frame along the start->end direction
-            const w = ax >= 600 ? 1 : (t => t * t * (3 - 2 * t))((ax - 150) / 450);
-            const fe = this.sE + this.tE * d * this.scale + x * this.tN, fn = this.sN + this.tN * d * this.scale - x * this.tE;
-            ne += (fe - ne) * w; nn += (fn - nn) * w;
-        }
-        out.e = ne; out.n = nn; return out;
+    /** Lateral position (x) of the real run line at distance d. */
+    centreX(d: number) {
+        const c = this.centre, f = Math.min(Math.max(d, 0), c.length - 1.0001), i = Math.floor(f);
+        return c[i] + (c[i + 1] - c[i]) * (f - i);
     }
-    private tmp = { e: 0, n: 0 };
-    /** Mogul amplitude (m) at (x, d): where the guide reports moguls. */
+    private gridHeight(g: Grid, data: Int16Array, x: number, d: number, cubic: boolean) {
+        const fx = Math.min(Math.max((x - g.x0) / g.cell, 0), g.nx - 1.0001), fd = Math.min(Math.max((d - g.d0) / g.cell, 0), g.nd - 1.0001);
+        const ix = Math.floor(fx), id = Math.floor(fd), tx = fx - ix, td = fd - id;
+        const at = (cx: number, cd: number) => data[Math.min(Math.max(cd, 0), g.nd - 1) * g.nx + Math.min(Math.max(cx, 0), g.nx - 1)];
+        let v: number;
+        if (cubic) {
+            const row = (cd: number) => cr(at(ix - 1, cd), at(ix, cd), at(ix + 1, cd), at(ix + 2, cd), tx);
+            v = cr(row(id - 1), row(id), row(id + 1), row(id + 2), td);
+        } else {
+            v = (at(ix, id) * (1 - tx) + at(ix + 1, id) * tx) * (1 - td) + (at(ix, id + 1) * (1 - tx) + at(ix + 1, id + 1) * tx) * td;
+        }
+        return g.base + v / g.scale;
+    }
+    /** Snow-surface height (m above sea level) from the swissALTI3D grids. 2 m near the run, 16 m beyond. */
+    terrain(x: number, d: number) {
+        const n = this.h.near;
+        const ex = Math.min(x - n.x0, n.x0 + (n.nx - 1) * n.cell - x), ed = Math.min(d - n.d0, n.d0 + (n.nd - 1) * n.cell - d);
+        const edge = Math.min(ex, ed);
+        if (edge >= 40) return this.gridHeight(n, this.near, x, d, true);
+        const farH = this.gridHeight(this.h.far, this.far, x, d, false);
+        if (edge <= 0) return farH;
+        const w = smooth(edge, 0, 40);
+        return farH + (this.gridHeight(n, this.near, x, d, true) - farH) * w;
+    }
+    /** Grooming of the mapped segment at distance d (from OpenStreetMap: classic / mogul / backcountry). */
+    zoneAt(d: number): Zone | undefined { return this.h.zones.find(z => d >= z.d0 - 2 && d <= z.d1 + 2) ?? this.h.zones[this.h.zones.length - 1]; }
+    /** Mogul amplitude (m): mapped mogul sections, and ungroomed itineraries. Groomed pistes: none. */
     mogulAmplitude(x: number, d: number) {
-        const off = Math.abs(x);
-        if (this.id === 'mont-fort') return d < 260 ? .55 * (1 - smooth(d, 200, 260)) : off > this.pisteHalfWidth ? .25 : 0;
-        if (this.klass === 'itinerary') return .5;
-        if (this.klass === 'black') return off > this.pisteHalfWidth ? .3 : 0;
-        return 0;
+        const z = this.zoneAt(d), off = Math.abs(x - this.centreX(d));
+        if (this.klass === 'park' || this.klass === 'skicross') return 0;
+        if (z?.grooming === 'moguls') return off < this.pisteHalfWidth + 6 ? .55 : .3;
+        if (z?.grooming === 'ungroomed' || this.klass === 'itinerary') return .42;
+        return off > this.pisteHalfWidth + 8 ? .22 : 0;   // off-piste bumps beside groomed runs
     }
-    /** Ground height (m above sea level) at course coordinates. */
+    /** Ground height used by the game: real terrain plus irregular moguls where they belong. */
     height(x: number, d: number) {
-        const p = this.toLocal(x, d, this.tmp);
-        let h = demHeight(p.e, p.n);
-        const amp = Math.abs(x) < 400 ? this.mogulAmplitude(x, d) : 0;
-        if (amp > 0) h += amp * moguls(p.e, p.n);
-        if (Math.abs(x) > this.pisteHalfWidth && Math.abs(x) < 400) h += .12 * Math.sin(p.e * .21 + Math.sin(p.n * .13) * 2) * Math.cos(p.n * .17); // wind relief off-piste
+        let h = this.terrain(x, d);
+        const amp = Math.abs(x - this.centreX(d)) < 300 ? this.mogulAmplitude(x, d) : 0;
+        if (amp > 0) { const w = this.world(x, d); h += amp * moguls(w.e, w.n); }
         return h;
     }
-    /** Surface slope (deg) and aspect (unit downhill direction, local e/n) of the DEM at course coordinates. */
+    /** Approximate world LV95 position (for fixed-to-the-ground noise and aspect). Exact for rotated runs. */
+    world(x: number, d: number) {
+        const f = this.h.frame, re = f.un, rn = -f.ue;
+        return { e: f.e0 + d * f.ue + x * re, n: f.n0 + d * f.un + x * rn };
+    }
+    /** Slope (deg), how much it faces north (+1) or south (-1), and elevation at (x, d). */
     slopeAt(x: number, d: number) {
-        const p = this.toLocal(x, d, this.tmp), s = 12;
-        const ge = (demHeight(p.e + s, p.n) - demHeight(p.e - s, p.n)) / (2 * s), gn = (demHeight(p.e, p.n + s) - demHeight(p.e, p.n - s)) / (2 * s);
-        const g = Math.hypot(ge, gn);
-        return { deg: Math.atan(g) * 180 / Math.PI, downE: g ? -ge / g : 0, downN: g ? -gn / g : 0, elevation: demHeight(p.e, p.n) };
+        const s = 2, gx = (this.terrain(x + s, d) - this.terrain(x - s, d)) / (2 * s), gd = (this.terrain(x, d + s) - this.terrain(x, d - s)) / (2 * s);
+        const f = this.h.frame, re = f.un, rn = -f.ue;
+        // gradient in world east/north; downhill = -gradient
+        const ge = gx * re + gd * f.ue, gn = gx * rn + gd * f.un, g = Math.hypot(ge, gn);
+        return { deg: Math.atan(g) * 180 / Math.PI, downN: g ? -gn / g : 0, elevation: this.terrain(x, d) };
     }
 }
-/** Irregular moguls: three crossing wave trains (5.4-7.3 m) with an uneven envelope, fixed to the ground. Range about -1..1. */
+/** Irregular moguls: three crossing wave trains (5.4-7.3 m) with an uneven envelope, fixed to the ground. About -1..1. */
 export function moguls(e: number, n: number) {
-    const a = Math.sin(e * .86 + n * .52 + 1.3) , b = Math.sin(e * -.41 + n * .97 + 4.1), c = Math.sin(e * .63 - n * .74 + 2.2);
+    const a = Math.sin(e * .86 + n * .52 + 1.3), b = Math.sin(e * -.41 + n * .97 + 4.1), c = Math.sin(e * .63 - n * .74 + 2.2);
     const env = .55 + .45 * Math.sin(e * .071 + n * .053) * Math.cos(n * .061 - e * .029);
     return (a * b * .9 + c * .45) * env;
 }
-const smooth = (x: number, a: number, b: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-const runs = new Map<string, VerbierRun>();
-export function verbierRun(id: string): VerbierRun {
-    let r = runs.get(id);
-    if (!r) { const route = ROUTES.find(x => x.id === id); if (!route) throw new Error(`Unknown Verbier run ${id}`); r = new VerbierRun(route); runs.set(id, r); }
-    return r;
+const loaded = new Map<string, VerbierRun>();
+const pending = new Map<string, Promise<VerbierRun>>();
+/** Runtime file location of a run (relative to the page, so it works under any base path such as /Evader/). */
+export const runUrl = (id: string) => `terrain/${id}.bin`;
+export function isRunLoaded(id: string) { return loaded.has(id); }
+/** Load a run's terrain file (browser: fetch; Node: read from public/). */
+export function loadRun(id: string): Promise<VerbierRun> {
+    const have = loaded.get(id); if (have) return Promise.resolve(have);
+    let p = pending.get(id);
+    if (!p) {
+        p = fetch(runUrl(id)).then(r => { if (!r.ok) throw new Error(`terrain ${id}: HTTP ${r.status}`); return r.arrayBuffer(); })
+            .then(buf => { const run = new VerbierRun(buf); loaded.set(id, run); return run; });
+        p.catch(() => pending.delete(id));
+        pending.set(id, p);
+    }
+    return p;
 }
-export const VERBIER_ROUTES = ROUTES;
-export const VERBIER_ANCHORS = ANCHORS;
-export { hash as verbierHash };
-
+/** A loaded run. In Node (tests, tools) it is read synchronously from public/terrain on first use. */
+export function verbierRun(id: string): VerbierRun {
+    const have = loaded.get(id); if (have) return have;
+    const proc = (globalThis as { process?: { getBuiltinModule?: (m: string) => unknown; cwd: () => string } }).process;
+    const fs = proc?.getBuiltinModule?.('fs') as { readFileSync(p: string): Uint8Array } | undefined;
+    if (fs && proc) {
+        const b = fs.readFileSync(`${proc.cwd()}/public/terrain/${id}.bin`);
+        const run = new VerbierRun(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer);
+        loaded.set(id, run); return run;
+    }
+    throw new Error(`Verbier run ${id} is not loaded yet (call loadRun first)`);
+}
+export const RUNS = RUNS_META;
 /** Air temperature from an altitude lapse rate of 6.5 degC per km, relative to a reference at Verbier village (1,500 m). */
 export function lapseTemperature(elevation: number, villageTemp: number) { return villageTemp - 6.5 * (elevation - 1500) / 1000; }
-/** Approximate treeline in the Val de Bagnes (larch / arolla pine), with local variation. Game estimate. */
-export function treeline(e: number, n: number) { return 2150 + 90 * Math.sin(e * .004 + 1.1) * Math.cos(n * .0035); }

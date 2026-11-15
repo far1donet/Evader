@@ -69,12 +69,26 @@ Use `npm run dev` for hot reload while editing (slower; use the production build
 
 ## Verbier – 4 Vallées (real terrain)
 
-Five runs are built on the real mountains of Verbier from a public-domain elevation model (SRTM, ~30 m), following the
-Verbier 4 Vallées game-development guide: **Attelas → Ruinettes**, **Ruinettes → Médran**, **La Chaux Snowpark**,
-**Mont Fort → Gentianes** and the **Chassoure → Tortin** itinerary. The HUD shows your real altitude and the air temperature
-at that altitude. The guide's piste, lift, itinerary and fun-zone inventories are in `lib/verbier/registry.ts`.
-Run lines are generated on the terrain (not surveyed piste centre-lines) and lifts are not rideable yet; see
-[docs/verbier/STATUS.md](docs/verbier/STATUS.md) for exactly what is and is not implemented.
+Eight runs are built from Swiss federal survey data and mapped run lines:
+- **Attelas**
+- **Hattey → Clambin**
+- **La Chaux Snowpark**
+- **La Chaux Ski Cross**
+- **Mont-Fort**
+- **Chassoure → Tortin**
+- **FIS**
+- **Mont-Gelé → La Chaux**
+
+| What | Source |
+| --- | --- |
+| Terrain | swissALTI3D 2 m (2024) © swisstopo |
+| Run and lift lines | OpenStreetMap contributors (ODbL), via OpenSkiData |
+| Trees | Detected in SWISSIMAGE aerial photos © swisstopo |
+| Place heights | swisstopo gazetteer |
+
+Each run follows its real mapped line, with its real bends, steepness and grooming. The lifts and pylons are where they are mapped, and the HUD shows your real altitude and the air temperature at that altitude. Rebuild the data with the `tools/verbier/fetch_swissalti3d.py`, `build_runs.py` and `build_anchors.py` scripts.
+
+See [docs/verbier/STATUS.md](docs/verbier/STATUS.md) for what is exact, what is a design value, and what is missing.
 
 ## What Reality physics does
 

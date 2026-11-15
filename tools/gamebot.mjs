@@ -1,6 +1,7 @@
 import { SnowGame, COURSES, center, height } from '../lib/snow-game.ts';
 import { makeParkRails } from '../lib/park-rails.ts';
 import { MeshStandardMaterial, Quaternion } from 'three';
+import { IDLE_INTENT } from '../lib/sim/rider-controller.ts';
 export function makeRealityGame(course, mode = 'freeride', settings = {}) {
   const g = Object.create(SnowGame.prototype);
   Object.assign(g, { course, mode, state: 'ride', x: center(0, course), d: 0, y: height(center(0, course), 0, course), vy: 0, speed: 0, heading: 0, spin: 0, flip: 0, airTime: 0, grabTime: 0, ground: true,
@@ -43,4 +44,24 @@ export function botIntent(g, opts = {}) {
   if (g.speed > vMax) i.brake = Math.min(1, (g.speed - vMax) * .5);
   if (!ride.ground) { i.grab = !!opts.grab; i.wind = 0; }
   return i;
+}
+
+/**
+ * Pure-pursuit line follower for tests: aims at the point of the course's centre line 14 m of arclength ahead of the
+ * nearest point, and steers on the error between that bearing and the travel direction. Works when the mapped line runs
+ * diagonally across the course frame (real runs). Returns a readIntent function.
+ */
+export function lineFollower(g, course, center, { maxSpeed = 15, ahead = 14 } = {}) {
+    return () => {
+        const v = g.reality.sim.board.v, x = g.x, d = g.d;
+        let best = d, bestE = Infinity;
+        for (let s = Math.max(0, d - 30); s <= d + 30; s += 1) { const e = Math.hypot(center(s, course) - x, s - d); if (e < bestE) { bestE = e; best = s; } }
+        let td = best, arc = 0;
+        while (arc < ahead) { const dx = center(td + 1, course) - center(td, course); arc += Math.hypot(dx, 1); td += 1; }
+        const want = Math.atan2(center(td, course) - x, td - d), have = Math.atan2(v.x, -v.z);
+        let err = want - have; err = Math.atan2(Math.sin(err), Math.cos(err));
+        const speed = Math.hypot(v.x, v.z);
+        Object.assign(g.intent, IDLE_INTENT, { steer: speed < 1 ? 0 : Math.max(-1, Math.min(1, err * 1.6)), brake: g.speed > maxSpeed ? Math.min(1, (g.speed - maxSpeed) * .4) : 0 });
+        return g.intent;
+    };
 }

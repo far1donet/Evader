@@ -1,13 +1,15 @@
-// Verbier – 4 Vallées: quality gates from the game-development guide (sections 08–10), checked against the DEM.
+// Verbier – 4 Vallées: quality gates from the game-development guide (sections 08–10), checked against swissALTI3D data.
 // Run: node --experimental-strip-types tests/verbier.mjs
 import assert from 'node:assert/strict';
 import * as T from 'three';
 import { PISTES, LIFTS, ANCHORS, ITINERARIES, SNOWPARK, infrastructureFor, FUN_ZONES } from '../lib/verbier/registry.ts';
-import { verbierRun, demHeight, VERBIER_ROUTES, moguls } from '../lib/verbier/terrain.ts';
+import { verbierRun, moguls, RUNS } from '../lib/verbier/terrain.ts';
+import { curvature } from '../lib/verbier/scenery.ts';
 import { LA_CHAUX_FEATURES } from '../lib/park-jumps.ts';
 import { COURSES, height, snowDepth, SnowGame, center } from '../lib/snow-game.ts';
 import { makeParkRails } from '../lib/park-rails.ts';
 import { IDLE_INTENT } from '../lib/sim/rider-controller.ts';
+import { lineFollower } from '../tools/gamebot.mjs';
 
 // ---- registry completeness and honesty ------------------------------------------------------------------------------
 {
@@ -32,65 +34,86 @@ import { IDLE_INTENT } from '../lib/sim/rider-controller.ts';
     console.log('Infrastructure versioning: historical link and Télémixte never coexist; on 14 Nov 2026 only the upper section passed.');
 }
 
-// ---- anchors: displayed heights match the DEM; resolved anchors match published elevations ----------------------------
+// ---- anchors: gazetteer positions, swissALTI3D heights; cross-checked against the shipped run grids ----------------------
 {
-    let resolved = 0;
-    for (const a of ANCHORS) {
-        const h = demHeight(a.e, a.n);
-        assert(Math.abs(h - a.demElevation) < 3, `${a.name}: runtime DEM sampling agrees with the build (${h.toFixed(1)} vs ${a.demElevation})`);
-        if (a.resolved) { resolved++; assert(Math.abs(a.error) <= (a.kind === 'peak' ? 60 : 25), `${a.name} within tolerance`); }
+    const resolved = ANCHORS.filter(a => a.resolved);
+    for (const a of resolved) assert(Math.abs(a.error) <= 25, `${a.name}: DEM ${a.demElevation} m vs published ${a.publishedElevation} m`);
+    assert(resolved.length >= 14, `${resolved.length} of ${ANCHORS.length} anchors resolved`);
+    assert(ANCHORS.filter(a => !a.resolved).every(a => a.status && a.status.length > 10), 'unresolved anchors say why');
+    // independent check: an anchor inside a rotated run's 2 m grid, mapped through the run frame, sits at the same height
+    let checked = 0;
+    for (const meta of RUNS) {
+        const run = verbierRun(meta.id), f = run.h.frame, n = run.h.near; if (f.mode !== 'rotated') continue;
+        for (const a of ANCHORS) {
+            const de = a.e - f.e0, dn = a.n - f.n0, d = de * f.ue + dn * f.un, x = de * f.un - dn * f.ue;
+            if (x < n.x0 + 50 || x > n.x0 + (n.nx - 1) * n.cell - 50 || d < n.d0 + 50 || d > n.d0 + (n.nd - 1) * n.cell - 50) continue;
+            const w = run.world(x, d); assert(Math.hypot(w.e - a.e, w.n - a.n) < .01, 'frame round trip');
+            assert(Math.abs(run.terrain(x, d) - a.demElevation) < 4, `${a.name} on ${run.name}: grid ${run.terrain(x, d).toFixed(1)} vs ${a.demElevation}`);
+            checked++;
+        }
     }
-    assert(resolved >= 14, `${resolved} of ${ANCHORS.length} anchors resolved`);
-    const low = ANCHORS.filter(a => a.confidence !== 'high').map(a => a.name);
-    console.log(`Anchors: ${resolved}/${ANCHORS.length} match published elevations (stations ±25 m, summits ±60 m); low confidence: ${low.join(', ') || 'none'} passed.`);
+    assert(checked >= 2, `anchors cross-checked against run grids (${checked})`);
+    console.log(`Anchors: ${resolved.length}/${ANCHORS.length} within 25 m of published elevations; ${checked} cross-checked against the shipped 2 m run grids (snow-smoothed, <4 m) passed.`);
 }
 
-// ---- runs: rideable, real heights, published characteristics ----------------------------------------------------------
+// ---- runs: real descents along the mapped lines --------------------------------------------------------------------------
 {
-    for (const r of VERBIER_ROUTES) {
-        const run = verbierRun(r.id);
-        let maxRise = 0, low = Infinity;
+    assert.equal(RUNS.length, 8);
+    const report = [];
+    for (const meta of RUNS) {
+        const run = verbierRun(meta.id);
+        assert.equal(run.length, meta.length); assert(run.centre.length >= run.length, `${run.name}: centre line covers the run`);
+        let low = Infinity, maxRise = 0, maxDeg = 0;
         for (let d = 0; d <= run.length; d += 5) {
-            const p = run.toLocal(0, d), h = demHeight(p.e, p.n);
-            low = Math.min(low, h); maxRise = Math.max(maxRise, h - low);
-            // displayed (course) height equals the DEM wherever no moguls or park features are added
-            if (run.mogulAmplitude(0, d) === 0 && r.id !== 'la-chaux-park') assert(Math.abs(run.height(0, d) - h) < 1e-9, `${r.name}: course height = DEM at d ${d}`);
+            const h = run.terrain(run.centreX(d), d); low = Math.min(low, h); maxRise = Math.max(maxRise, h - low);
+            maxDeg = Math.max(maxDeg, run.slopeAt(run.centreX(d), d).deg);
         }
-        assert(maxRise < 4, `${r.name}: no climb a rider would stall on (max rise ${maxRise.toFixed(1)} m)`);
-        assert(run.length > 600 && run.startElevation > run.endElevation + 150, `${r.name}: a real descent`);
+        // header = raw swissALTI3D; grid = snow-smoothed (a few metres on steep faces)
+        assert(Math.abs(run.terrain(run.centreX(0), 0) - run.startElevation) < 4 && Math.abs(run.terrain(run.centreX(run.length), run.length) - run.endElevation) < 4, `${run.name}: header elevations match the grid`);
+        assert(run.startElevation > run.endElevation + 80, `${run.name}: a real descent`);
+        assert(maxRise < 8, `${run.name}: no long climb along the line (max rise ${maxRise.toFixed(1)} m)`);
+        report.push(`${run.name} ${Math.round(run.startElevation - run.endElevation)} m / max ${maxDeg.toFixed(0)} deg`);
     }
-    const mf = verbierRun('mont-fort'), top = (demHeight(mf.toLocal(0, 0).e, mf.toLocal(0, 0).n) - demHeight(mf.toLocal(0, 250).e, mf.toLocal(0, 250).n));
-    const topDeg = Math.atan(top / 250) * 180 / Math.PI;
-    assert(topDeg > 28 && topDeg < 42, `Mont Fort: first 250 m average ${topDeg.toFixed(1)} deg (guide: near 35 deg)`);
-    assert(mf.mogulAmplitude(0, 100) > .4 && mf.mogulAmplitude(0, 400) === 0, 'Mont Fort: moguls on the top section only (groomed below)');
-    const at = verbierRun('attelas-ruinettes'); assert(Math.abs(at.startElevation - at.endElevation - 500) < 60, 'Attelas: about 500 m vertical');
-    // moguls are irregular, not repeated identical bumps
+    // Mont Fort: the steep upper face (guide: about 35 deg near the top)
+    const mf = verbierRun('mont-fort'); let mfMax = 0;
+    for (let d = 0; d < 400; d += 5) mfMax = Math.max(mfMax, mf.slopeAt(mf.centreX(d), d).deg);
+    assert(mfMax > 30 && mfMax < 45, `Mont Fort upper face max ${mfMax.toFixed(1)} deg`);
+    const at = verbierRun('attelas'); assert(Math.abs(at.startElevation - 2727) < 30, 'Attelas starts near the Attelas station (2,727 m)');
     const samples = Array.from({ length: 40 }, (_, i) => moguls(i * 1.7, i * 2.3));
     assert(new Set(samples.map(v => v.toFixed(2))).size > 30, 'irregular mogul field');
-    console.log(`Runs: all five rideable (no climbs), course height equals the DEM, Mont Fort top ${topDeg.toFixed(1)} deg, Attelas ${Math.round(at.startElevation - at.endElevation)} m vertical passed.`);
+    // trees from the aerial imagery are below the treeline only
+    for (const meta of RUNS) { const run = verbierRun(meta.id); for (let i = 0; i < run.trees.length; i += 3 * 97) assert(run.terrain(run.trees[i], run.trees[i + 1]) < 2400, `${run.name}: tree below the treeline`); }
+    console.log(`Runs: ${report.join('; ')}; Mont Fort face ${mfMax.toFixed(0)} deg passed.`);
 }
 
 // ---- piste classes as data: groomed corridors vs ungroomed itinerary --------------------------------------------------
 {
-    const red = COURSES.find(c => c.dem === 'attelas-ruinettes'), itin = COURSES.find(c => c.dem === 'chassoure-tortin');
-    assert(snowDepth(0, 400, red) < .03, 'red piste is groomed on its corridor');
-    assert(snowDepth(0, 400, itin) > .05, 'itinerary is ungroomed on its line');
-    assert(verbierRun('chassoure-tortin').mogulAmplitude(0, 800) > 0, 'itinerary carries moguls');
+    const red = COURSES.find(c => c.dem === 'attelas'), itin = COURSES.find(c => c.dem === 'chassoure-tortin');
+    const ra = verbierRun('attelas'), rc = verbierRun('chassoure-tortin');
+    assert(snowDepth(ra.centreX(400), 400, red) < .03, 'red piste is groomed on its corridor');
+    assert(snowDepth(rc.centreX(800), 800, itin) > .05, 'itinerary is ungroomed on its line');
+    assert(rc.mogulAmplitude(rc.centreX(800), 800) > 0, 'itinerary carries moguls');
+    assert(ra.mogulAmplitude(ra.centreX(400), 400) === 0, 'groomed red: no moguls on the corridor');
     console.log('Piste classes: groomed red corridor, ungroomed itinerary with moguls passed.');
 }
 
-// ---- La Chaux park: published structure, physical features ------------------------------------------------------------
+// ---- La Chaux park and ski cross ------------------------------------------------------------------------------------------
 {
     const small = LA_CHAUX_FEATURES.filter(f => f.line === 'S'), big = LA_CHAUX_FEATURES.filter(f => f.line !== 'S');
     assert.equal(small.length, 5); assert.equal(big.length, 3);
     for (const f of big) { const table = f.profile.knuckle - f.profile.lip; assert(table >= 9 && table <= 13, `kicker table ${table} m in 9-13 m`); }
-    const park = COURSES.find(c => c.dem === 'la-chaux-park');
+    const park = COURSES.find(c => c.dem === 'la-chaux-park'), pr = verbierRun('la-chaux-park');
+    assert(pr.h.park && pr.h.park.polygon.length > 3, 'park footprint from the mapped snow_park polygon');
     for (const f of LA_CHAUX_FEATURES) {
-        const lip = f.base + f.profile.lip;
-        assert(height(0, lip, park) - verbierRun('la-chaux-park').height(0, lip) > f.profile.rise * .8, 'feature is real collision geometry above the snow');
+        const lip = f.base + f.profile.lip, x = pr.centreX(lip) + f.x;
+        assert(height(x, lip, park) - pr.height(x, lip) > f.profile.rise * .8, `${f.line} feature at ${f.base} is collision geometry above the snow`);
         assert(f.base + f.profile.runout < park.length - 20, 'feature inside the park');
     }
-    console.log('La Chaux: 5 table-tops + kickers with 9, 11, 13 m tables built into the terrain passed.');
+    const sx = COURSES.find(c => c.dem === 'la-chaux-skicross'), sr = verbierRun('la-chaux-skicross');
+    let banked = 0; for (let d = 30; d < sr.length - 20; d += 2) if (Math.abs(curvature(sr, d)) > .01) banked++;
+    assert(banked > 5, 'ski cross has banked turns on the real bends');
+    assert(Math.max(...[175, 395].map(d => height(sr.centreX(d + 10), d + 10, sx) - sr.height(sr.centreX(d + 10), d + 10))) > 1.4, 'ski-cross jumps built up');
+    console.log(`La Chaux: S/M/L lanes in the mapped footprint (5 table-tops, 9/11/13 m tables); ski cross with ${banked} banked samples and 2 jumps passed.`);
 }
 
 // ---- riding the real terrain under Reality physics ---------------------------------------------------------------------
@@ -107,10 +130,11 @@ import { IDLE_INTENT } from '../lib/sim/rider-controller.ts';
         g.rails = makeParkRails(course, d => center(d, course), (x, d) => height(x, d, course), new T.MeshStandardMaterial());
         g.startReality();
         const y0 = g.y; let n = 0;
-        while (g.state === 'ride' && n++ < 120 * 25) { g.keys.clear(); if (g.x > 3) g.keys.add('KeyA'); if (g.x < -3) g.keys.add('KeyD'); if (g.speed > 14) g.keys.add('KeyS'); g.update(1 / 120); assert(Number.isFinite(g.x + g.y + g.d)); }
-        assert(g.d > 40 && g.y < y0 - 8, `${course.name}: descends under gravity (${g.d.toFixed(0)} m, ${(y0 - g.y).toFixed(0)} m lower)`);
+        g.readIntent = lineFollower(g, course, center, { maxSpeed: 11 });
+        while (g.state === 'ride' && n++ < 120 * 25) { g.update(1 / 120); assert(Number.isFinite(g.x + g.y + g.d)); }
+        assert(y0 - g.y > 8, `${course.name}: descends under gravity (${(y0 - g.y).toFixed(0)} m lower)`);
         assert(g.getHUD().altitude > 1400 && g.getHUD().altitude < 3400, 'HUD shows a real altitude');
     }
-    console.log('Reality physics on all five Verbier runs: rides down the real slopes, HUD altitude from the DEM passed.');
+    console.log('Reality physics on all eight Verbier runs: rides down the real slopes, HUD altitude from the DEM passed.');
 }
 console.log('Verbier validation passed.');
