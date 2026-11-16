@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import * as T from 'three';
 import { PISTES, LIFTS, ANCHORS, ITINERARIES, SNOWPARK, infrastructureFor, FUN_ZONES } from '../lib/verbier/registry.ts';
-import { verbierRun, moguls, RUNS, resortSync, worldHeight, tileLoaded, loadTilesAround, FreeTerrain, setFreeTerrain, buildingsSync, buildingsAround } from '../lib/verbier/terrain.ts';
+import { verbierRun, moguls, RUNS, resortSync, worldHeight, tileLoaded, loadTilesAround, FreeTerrain, setFreeTerrain, buildingsSync, buildingsAround, activateTiles } from '../lib/verbier/terrain.ts';
 import { insideSolid } from '../lib/verbier/buildings.ts';
 import { EMPTY_PASSPORT, record, goals } from '../lib/passport.ts';
 import { SurfaceMap, FreeView } from '../lib/verbier/free-world.ts';
@@ -169,6 +169,72 @@ import { lineFollower } from '../tools/gamebot.mjs';
     console.log(`Free ride: snow from every mapped piste (groomed corridors, powder off-piste, itineraries); ${rides} free rides from real stations descend the real terrain passed.`);
 }
 
+// ---- free ride robustness: no terrain steps, no ground shifting underfoot, walking anywhere, no blow-ups -------------------
+{
+    const r = resortSync(), sm = new SurfaceMap(r);
+    // a shipped tile next to one that is not shipped: the ground fades into the overview, no step at the edge
+    const shipped = new Set(r.tiles.map(([te, tn]) => te * 10000 + tn));
+    const [te, tn] = r.tiles.find(([a, b]) => !shipped.has((a + 1) * 10000 + b) && a + 1 < 2598);
+    await loadTilesAround(te * 1000 + 500, tn * 1000 + 500, 400);
+    let worst = 0;
+    for (let n = tn * 1000 + 20; n < tn * 1000 + 980; n += 20) {
+        const e = (te + 1) * 1000, step = Math.abs(worldHeight(e - .25, n) - worldHeight(e + .25, n));
+        const slope = Math.abs(worldHeight(e - 2.25, n) - worldHeight(e - 1.75, n));
+        worst = Math.max(worst, step - slope);
+    }
+    assert(worst < .3, `no step where a 2 m tile meets the overview (worst ${worst.toFixed(2)} m over 0.5 m)`);
+    // free-ride streaming: a fetched tile waits until the rider is clear of it
+    const far = r.tiles.find(([a, b]) => !tileLoaded(a * 1000 + 500, b * 1000 + 500));
+    const pe = far[0] * 1000 + 500, pn = far[1] * 1000 + 500, before = worldHeight(pe, pn);
+    await loadTilesAround(pe, pn, 10, true);
+    assert(!tileLoaded(pe, pn) && worldHeight(pe, pn) === before, 'a streamed tile is not applied under the rider');
+    assert.equal(activateTiles(pe, pn, 120).length, 0, 'still held back while the rider is on it');
+    assert(activateTiles(pe + 5000, pn + 5000, 120).length >= 1 && tileLoaded(pe, pn), 'applied once the rider is clear');
+    // walking: from the flat Siviez station, W walks the rider anywhere, uphill too; solid things stop a slow rider
+    const ride = async (name, secs, intent, setup) => {
+        const st = r.stations.find(s => s.name === name);
+        await loadTilesAround(st.e, st.n, 1600);
+        const run = new FreeTerrain(Math.round(st.e), Math.round(st.n), (e, n) => sm.at(e, n)); setFreeTerrain(run);
+        const view = new FreeView(run, sm, r, 'low', (x, d) => height(x, d, FREE_COURSE), (x, d) => snowDepth(x, d, FREE_COURSE)); view.prime(0, 0);
+        const g = Object.create(SnowGame.prototype);
+        Object.assign(g, { course: FREE_COURSE, mode: 'freeride', state: 'ride', x: 0, d: 0, y: 0, vy: 0, speed: 0, heading: 0, spin: 0, flip: 0, airTime: 0, grabTime: 0, ground: true,
+            settings: { physics: 'reality', assistLevel: 'balanced', quality: 'low', volume: 0, assist: false, motion: false, weather: 'clear', fov: 62 },
+            spinInput: 0, spinVelocity: 0, flipVelocity: 0, load: 0, pop: 0, extension: 0, landingImpact: 0, grabKind: 0, grabLocked: -1, time: 0, bailTimer: 0, flowTimer: 0, toastTimer: 0, score: 0, tricks: 0, bails: 0, combo: 1,
+            keys: new Set(), touch: new Set(), repeats: new Map(), railDone: new Set(), railActive: -1, railTime: 0, obstacles: [], gateCount: 0, gateIndex: 0,
+            features: [], recordTimer: 0, frames: [], hudTimer: 0, onHUD: () => {}, onEnd: () => {}, sound: () => {}, onPause: () => {}, rails: [],
+            realityEvents: [], intent: { ...IDLE_INTENT }, keySteer: 0, realityGrab: 0, padLatch: new Set(), renderQ: new T.Quaternion(), prevRenderQ: new T.Quaternion(), replayHasQ: false, crashVisual: 0,
+            stick: { x: 0, y: 0 }, gesture: { enabled: false }, walking: false, walkHeading: 0, walkSpeed: 0, walkHeld: 0, stoppedFor: 0 });
+        g.freeStart = { x: 0, d: 0, yaw: g.fallLineYaw(0, 0) }; g.startReality(); setup?.(g, view);
+        g.readIntent = () => { Object.assign(g.intent, IDLE_INTENT, intent(g)); return g.intent; };
+        const out = { crashes: 0, walked: 0, maxSpeed: 0, under: 0, y0: g.y, maxY: g.y };
+        for (let i = 0; i < 120 * secs; i++) {
+            if (i % 4 === 0) { view.update(g.x, g.d, 1 / 30); g.obstacles = view.obstacles; }
+            const was = g.reality.crashed; g.update(1 / 120);
+            assert(Number.isFinite(g.x + g.y + g.d + g.speed), `${name}: finite state`);
+            if (g.reality.crashed && !was) out.crashes++;
+            if (g.walking) out.walked += 1 / 120;
+            if (!g.reality.crashed && g.y - height(g.x, g.d, FREE_COURSE) < -.25) out.under++;
+            out.maxSpeed = Math.max(out.maxSpeed, g.speed); out.maxY = Math.max(out.maxY, g.y);
+        }
+        out.g = g; out.view = view; return out;
+    };
+    const siv = await ride('Siviez', 20, () => ({ tuck: true }));
+    assert(siv.walked > 10 && Math.hypot(siv.g.x, siv.g.d) > 20, `walking from flat Siviez: ${siv.walked.toFixed(0)} s, ${Math.hypot(siv.g.x, siv.g.d).toFixed(0)} m`);
+    siv.view.dispose();
+    // uphill: face up the fall line and hold W
+    const up = await ride('Les Ruinettes', 15, () => ({ tuck: true }), g => { const h = Math.PI / 2 - g.fallLineYaw(0, 0) + Math.PI; g.reality.walkTo(0, 0, h, 0); Object.assign(g, { walking: true, walkHeading: h }); });
+    assert(up.maxY - up.y0 > 1.5 && up.walked > 10, `walking uphill climbs (${(up.maxY - up.y0).toFixed(1)} m in 15 s)`);
+    up.view.dispose();
+    // stress: random carving, braking, skating and walking from three stations, two minutes each
+    for (const name of ['Savoleyres', 'Verbier – Médran', 'Les Ruinettes']) {
+        const ph = name.length;
+        const s = await ride(name, 120, g => ({ steer: Math.sin(g.time * .7 + ph) * .8, brake: g.speed > 17 ? .7 : 0, tuck: g.speed < 2.5 }));
+        assert(s.maxSpeed < 35 && s.under === 0, `${name}: no blow-up, never under the snow (max ${s.maxSpeed.toFixed(0)} m/s, ${s.under} under)`);
+        s.view.dispose();
+    }
+    console.log(`Free ride robustness: no step at tile edges (worst ${worst.toFixed(2)} m); streamed tiles wait until the rider is clear; walking from flat Siviez ${siv.walked.toFixed(0)} s and uphill ${(up.maxY - up.y0).toFixed(1)} m; 3 x 2 min stress rides without blow-ups passed.`);
+}
+
 // ---- free ride world: real buildings (VECTOR25 + GWR), solid lift towers, other people on the pistes -----------------------
 {
     const r = resortSync(), sm = new SurfaceMap(r), all = buildingsSync();
@@ -184,7 +250,8 @@ import { lineFollower } from '../tools/gamebot.mjs';
     const view = new FreeView(run, sm, r, 'balanced', (x, d) => height(x, d, FREE_COURSE), (x, d) => snowDepth(x, d, FREE_COURSE));
     view.prime(0, 0);
     const meshes = view.group.children.filter(c => c.name === 'buildings');
-    assert(meshes.length > 0 && meshes.reduce((n, m) => n + m.geometry.attributes.position.count, 0) > 30000, 'the village is drawn');
+    let verts = 0; for (const m of meshes) m.traverse(o => { if (o.isMesh) verts += o.geometry.attributes.position.count; });
+    assert(meshes.length > 0 && verts > 30000, `the village is drawn (${verts} vertices)`);
     const walls = view.obstacles.filter(o => o.kind === 'WALL STRIKE'), towers = view.obstacles.filter(o => o.kind === 'TOWER STRIKE');
     assert(walls.length > 100 && towers.length > 10, `solid near the rider: ${walls.length} buildings, ${towers.length} lift towers`);
     assert(!walls.some(o => insideSolid(o, 0, 0, 0, 2)), 'the station platform itself is clear');

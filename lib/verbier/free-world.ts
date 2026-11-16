@@ -1,6 +1,50 @@
 import * as T from 'three';
-import { forestCover, FreeTerrain, loadTilesAround, missingTiles, overviewHeight, treesAround, loadBuildings, buildingsAround, buildingsLoaded, type Resort, type ResortLift, type MapPiste, type Station, type SnowInfo, type Lift } from './terrain.ts';
+import { activateTiles, forestCover, worldHeight, FreeTerrain, loadTilesAround, missingTiles, overviewHeight, treesAround, loadBuildings, buildingsAround, buildingsLoaded, type Resort, type ResortLift, type MapPiste, type Station, type SnowInfo, type Lift } from './terrain.ts';
 import { buildingMesh, type Solid } from './buildings.ts';
+/**
+ * Where to put the rider for a free-ride start near (e, n): not inside a lift terminal (24 m around each lift end) or a
+ * building, on ground no steeper than 35 deg; the nearest such spot, preferring the lowest one at that distance so the
+ * rider can ride away. Returns (e, n) unchanged if it is already clear.
+ */
+export function clearSpot(resort: Resort, e: number, n: number): [number, number] {
+    const ends = resort.lifts.flatMap(l => [l.points[0], l.points[l.points.length - 1]]).filter(([le, ln]) => Math.hypot(le - e, ln - n) < 140);
+    const houses = buildingsLoaded() ? buildingsAround(e, n, 140) : [];
+    const clear = (pe: number, pn: number) => {
+        if (ends.some(([le, ln]) => Math.hypot(le - pe, ln - pn) < 24)) return false;
+        for (const b of houses) {
+            const dx = pe - b.e, dn = pn - b.n, a = dx * Math.cos(b.angle) + dn * Math.sin(b.angle), c = -dx * Math.sin(b.angle) + dn * Math.cos(b.angle);
+            if (Math.abs(a) < b.length / 2 + 3 && Math.abs(c) < b.width / 2 + 3) return false;
+        }
+        const g = Math.hypot(worldHeight(pe + 2, pn) - worldHeight(pe - 2, pn), worldHeight(pe, pn + 2) - worldHeight(pe, pn - 2)) / 4;
+        return g < .7;
+    };
+    if (clear(e, n)) return [e, n];
+    for (let r = 6; r <= 90; r += 4) {
+        let best: [number, number, number] | null = null;
+        for (let k = 0; k < 32; k++) {
+            const a = k / 32 * Math.PI * 2, pe = e + Math.cos(a) * r, pn = n + Math.sin(a) * r;
+            if (!clear(pe, pn)) continue;
+            const h = worldHeight(pe, pn); if (!best || h < best[2]) best = [pe, pn, h];
+        }
+        if (best) return [best[0], best[1]];
+    }
+    return [e, n];
+}
+/** Free geometry (and instance buffers) of a removed group whose materials are shared (lifts, buildings). */
+function dropGeometry(g: T.Object3D) {
+    const geos = new Set<T.BufferGeometry>();
+    g.traverse(o => { if (o instanceof T.InstancedMesh) o.dispose(); if (o instanceof T.Mesh || o instanceof T.LineSegments) geos.add(o.geometry); });
+    geos.forEach(x => x.dispose());
+}
+/** Free a rebuilt group's GPU buffers: instance data, geometries and its own materials (each rebuild makes new ones). */
+function release(g: T.Object3D) {
+    const geos = new Set<T.BufferGeometry>(), mats = new Set<T.Material>();
+    g.traverse(o => {
+        if (o instanceof T.InstancedMesh) o.dispose();
+        if (o instanceof T.Mesh || o instanceof T.LineSegments) { geos.add(o.geometry); (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => mats.add(m)); }
+    });
+    geos.forEach(x => x.dispose()); mats.forEach(m => m.dispose());
+}
 const SNOW_FAR = new T.Color(0xe8eff8), STONE_FAR = new T.Color(0x596479), FOREST_FAR = new T.Color(0x4a5a50);
 import { Crowd } from './crowd.ts';
 import { snowMaterial, preset } from '../alpine.ts';
@@ -143,9 +187,12 @@ export class FreeView {
             this.lastStream.set(x, d);
             if (missingTiles(w.e, w.n, 1600).length) {
                 this.loading = true;
-                loadTilesAround(w.e, w.n, 1600).then(() => { this.loading = false; this.dirtyNear(x, d); this.treeCentre.set(1e9, 1e9); }).catch(() => { this.loading = false; });
+                // fetched tiles wait until the rider is clear of them (activateTiles below): the ground never shifts underfoot
+                loadTilesAround(w.e, w.n, 1600, true).then(() => { this.loading = false; }).catch(() => { this.loading = false; });
             }
         }
+        const applied = activateTiles(w.e, w.n, 120);
+        if (applied.length) this.tilesApplied(applied, x, d);
         // near chunks
         const ci0 = Math.floor(x / this.chunkSize), cj0 = Math.floor(d / this.chunkSize), R = this.radius;
         for (const [k, c] of this.chunks) if (Math.abs(c.ci - ci0) > R + 1 || Math.abs(c.cj - cj0) > R + 1) { this.group.remove(c.mesh); c.mesh.geometry.dispose(); this.chunks.delete(k); }
@@ -161,7 +208,7 @@ export class FreeView {
         // far mesh, trees, lifts and poles
         if (Math.hypot(x - this.farCentre.x, d - this.farCentre.y) > 2000) this.buildFar(x, d);
         if (Math.hypot(x - this.treeCentre.x, d - this.treeCentre.y) > 120 && !this.busy.has('trees')) this.job('trees', this.treesJob(x, d));
-        if (Math.hypot(x - this.sceneryCentre.x, d - this.sceneryCentre.y) > 350 && !this.busy.has('scenery')) this.job('scenery', this.sceneryJob(x, d));
+        if (Math.hypot(x - this.sceneryCentre.x, d - this.sceneryCentre.y) > 220 && !this.busy.has('scenery')) this.job('scenery', this.sceneryJob(x, d));
         // background jobs (trees, lifts, poles) continue in small steps with whatever budget is left
         // (at least one step per frame, so they progress even on a slow device whose budget is used up by chunks)
         let steps = 0;
@@ -173,6 +220,15 @@ export class FreeView {
     private jobs: { name: string; gen: Generator<void, void, unknown> }[] = [];
     private busy = new Set<string>();
     private job(name: string, gen: Generator<void, void, unknown>) { this.busy.add(name); this.jobs.push({ name, gen }); }
+    /** After 2 m tiles are applied: rebuild the ground, trees, and the lifts and buildings standing on them. */
+    private tilesApplied(tiles: [number, number][], x: number, d: number) {
+        this.dirtyNear(x, d); this.treeCentre.set(1e9, 1e9); this.sceneryCentre.set(1e9, 1e9);
+        const touches = (e: number, n: number) => tiles.some(([te, tn]) => e > te * 1000 - 200 && e < (te + 1) * 1000 + 200 && n > tn * 1000 - 200 && n < (tn + 1) * 1000 + 200);
+        for (const l of this.resort.lifts) {
+            const g = this.lifts.get(l.id);
+            if (g && l.points.some(([e, n]) => touches(e, n))) { this.group.remove(g); dropGeometry(g); this.lifts.delete(l.id); this.towers.delete(l.id); }
+        }
+    }
     /** After a 2 m tile arrives: rebuild the chunks it covers, nearest first. */
     private dirtyNear(x: number, d: number) {
         const list = [...this.chunks.values()].sort((a, b) => Math.hypot(a.ci * this.chunkSize - x, a.cj * this.chunkSize - d) - Math.hypot(b.ci * this.chunkSize - x, b.cj * this.chunkSize - d));
@@ -280,19 +336,20 @@ export class FreeView {
         const placed = keep.map((t, index) => ({ x: t.x, y: this.heightFn(t.x, t.d), d: t.d, height: t.h, index }));
         yield;
         const forest = makeAlpineForest(placed);
-        if (this.forest) { this.group.remove(this.forest); this.forest.traverse(o => { if (o instanceof T.InstancedMesh) o.dispose(); }); }
+        if (this.forest) { this.group.remove(this.forest); release(this.forest); }
         this.forest = forest; this.group.add(forest);
         this.treeObstacles = keep.filter(t => t.r < 150).map(t => ({ x: t.x, d: t.d, r: 1.1 }));
         this.obstacles = [...this.treeObstacles, ...this.solidObstacles];
     }
     private treeObstacles: { x: number; d: number; r: number }[] = [];
     private solidObstacles: Solid[] = [];
-    private buildings: T.Mesh[] = [];
+    private buildings: T.Object3D[] = [];
     private courseLift(l: ResortLift): Lift {
         return { id: l.id, name: l.name, type: l.type, osm: l.osm, points: l.points.map(([e, n, z]) => [e - this.e0, n - this.n0, z] as [number, number, number]), occupancy: l.occupancy, capacity: l.capacity, rideS: l.rideS, length: l.length,
-            pylons: l.pylons?.map(([e, n, top]) => [e - this.e0, n - this.n0, top] as [number, number, number]) };
+            pylons: l.pylons?.map(([e, n, top]) => [e - this.e0, n - this.n0, top] as [number, number, number]), bubble: l.bubble };
     }
     private towers = new Map<string, Solid[]>();
+    private liftBuiltAt = new Map<string, [number, number]>();
     private buildingsReady?: Promise<unknown>;
     /** Buildings available now? If not, start loading them once and redo the scenery when they arrive (never waits). */
     private haveBuildings() {
@@ -306,33 +363,41 @@ export class FreeView {
         for (const l of this.resort.lifts) {
             if (l.type === 'magic_carpet' || !l.points.some(([e, n]) => Math.hypot(e - w.e, n - w.n) < 2200)) continue;
             near.add(l.id);
+            // rebuild a lift once the rider has moved well away from where it was built (tower detail follows the rider)
+            const at = this.liftBuiltAt.get(l.id);
+            if (at && Math.hypot(at[0] - x, at[1] - d) > 450) { const old = this.lifts.get(l.id)!; this.group.remove(old); dropGeometry(old); this.lifts.delete(l.id); }
             if (!this.lifts.has(l.id)) {
-                const { group: g, profile } = liftScenery(this.courseLift(l), this.heightFn, { vehicles: this.quality !== 'low' });
+                const near = this.quality === 'low' ? 0 : this.quality === 'balanced' ? 260 : 420;
+                const vNear = this.quality === 'low' ? 0 : this.quality === 'balanced' ? 90 : 150;
+                const { group: g, profile } = liftScenery(this.courseLift(l), this.heightFn, { vehicles: this.quality !== 'low', detail: (tx, td) => Math.hypot(tx - x, td - d) < near ? 'high' : 'low', vehicleDetail: (vx, vd) => Math.hypot(vx - x, vd - d) < vNear });
+                this.liftBuiltAt.set(l.id, [x, d]);
                 this.lifts.set(l.id, g); this.group.add(g);
                 const tr = profile.kind === 'cablecar' ? 1.6 : profile.kind === 'surface' ? .25 : .55;
                 this.towers.set(l.id, profile.heads.filter(h => !h.station).map(h => ({ x: h.x, d: h.d, r: tr + 1, rd: tr + 1, h: h.y - h.ground, ux: 1, ud: 0, hl: tr, hw: tr, kind: 'TOWER STRIKE' })));
                 yield;
             }
         }
-        for (const [id, g] of this.lifts) if (!near.has(id)) { this.group.remove(g); g.traverse(o => { if (o instanceof T.InstancedMesh) o.dispose(); else if (o instanceof T.Mesh || o instanceof T.LineSegments) o.geometry.dispose(); }); this.lifts.delete(id); this.towers.delete(id); }
+        for (const [id, g] of this.lifts) if (!near.has(id)) { this.group.remove(g); dropGeometry(g); this.lifts.delete(id); this.towers.delete(id); this.liftBuiltAt.delete(id); }
         // buildings (VECTOR25 + GWR) around the rider, nearest first in slices; solid within 700 m like the lift towers
         const all = this.haveBuildings();
-        const R = this.quality === 'low' ? 900 : this.quality === 'balanced' ? 1600 : 2500;
+        const R = this.quality === 'low' ? 900 : this.quality === 'balanced' ? 1500 : 2000;
         const list = all ? buildingsAround(w.e, w.n, R).sort((a, b) => Math.hypot(a.e - w.e, a.n - w.n) - Math.hypot(b.e - w.e, b.n - w.n)) : [];
         const local = (e: number, n: number): [number, number] => [e - this.e0, n - this.n0];
         const keep = (_x: number, _d: number, b: { e: number; n: number; width: number }) => this.surface.at(b.e, b.n).off > b.width / 2 - 3;
-        const meshes: T.Mesh[] = [], solids: Solid[] = [];
+        const meshes: T.Object3D[] = [], solids: Solid[] = [];
+        const [l2, l1] = this.quality === 'balanced' ? [130, 600] : this.quality === 'low' ? [0, 450] : [210, 800];
+        const lod = (bx: number, bd: number) => { const q = Math.hypot(bx - x, bd - d); return q < l2 ? 2 : q < l1 ? 1 : 0; };
         for (let i = 0; i < list.length; i += 350) {
-            const m = buildingMesh(list.slice(i, i + 350), local, this.heightFn, { shadows: this.quality !== 'low' && i < 700, keep });
-            m.mesh.updateMatrix(); meshes.push(m.mesh);
+            const m = buildingMesh(list.slice(i, i + 350), local, this.heightFn, { shadows: this.quality !== 'low' && i < 700, keep, lod: this.quality === 'low' ? (bx, bd) => Math.min(1, lod(bx, bd)) : lod });
+            meshes.push(m.mesh);
             for (const o of m.solids) if (Math.hypot(o.x - x, o.d - d) < 700) solids.push(o);
             yield;
         }
-        for (const m of this.buildings) { this.group.remove(m); m.geometry.dispose(); }
+        for (const m of this.buildings) { this.group.remove(m); dropGeometry(m); }
         this.buildings = meshes; for (const m of meshes) this.group.add(m);
         this.solidObstacles = [...solids, ...[...this.towers.values()].flat().filter(o => Math.hypot(o.x - x, o.d - d) < 700)];
         this.obstacles = [...this.treeObstacles, ...this.solidObstacles];
-        if (this.poles) { this.group.remove(this.poles); this.poles.traverse(o => { if (o instanceof T.InstancedMesh) o.dispose(); }); }
+        if (this.poles) { this.group.remove(this.poles); release(this.poles); }
         this.poles = new T.Group();
         const byColour = new Map<number, T.Matrix4[]>(), m = new T.Object3D();
         for (const p of this.resort.pistes) {

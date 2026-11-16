@@ -19,6 +19,7 @@ export type Zone = { d0: number; d1: number; name: string | null; grooming: 'gro
 export type Lift = { id?: string; name: string | null; type: string | null; osm: string[]; points: [number, number, number][];
     /** Real pylons (course x, d, top elevation m) from the BAZL obstacle register, when registered ([] = a single span). */
     pylons?: [number, number, number][];
+    /** Chairs with a weather bubble (OpenStreetMap). */ bubble?: boolean | null;
     occupancy?: number | null; capacity?: number | null; rideS?: number; length?: number };
 type Grid = { e0: number; n1: number; cell: number; nx: number; ny: number; base: number; scale: number };
 
@@ -60,13 +61,18 @@ const TILE_CELLS = 500, CELL = 2;
 const NEAR_FULL = 450, NEAR_END = 600;
 
 // ---- data store ----------------------------------------------------------------------------------------------------------
-type Tile = { h: Int16Array; base: number; trees: Int16Array };
+type Tile = { h: Int16Array; base: number; trees: Int16Array; /** bit k set: neighbour k (see NEIGHBOURS) is loaded */ mask: number };
+const NEIGHBOURS: [number, number][] = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
+/** Width of the seam over which a 2 m tile fades into the 10 m overview where its neighbour is not loaded, m. */
+const SEAM = 150;
 const store = {
     resort: undefined as Resort | undefined,
     overview: undefined as Int16Array | undefined,
     horizon: undefined as Int16Array | undefined,
     tiles: new Map<number, Tile>(),
     shipped: new Map<number, [number, number, number, number]>(),
+    /** Tiles fetched during free ride, not yet applied (see activateTiles). */
+    pending: new Map<number, Uint8Array>(),
     /** Forest cover, 50 m cells over the survey box (0-253 = cover, 254 = no tree data); see build_forest.py. */
     forest: undefined as Uint8Array | undefined,
 };
@@ -90,13 +96,35 @@ function decodeDeltaRows(bytes: Uint8Array, nx: number, ny: number, byteOffset =
     return raw;
 }
 function setResort(r: Resort) { store.resort = r; store.shipped.clear(); for (const t of r.tiles) store.shipped.set(tileKey(t[0], t[1]), t); }
-function setTile(te: number, tn: number, bytes: Uint8Array) {
+function setTile(te: number, tn: number, bytes: Uint8Array, defer = false) {
+    if (defer) { store.pending.set(tileKey(te, tn), bytes); return; }
+    store.pending.delete(tileKey(te, tn));
     const meta = store.shipped.get(tileKey(te, tn))!;
     const h = decodeDeltaRows(bytes, TILE_CELLS, TILE_CELLS);
     const n = new DataView(bytes.buffer, bytes.byteOffset + TILE_CELLS * TILE_CELLS * 2, 4).getUint32(0, true);
     const trees = new Int16Array(bytes.buffer.slice(bytes.byteOffset + TILE_CELLS * TILE_CELLS * 2 + 4, bytes.byteOffset + TILE_CELLS * TILE_CELLS * 2 + 4 + n * 6));
-    store.tiles.set(tileKey(te, tn), { h, base: meta[2], trees });
+    store.tiles.set(tileKey(te, tn), { h, base: meta[2], trees, mask: 0 });
+    for (const [dx, dy] of [[0, 0], ...NEIGHBOURS]) refreshMask(te + dx, tn + dy);
 }
+function refreshMask(te: number, tn: number) {
+    const t = store.tiles.get(tileKey(te, tn)); if (!t) return;
+    t.mask = 0; NEIGHBOURS.forEach(([dx, dy], k) => { if (store.tiles.has(tileKey(te + dx, tn + dy))) t.mask |= 1 << k; });
+}
+/**
+ * Free ride streams tiles while you ride. A tile that arrives is held back until the rider is at least `guard` m from
+ * everything it changes (the tile and its seams), so the ground never shifts under the rider. Returns the tiles applied.
+ */
+export function activateTiles(e: number, n: number, guard: number): [number, number][] {
+    const done: [number, number][] = [];
+    for (const [k, bytes] of store.pending) {
+        const te = Math.floor(k / 10000), tn = k % 10000;
+        const dx = Math.max(te * 1000 - SEAM - e, 0, e - (te + 1) * 1000 - SEAM), dy = Math.max(tn * 1000 - SEAM - n, 0, n - (tn + 1) * 1000 - SEAM);
+        if (Math.hypot(dx, dy) < guard) continue;
+        setTile(te, tn, bytes); done.push([te, tn]);
+    }
+    return done;
+}
+export const pendingTiles = () => store.pending.size;
 
 // ---- world height sampling -------------------------------------------------------------------------------------------------
 function gridBilinear(g: Grid, data: Int16Array, e: number, n: number) {
@@ -138,7 +166,20 @@ export function worldHeight(e: number, n: number) {
         return cr(a, b2, c, d, tx);
     };
     const v = cr(row(iy - 1), row(iy), row(iy + 1), row(iy + 2), ty);
-    return ok ? v : overviewHeight(e, n);
+    if (!ok) return overviewHeight(e, n);
+    // Fade into the overview toward any edge whose neighbouring tile is not loaded (or not shipped), so there is no step.
+    const te = Math.floor(e / 1000), tn = Math.floor(n / 1000), t = store.tiles.get(tileKey(te, tn));
+    if (!t || t.mask === 255) return v;
+    const u = e - te * 1000, w = n - tn * 1000;
+    let dmin = SEAM;
+    for (let k = 0; k < 8; k++) {
+        if (t.mask & (1 << k)) continue;
+        const [dx, dy] = NEIGHBOURS[k], ddx = dx < 0 ? u : dx > 0 ? 1000 - u : 0, ddy = dy < 0 ? w : dy > 0 ? 1000 - w : 0;
+        dmin = Math.min(dmin, Math.hypot(ddx, ddy));
+    }
+    if (dmin >= SEAM) return v;
+    const ov = overviewHeight(e, n);
+    return ov + (v - ov) * smooth(dmin, 0, SEAM);
 }
 
 // ---- runs ---------------------------------------------------------------------------------------------------------------------
@@ -195,7 +236,7 @@ export class VerbierRun {
             if (!pts.some(p => Math.abs(p![0] - this.centreX(p![1])) < 2000 && p![1] > -1200 && p![1] < this.length + 1200)) continue;
             const py = l.pylons?.map(([e, n, top]) => { const c = this.toCourse(e, n); return c ? [c.x, c.d, top] as [number, number, number] : null; });
             lifts.push({ id: l.id, name: l.name, type: l.type, osm: l.osm, points: pts as [number, number, number][], occupancy: l.occupancy, capacity: l.capacity, rideS: l.rideS, length: l.length,
-                pylons: py && !py.some(p => !p) ? py as [number, number, number][] : undefined });
+                pylons: py && !py.some(p => !p) ? py as [number, number, number][] : undefined, bubble: l.bubble });
         }
         const trees: number[] = [];
         if (scan) for (const [k, t] of store.tiles) {
@@ -393,15 +434,26 @@ export function missingTiles(e: number, n: number, radius: number) {
     const out: number[] = [];
     for (let te = Math.floor((e - radius) / 1000); te <= Math.floor((e + radius) / 1000); te++)
         for (let tn = Math.floor((n - radius) / 1000); tn <= Math.floor((n + radius) / 1000); tn++) {
-            const k = tileKey(te, tn); if (store.shipped.has(k) && !store.tiles.has(k)) out.push(k);
+            const k = tileKey(te, tn); if (store.shipped.has(k) && !store.tiles.has(k) && !store.pending.has(k)) out.push(k);
         }
     return out;
 }
-/** Load the 2 m tiles within `radius` of (e, n). Resolves with the number of tiles loaded. */
-export async function loadTilesAround(e: number, n: number, radius: number): Promise<number> {
+/**
+ * Load the 2 m tiles within `radius` of (e, n). Resolves with the number of tiles fetched. With `defer` (free-ride
+ * streaming) they wait in `pending` until activateTiles applies them; otherwise they apply at once (and so do any
+ * pending tiles in the radius).
+ */
+export async function loadTilesAround(e: number, n: number, radius: number, defer = false): Promise<number> {
     const keys = missingTiles(e, n, radius);
-    if (!isBrowser) { for (const k of keys) { const te = Math.floor(k / 10000), tn = k % 10000; setTile(te, tn, readBytes(`tiles/${te}_${tn}.bin`, true)); } return keys.length; }
-    await Promise.all(keys.map(k => once(`tile:${k}`, async () => { const te = Math.floor(k / 10000), tn = k % 10000; if (!store.tiles.has(k)) setTile(te, tn, await fetchBytes(`tiles/${te}_${tn}.bin`, true)); })));
+    if (!defer) for (const [k, bytes] of [...store.pending]) {
+        const te = Math.floor(k / 10000), tn = k % 10000;
+        if (te * 1000 <= e + radius && (te + 1) * 1000 >= e - radius && tn * 1000 <= n + radius && (tn + 1) * 1000 >= n - radius) setTile(te, tn, bytes);
+    }
+    if (!isBrowser) { for (const k of keys) { const te = Math.floor(k / 10000), tn = k % 10000; setTile(te, tn, readBytes(`tiles/${te}_${tn}.bin`, true), defer); } return keys.length; }
+    await Promise.all(keys.map(k => once(`tile:${k}`, async () => {
+        const te = Math.floor(k / 10000), tn = k % 10000;
+        if (!store.tiles.has(k) && !store.pending.has(k)) setTile(te, tn, await fetchBytes(`tiles/${te}_${tn}.bin`, true), defer);
+    })));
     return keys.length;
 }
 /** Trees of the loaded tiles within `radius` of (e, n), as world points with heights (m). */

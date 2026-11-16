@@ -53,6 +53,23 @@ export class RealityRide {
         this.crashed = false; this.crashTime = 0;
     }
 
+    /** Walking (free ride): put the rider at course (x, d), board pointing along game heading `heading`, moving at
+     * `speed`, without resetting the controller. The game calls this every tick while walking instead of `tick`. */
+    walkTo(x: number, d: number, heading: number, speed: number) {
+        this.sim.place(x, -d, Math.PI / 2 - heading, speed);
+        this.ctl.travelSign = 1; this.crashed = false; this.crashTime = 0;
+    }
+    /** Slow contact with something solid: move board and body `depth` m out along world (nx, nz) and drop the velocity
+     * into it, keeping the part along the obstacle (no crash). */
+    push(nx: number, nz: number, depth: number) {
+        const s = this.sim, b = s.board, step = Math.min(depth, .04);   // a few cm per tick: out within a few ticks
+        // keep the same height above the snow, so the contact stays as it was (moving sideways on a slope must not
+        // drive the board into the snow or lift it off)
+        const dy = this.terrain.height(b.p.x + nx * step, b.p.z + nz * step) - this.terrain.height(b.p.x, b.p.z);
+        b.p.x += nx * step; b.p.z += nz * step; b.p.y += dy;
+        s.riderP.x += nx * step; s.riderP.z += nz * step; s.riderP.y += dy;
+        for (const v of [b.v, s.riderV]) { const vn = v.x * nx + v.z * nz; if (vn < 0) { v.x -= vn * nx; v.z -= vn * nz; } }
+    }
     tick(intent: RiderIntent, grabKind: GrabKind, events: FreestyleEvent[]) {
         const t0 = performance.now();
         this.tricks.grabKind = grabKind;
@@ -108,6 +125,8 @@ export class RealityRide {
     get heading() { const v = this.crashed ? this.slideV : this.sim.board.v; return Math.hypot(v.x, v.z) > .3 ? Math.atan2(v.x, -v.z) : this.boardHeading; }
     /** Heading of the board's long axis toward its leading end. */
     get boardHeading() { const e = this.sim.board.dirToWorld({ x: 1, y: 0, z: 0 }, v3()); const s = this.ctl.travelSign; return Math.atan2(e.x * s, -e.z * s); }
+    /** Heading of the board's nose, whichever way it is moving. */
+    get noseHeading() { const e = this.sim.board.dirToWorld({ x: 1, y: 0, z: 0 }, v3()); return Math.atan2(e.x, -e.z); }
     get ground() { return !this.crashed && !this.tricks.airborne; }
     /** 0 at neutral stance .. 1 at the deepest crouch (negative = extended). */
     get compression() { const r = this.sim.rider; return (r.heightNeutral - this.ctl.legLength(this.sim)) / (r.heightNeutral - r.heightMin); }

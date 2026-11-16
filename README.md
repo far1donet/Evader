@@ -10,6 +10,19 @@ v0.4 model is still available as **Classic**.
 > browser runs were in a cloud container with a software renderer (about 13–22 FPS), so frame rate and visual quality on
 > your PC are still unmeasured.
 
+## What's new in 1.3
+
+- **Free ride holds together:**
+  - no terrain steps at tile edges;
+  - the ground never shifts under you while tiles stream;
+  - no blow-ups;
+  - no memory growth over long sessions.
+- **Free ride is free:** walk or hike anywhere (hold W below 9 km/h), and drop in at any spot you tap on the map.
+- **New lift models:** chairs, gondola cabins, trams, towers and stations, rebuilt from scratch.
+- **New village buildings:** textured chalets with windows, shutters, balconies and snowy roofs.
+
+Details, measurements and limits: [docs/WHATS-NEW-1.3.md](docs/WHATS-NEW-1.3.md).
+
 ## What's new in 1.2
 
 - **Learn to ride:** an interactive tutorial with six steps.

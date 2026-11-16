@@ -36,6 +36,7 @@ export function reliefImage(resort: Resort) {
 export type DrawOptions = {
     station?: string | null; selectedLift?: string | null; selectedRoute?: string | null; highlightRoutes?: Set<string>;
     rider?: { e: number; n: number } | null; labels?: boolean; pixelRatio?: number;
+    /** A tapped spot (free ride from anywhere). */ pin?: { e: number; n: number } | null;
 };
 const project = (v: View, e: number, n: number) => [(e - v.e) * v.scale + v.w / 2, (v.n - n) * v.scale + v.h / 2] as const;
 
@@ -91,6 +92,12 @@ export function drawMap(ctx: CanvasRenderingContext2D, resort: Resort, relief: H
         if (!here && placed.some(p => rect[0] < p[0] + p[2] && rect[0] + rect[2] > p[0] && rect[1] < p[1] + p[3] && rect[1] + rect[3] > p[1])) continue;
         placed.push(rect);
         ctx.lineWidth = 3.4; ctx.strokeStyle = '#ffffffe6'; ctx.strokeText(s.name, bx, by); ctx.fillStyle = '#15202a'; ctx.fillText(s.name, bx, by);
+    }
+    if (o.pin) {
+        const [x, y] = project(v, o.pin.e, o.pin.n);
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 9, y - 22); ctx.arc(x, y - 24, 9.5, Math.PI * .83, Math.PI * .17); ctx.closePath();
+        ctx.fillStyle = '#d7fa65'; ctx.fill(); ctx.lineWidth = 2.4; ctx.strokeStyle = '#15202a'; ctx.stroke();
+        ctx.beginPath(); ctx.arc(x, y - 24, 3.4, 0, Math.PI * 2); ctx.fillStyle = '#15202a'; ctx.fill();
     }
     if (o.rider) {
         const [x, y] = project(v, o.rider.e, o.rider.n);

@@ -8,7 +8,7 @@ import { reliefImage, drawMap, mapTexture, pick, along, PISTE_COLOUR, type View 
 import { planJourney, type JourneyStep } from '@/lib/verbier/journey';
 
 export type Arrival = { title: string; detail: string; onReplay?: () => void; eyebrow?: string };
-type Selection = { kind: 'station'; item: Station } | { kind: 'lift'; item: ResortLift } | { kind: 'route'; item: RouteSummary } | null;
+type Selection = { kind: 'station'; item: Station } | { kind: 'lift'; item: ResortLift } | { kind: 'route'; item: RouteSummary } | { kind: 'point'; e: number; n: number; z: number } | null;
 type Ride = { lift: ResortLift; t: number; duration: number };
 const CLASS_NAME: Record<string, string> = { blue: 'Blue', red: 'Red', black: 'Black', itinerary: 'Itinerary', park: 'Snowpark', skicross: 'Ski cross' };
 const mmss = (s: number) => `${Math.floor(s / 60)} min ${String(Math.round(s % 60)).padStart(2, '0')} s`;
@@ -18,11 +18,12 @@ const km = (m: number) => m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.ro
  * Verbier 4 Vallées resort map: where you are, the lifts you can take from here and the pistes you can ride down.
  * Real geography: swissALTI3D relief, OpenStreetMap piste and lift lines, official station names. 2D and 3D views.
  */
-export default function ResortMap({ station, onStation, onRide, onLift, onJourney, onFreeRide, onClose, arrival, onDismissArrival, loading }: {
+export default function ResortMap({ station, onStation, onRide, onLift, onJourney, onFreeRide, onFreeRideAt, onClose, arrival, onDismissArrival, loading }: {
     station: string; onStation: (id: string) => void; onRide: (r: RouteSummary) => void; onClose: () => void;
     /** Ride a lift in the game world (from the current station). */ onLift: (l: ResortLift) => void;
     /** Play a planned sequence of lifts and runs. */ onJourney: (steps: JourneyStep[], destination: string) => void;
     /** Free ride from the current station: the whole domain, no set line. */ onFreeRide: (station: string) => void;
+    /** Free ride from any point you tap on the map (LV95). */ onFreeRideAt: (e: number, n: number) => void;
     arrival: Arrival | null; onDismissArrival: () => void; loading: boolean;
 }) {
     const [resort, setResort] = useState<Resort | null>(null), [err, setErr] = useState('');
@@ -47,7 +48,8 @@ export default function ResortMap({ station, onStation, onRide, onLift, onJourne
     const stationName = (id: string | null) => resort?.stations.find(s => s.id === id)?.name ?? 'end of the mapped line';
 
     const rider = null;
-    const onPick = (e: number, n: number, tol: number) => { if (!resort || ride) return; setSel(pick(resort, e, n, tol, highlight)); };
+    // a station, lift or piste under the tap; anywhere else: that spot, to drop in and free ride from it
+    const onPick = (e: number, n: number, tol: number) => { if (!resort || ride) return; const b = resort.box; setSel(pick(resort, e, n, tol, highlight) ?? (e > b.e0 + 200 && e < b.e1 - 200 && n > b.n0 + 200 && n < b.n1 - 200 ? { kind: 'point', e, n, z: overviewHeight(e, n) } : null)); };
 
     if (err) return <div className="resort"><div className="resort-error">{err}<button className="secondary-button" onClick={onClose}>Back</button></div></div>;
     if (!resort || !relief || !here) return <div className="resort"><div className="resort-loading">Loading the Verbier 4 Vallées map…</div></div>;
@@ -72,7 +74,14 @@ export default function ResortMap({ station, onStation, onRide, onLift, onJourne
             <h1 className="station-title">{here.name}</h1>
             <p className="station-meta">{Math.round(here.z).toLocaleString()} m · {here.liftsUp.length} lift{here.liftsUp.length === 1 ? '' : 's'} · {routesFrom.length} run{routesFrom.length === 1 ? '' : 's'} down</p>
             <button className="drop-button free-ride-button" disabled={loading} onClick={() => { onDismissArrival(); onFreeRide(here.id); }}><Play size={17} />{loading ? 'Loading the mountain…' : 'Free ride from here'}</button>
-            {sel && <Detail sel={sel} resort={resort} here={here} stationName={stationName} loading={loading}
+            {sel?.kind === 'point' && <div className="detail-card">
+                <button className="icon-button detail-close" aria-label="Close details" onClick={() => setSel(null)}><X size={16} /></button>
+                <span className="eyebrow">ANYWHERE ON THE MOUNTAIN</span><h2>{Math.round(sel.z).toLocaleString()} m</h2>
+                <p>{(() => { const s = [...resort.stations].sort((a, b) => Math.hypot(a.e - sel.e, a.n - sel.n) - Math.hypot(b.e - sel.e, b.n - sel.n))[0]; return `${km(Math.hypot(s.e - sel.e, s.n - sel.n))} from ${s.name}`; })()}</p>
+                <button className="drop-button" disabled={loading} onClick={() => { onDismissArrival(); setSel(null); onFreeRideAt(sel.e, sel.n); }}><Play size={17} />{loading ? 'Loading the mountain…' : 'Free ride from this spot'}</button>
+                <p className="drop-help">You start standing on the snow here. Ride anywhere; hold W to walk.</p>
+            </div>}
+            {sel && sel.kind !== 'point' && <Detail sel={sel} resort={resort} here={here} stationName={stationName} loading={loading}
                 onClose={() => setSel(null)} onRide={onRide} onLift={l => { onDismissArrival(); setSel(null); onLift(l); }}
                 onJourney={(steps, dest) => { onDismissArrival(); setSel(null); onJourney(steps, dest); }}
                 onTravel={id => { onDismissArrival(); setSel(null); onStation(id); }} />}
@@ -117,7 +126,7 @@ function Plan({ resort, from, to, extra, stationName, onJourney, onTravel, label
 }
 
 function Detail({ sel, resort, here, stationName, loading, onClose, onRide, onLift, onJourney, onTravel }: {
-    sel: NonNullable<Selection>; resort: Resort; here: Station; stationName: (id: string | null) => string; loading: boolean;
+    sel: Exclude<NonNullable<Selection>, { kind: 'point' }>; resort: Resort; here: Station; stationName: (id: string | null) => string; loading: boolean;
     onClose: () => void; onRide: (r: RouteSummary) => void; onLift: (l: ResortLift) => void; onTravel: (id: string) => void;
     onJourney: (steps: JourneyStep[], dest: string) => void;
 }) {
@@ -176,7 +185,7 @@ function Map2D({ resort, relief, station, sel, highlight, rider, onPick }: {
             const c = canvas.current, v = view.current; if (!c || !v) return;
             const p = props.current;
             drawMap(c.getContext('2d')!, resort, relief, v, { station: p.station, highlightRoutes: p.highlight, rider: p.rider, pixelRatio: Math.min(devicePixelRatio, 2),
-                selectedLift: p.sel?.kind === 'lift' ? p.sel.item.id : null, selectedRoute: p.sel?.kind === 'route' ? p.sel.item.id : null });
+                selectedLift: p.sel?.kind === 'lift' ? p.sel.item.id : null, selectedRoute: p.sel?.kind === 'route' ? p.sel.item.id : null, pin: p.sel?.kind === 'point' ? { e: p.sel.e, n: p.sel.n } : null });
         });
     };
     useEffect(() => {
@@ -290,6 +299,7 @@ function Map3D({ resort, relief, station, sel, ride, onPick, onStationLabel }: {
             highlight.clear(); const s = state.current.sel;
             const line = s?.kind === 'lift' ? liftLines.get(s.item.id) : s?.kind === 'route' ? s.item.line.map(([e, n]) => V(e, n, overviewHeight(e, n) + 6)) : null;
             if (line && line.length > 1) highlight.add(new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(line), Math.max(8, line.length * 4), 7, 6), new T.MeshBasicMaterial({ color: 0xd7fa65 })));
+            if (s?.kind === 'point') { const pin = new T.Mesh(new T.ConeGeometry(16, 60, 16), new T.MeshBasicMaterial({ color: 0xd7fa65 })); pin.rotation.x = Math.PI; pin.position.copy(V(s.e, s.n, s.z + 34)); highlight.add(pin); }
         };
         api.current = { focus: id => focus(id), select };
         // tap to pick

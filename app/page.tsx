@@ -56,6 +56,7 @@ import {
     loadLift,
     loadResort,
     loadTilesAround,
+    loadBuildings,
     verbierRun,
     resortLoaded,
     resortUrl,
@@ -486,12 +487,35 @@ export default function Home() {
     }
     const freeAfterLift = useRef(false);
     /** Free ride from a station: load the mountain around it, then ride anywhere. */
+    /** Free ride from any spot on the map (LV95). */
+    async function startFreeAtPoint(e: number, n: number) {
+        setLoadingTerrain(true);
+        try {
+            await loadResort();
+            await Promise.all([loadTilesAround(e, n, 1000), loadBuildings().catch(() => undefined)]);
+            const g = game.current;
+            if (!g) return;
+            setArrival(null);
+            journeyRef.current = null;
+            setJourneyView(null);
+            g.startFree(e, n);
+            setMode('freeride');
+            setScreen('ride');
+            setHud(initial);
+            setResult(null);
+            requestTiltPermission();
+        } catch {
+            notice('Could not load the mountain. Check the connection and try again.');
+        } finally {
+            setLoadingTerrain(false);
+        }
+    }
     async function startFreeAt(stationId: string) {
         setLoadingTerrain(true);
         try {
             const r = await loadResort();
             const st = r.stations.find(s => s.id === stationId && (s.routesFrom.length || s.liftsUp.length)) ?? r.stations.find(s => s.name === 'Les Attelas')!;
-            await loadTilesAround(st.e, st.n, 1000);
+            await Promise.all([loadTilesAround(st.e, st.n, 1000), loadBuildings().catch(() => undefined)]);
             const g = game.current;
             if (!g) return;
             setArrival(null);
@@ -2269,6 +2293,7 @@ export default function Home() {
                             onLift={rideLift}
                             onJourney={startJourney}
                             onFreeRide={startFreeAt}
+                            onFreeRideAt={startFreeAtPoint}
                             onClose={closeResort}
                             arrival={arrival}
                             onDismissArrival={() => setArrival(null)}
@@ -2306,7 +2331,7 @@ export default function Home() {
                                         value={[replayT]}
                                         max={lastRun.time}
                                         step={0.05}
-                                        min={0}
+                                        min={lastRun.frames[0]?.t ?? 0}
                                         onValueChange={([v]) => {
                                             game.current?.setReplayTime(v);
                                             setReplayT(v);

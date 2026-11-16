@@ -23,7 +23,7 @@ import { makeCloudSea } from './verbier/cloud-sea.ts';
 import { updateClothWind } from './cloth-wind.ts';
 import { LiftRide, type RideFrame } from './verbier/lift-ride.ts';
 import { buildingMesh, insideSolid, type Solid } from './verbier/buildings.ts';
-import { FreeView, SurfaceMap, type FreeInfo } from './verbier/free-world.ts';
+import { FreeView, SurfaceMap, clearSpot, type FreeInfo } from './verbier/free-world.ts';
 import { Tutorial } from './tutorial.ts';
 import { Soundscape } from './soundscape.ts';
 import { FreeTerrain, setFreeTerrain, resortLoaded, buildingsLoaded, buildingsAround, type Building } from './verbier/terrain.ts';
@@ -411,6 +411,28 @@ export function landingScore(spin: number, flip: number, grabTime: number, airTi
 function hitObstacle(o: { x: number; d: number; r: number } | Solid, x: number, d: number, above: number) {
     if ('hl' in o) return Math.abs(d - o.d) < o.rd && Math.abs(x - o.x) < o.r && insideSolid(o, x, d, above);
     return Math.abs(d - o.d) < 1.7 && Math.abs(x - o.x) < o.r && above < 3;
+}
+/** Free ride keeps the last two minutes (at 60 frames/s) for its replay. */
+const FREE_REPLAY_FRAMES = 7200;
+/** Speed below which touching a tree, rock, wall or tower stops you instead of knocking you down, m/s (about 16 km/h). */
+export const SOFT_CONTACT = 4.5;
+/** Way out of an obstacle: unit direction in course (x, d) and how far to move, so the rider ends just clear of it. */
+function obstacleExit(o: { x: number; d: number; r: number } | Solid, x: number, d: number) {
+    if ('hl' in o) {
+        const dx = x - o.x,
+            dd = d - o.d,
+            a = dx * o.ux + dd * o.ud,
+            c = -dx * o.ud + dd * o.ux;
+        const pa = o.hl + 0.45 - Math.abs(a),
+            pc = o.hw + 0.45 - Math.abs(c);
+        return pa < pc
+            ? { nx: Math.sign(a || 1) * o.ux, nd: Math.sign(a || 1) * o.ud, depth: pa }
+            : { nx: -Math.sign(c || 1) * o.ud, nd: Math.sign(c || 1) * o.ux, depth: pc };
+    }
+    const dx = x - o.x,
+        dd = d - o.d,
+        len = Math.hypot(dx, dd) || 1;
+    return { nx: dx / len, nd: dd / len, depth: Math.max(0, o.r + 0.45 - len) };
 }
 export class SnowGame {
     parkFlight?: ParkFlight;
@@ -925,7 +947,14 @@ export class SnowGame {
                 };
                 const keep = (x: number, d: number, b: Building) =>
                     d > -900 && d < c.length + 900 && Math.abs(x - center(d, c)) > run.pisteHalfWidth + b.width / 2 + 4;
-                const { mesh, solids } = buildingMesh(list, local, h, { shadows: this.settings.quality !== 'low', keep });
+                const { mesh, solids } = buildingMesh(list, local, h, {
+                    shadows: this.settings.quality !== 'low',
+                    keep,
+                    lod: (x, d) => {
+                        const q = Math.abs(x - center(d, c));
+                        return q < 160 ? 2 : q < 700 ? 1 : 0;
+                    },
+                });
                 mesh.updateMatrix();
                 this.world.add(mesh);
                 for (const o of solids) if (Math.abs(o.x - center(o.d, c)) < 220) this.obstacles.push(o);
@@ -1552,7 +1581,7 @@ export class SnowGame {
         this.run = run;
         this.previous = undefined;
         this.state = 'replay';
-        this.replayTime = 0;
+        this.replayTime = run.frames[0]?.t ?? 0;
         this.replayPlaying = true;
         this.photo = false;
         this.cameraMode = 0;
@@ -1883,6 +1912,13 @@ export class SnowGame {
         }
         for (const o of this.obstacles) {
             if (hitObstacle(o, this.x, this.d, this.y - floor) && this.bailTimer === 0) {
+                if (this.speed < SOFT_CONTACT) {
+                    const out = obstacleExit(o, this.x, this.d);
+                    this.x += out.nx * out.depth;
+                    this.d += out.nd * out.depth;
+                    this.speed *= 0.5;
+                    continue;
+                }
                 this.bail('kind' in o ? o.kind : 'TREE STRIKE');
                 this.x += this.x > center(this.d, this.course) ? -2 : 2;
                 break;
@@ -1891,6 +1927,77 @@ export class SnowGame {
         this.bookkeeping(dt);
     }
     /** Gates, snow tracks, replay frames, HUD and the finish line: shared by both physics models. */
+    /**
+     * Walking (free ride): below 9 km/h, hold W (phone: tilt forward) and the rider unclips the back foot and walks
+     * or skates the board along, in any direction, uphill too; A / D turn. Up to about 2 m/s on the flat, slower the
+     * steeper it climbs, nothing up a cliff. Let go of W and the physics takes over: you ride on from where you are.
+     */
+    walking = false;
+    private walkHeading = 0;
+    private walkSpeed = 0;
+    private walkHeld = 0;
+    private stoppedFor = 0;
+    private walkStep(intent: RiderIntent, dt: number, ride: RealityRide): boolean {
+        if (ride.crashed) {
+            this.walking = false;
+            this.walkHeld = 0;
+            return false;
+        }
+        if (!this.walking) {
+            this.stoppedFor = ride.speed < 0.6 ? (this.stoppedFor || 0) + dt : 0;
+            if (this.stoppedFor > 2.5 && this.toastTimer <= 0) {
+                this.toast('HOLD W TO WALK · A / D TURN');
+                this.stoppedFor = -20;
+            }
+            if (intent.tuck && ride.speed < 2.5 && ride.ground) this.walkHeld = (this.walkHeld || 0) + dt;
+            else this.walkHeld = 0;
+            if (this.walkHeld < 0.2) return false;
+            this.walking = true;
+            this.walkHeading = ride.speed > 0.6 ? ride.heading : ride.noseHeading;
+            this.walkSpeed = ride.speed;
+        }
+        const x = ride.x,
+            d = ride.d,
+            ahead = (h: number, s: number) => height(x + Math.sin(h) * s, d + Math.cos(h) * s, this.course);
+        this.walkHeading += intent.steer * 1.5 * dt;
+        const grade = (ahead(this.walkHeading, 1.5) - height(x, d, this.course)) / 1.5;
+        if (!intent.tuck) {
+            // let go: strap in and ride on from here
+            this.walking = false;
+            this.walkHeld = 0;
+            ride.walkTo(x, d, this.walkHeading, Math.min(this.walkSpeed, 1.5));
+            return true;
+        }
+        const target = grade > 1.0 ? 0 : grade > 0 ? 2.0 * clamp(1 - grade / 0.85, 0.25, 1) : 2.0 + Math.min(1.2, -grade * 6);
+        this.walkSpeed = T.MathUtils.damp(this.walkSpeed, target, 3, dt);
+        ride.walkTo(
+            x + Math.sin(this.walkHeading) * this.walkSpeed * dt,
+            d + Math.cos(this.walkHeading) * this.walkSpeed * dt,
+            this.walkHeading,
+            this.walkSpeed,
+        );
+        return true;
+    }
+    /** If the chase camera ends up inside a building or tower, slide it toward the rider until it is outside. */
+    private keepCameraOutside(rx: number, ry: number, rd: number) {
+        const cam = this.camera.position,
+            inside = (x: number, y: number, d: number) => {
+                for (const o of this.obstacles)
+                    if ('hl' in o && Math.abs(x - o.x) < o.r && Math.abs(d - o.d) < o.rd && insideSolid(o, x, d, y - height(x, d, this.course), 0.5))
+                        return true;
+                return false;
+            };
+        if (!inside(cam.x, cam.y, -cam.z)) return;
+        let lo = 0,
+            hi = 1; // fraction of the way from the rider to the camera
+        for (let i = 0; i < 10; i++) {
+            const m = (lo + hi) / 2;
+            if (inside(rx + (cam.x - rx) * m, ry + 1 + (cam.y - ry - 1) * m, rd + (-cam.z - rd) * m)) hi = m;
+            else lo = m;
+        }
+        cam.set(rx + (cam.x - rx) * lo, ry + 1 + (cam.y - ry - 1) * lo, -(rd + (-cam.z - rd) * lo));
+        this.cameraSpring.reset(cam);
+    }
     /** Interactive tutorial (free ride from Les Ruinettes); see tutorial.ts. */
     tutorial?: Tutorial;
     startTutorial() {
@@ -1950,6 +2057,8 @@ export class SnowGame {
         if (this.recordTimer >= 1 / 60 - 1e-8) {
             this.frames.push(this.snapshot());
             this.recordTimer -= 1 / 60;
+            // free ride has no end: keep the last two minutes for the replay, not the whole session (memory)
+            if (this.course.free && this.frames.length > FREE_REPLAY_FRAMES + 600) this.frames.splice(0, this.frames.length - FREE_REPLAY_FRAMES);
         }
         this.hudTimer += dt;
         if (this.hudTimer > 0.1) {
@@ -2066,11 +2175,17 @@ export class SnowGame {
         this.prevRenderQ.copy(this.renderQ);
         const events = this.realityEvents;
         events.length = 0;
-        ride.tick(intent, GRABS[this.realityGrab].id, events);
-        // Trees and rocks are solid: hitting one stops the body.
+        if (!(this.course.free && this.walkStep(intent, dt, ride))) ride.tick(intent, GRABS[this.realityGrab].id, events);
+        // Trees, rocks, walls and towers are solid. Fast, you hit them and fall; slowly, they just stop you (you lean on
+        // the wall and slide along it), as in real life.
         if (!ride.crashed)
             for (const o of this.obstacles) {
                 if (hitObstacle(o, ride.x, ride.d, ride.y - height(ride.x, ride.d, this.course))) {
+                    if (ride.speed < SOFT_CONTACT || this.walking) {
+                        const out = obstacleExit(o, ride.x, ride.d);
+                        ride.push(out.nx, -out.nd, out.depth);
+                        continue;
+                    }
                     const kind = 'kind' in o ? o.kind : o.r > 2 ? 'ROCK STRIKE' : 'TREE STRIKE';
                     ride.crash(kind, 0.15);
                     events.push({ type: 'crash', kind });
@@ -2284,7 +2399,7 @@ export class SnowGame {
                 const regular = (this.settings.stance ?? 'regular') === 'regular';
                 const press = rr ? clamp(rr.ctl.cmd.copX / 0.12, -1, 1) * (regular ? -1 : 1) : 0;
                 this.rig.pose({
-                    skate: Math.abs(rr?.ctl.cmd.skate ?? 0),
+                    skate: this.walking ? 1 : Math.abs(rr?.ctl.cmd.skate ?? 0),
                     crash: this.bailTimer > 0 ? 1 : 0,
                     tumble: this.crashRollRate,
                     carveG,
@@ -2363,6 +2478,7 @@ export class SnowGame {
                 this.focusSpring.step(look, 2.2, dt, this.cameraFocus);
             }
             this.camera.position.y = Math.max(this.camera.position.y, height(this.camera.position.x, -this.camera.position.z, this.course) + 1.2);
+            this.keepCameraOutside(rx, ry, rd);
             this.camera.lookAt(this.cameraFocus);
             this.rider.visible = this.cameraMode !== 1 || this.photo;
             const desired = this.settings.fov + (this.settings.motion ? this.speed * 0.14 : 0),
@@ -2510,6 +2626,7 @@ export class SnowGame {
         const r = resortLoaded();
         if (!r) throw new Error('resort not loaded');
         surfaceMap ??= new SurfaceMap(r);
+        [e, n] = clearSpot(r, e, n); // beside the station, not inside its terminal or a building
         const sm = surfaceMap,
             run = new FreeTerrain(Math.round(e), Math.round(n), (we, wn) => sm.at(we, wn));
         setFreeTerrain(run);

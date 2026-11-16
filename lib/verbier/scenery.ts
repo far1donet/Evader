@@ -15,7 +15,9 @@ export function liftGroup(run: VerbierRun, height: (x: number, d: number) => num
     for (const lift of run.h.lifts) {
         if (lift.id && lift.id === run.h.lift) continue;
         if (lift.type === 'magic_carpet') continue;
-        g.add(liftScenery(lift, height, { vehicles: quality !== 'low' }).group);
+        // towers close to the run in full detail, the rest as simple silhouettes
+        const near = quality === 'low' ? 0 : quality === 'balanced' ? 180 : 300;
+        g.add(liftScenery(lift, height, { vehicles: quality !== 'low', detail: (x, d) => Math.abs(x - run.centreX(d)) < near && d > -200 && d < run.length + 200 ? 'high' : 'low' }).group);
     }
     return g;
 }

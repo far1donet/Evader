@@ -61,6 +61,13 @@ Snow is set by a surface map built from every mapped piste (OpenStreetMap), in 4
 - a rider dropped there rides down the real slope;
 - the ride never ends on its own.
 
+## Moving around (1.3)
+
+- **Walking:** below 9 km/h, hold W (phone: tilt forward) to walk or skate the board in any direction, uphill too. A and D turn. Let go to ride on.
+- **Drop in anywhere:** tap a spot on the resort map, then **Free ride from this spot**.
+- **Solid things:** below 16 km/h, trees, walls and towers stop you instead of knocking you over.
+- **Streaming:** tiles that arrive while you ride are applied only once you are 120 m clear of them. Their edges fade into the 10 m overview, so there is never a step.
+
 ## Limits
 
 - Cliffs are only as sharp as the 2 m survey and the snow smoothing allow.

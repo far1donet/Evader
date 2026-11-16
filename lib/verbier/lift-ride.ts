@@ -1,6 +1,9 @@
 import * as T from 'three';
 import { LiftProfile, loopPoint, loopLength, type LiftKind } from './lift-profile.ts';
 import { chairModel, gondolaModel, cableCarModel, hangerModel, passengerGeometry, lowModel, MAT, BAR_UP, type VehicleModel } from './lift-vehicles.ts';
+import { towerParts, stationParts } from './lift-structures.ts';
+import { Builder, M } from './craft.ts';
+const ROPE_LINE = new T.LineBasicMaterial({ color: 0x2a3034, transparent: true, opacity: .7 });
 import type { Lift } from './terrain.ts';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
@@ -24,12 +27,12 @@ export function liftDynamics(lift: Lift, profile: LiftProfile) {
     const board = kind === 'cablecar' ? 0 : kind === 'surface' ? v : kind === 'gondola' ? .35 : kind === 'chair' && seats < 4 ? Math.min(v, 2.2) : 1.0;
     return { v, gap, seats, board, ride: profile.length / v };
 }
-function modelsFor(kind: LiftKind, seats: number, type: string | null) {
+function modelsFor(kind: LiftKind, seats: number, type: string | null, bubble = false) {
     if (kind === 'gondola') return [gondolaModel()];
     if (kind === 'cablecar') return [cableCarModel()];
     if (kind === 'surface') return [hangerModel(type === 'platter')];
-    if (kind === 'mixed') return [chairModel(Math.min(8, Math.max(4, seats))), gondolaModel()];
-    return [chairModel(Math.min(8, Math.max(1, seats)))];
+    if (kind === 'mixed') return [chairModel(Math.min(8, Math.max(4, seats)), { bubble }), gondolaModel()];
+    return [chairModel(Math.min(8, Math.max(1, seats)), { bubble })];
 }
 /** Vehicle k uses model index: Télémixte = one cabin every fourth vehicle; everything else one model. */
 const modelIndex = (kind: LiftKind, k: number) => kind === 'mixed' && k % 4 === 2 ? 1 : 0;
@@ -44,75 +47,57 @@ const JACKETS = [0x1e2a36, 0xb3532c, 0x2f6b4f, 0xe0dcd2, 0x6b2f3f, 0x2a4f86, 0xd
 
 // ---- static scenery ------------------------------------------------------------------------------------------------------
 /** Towers, ropes, stations and (unless it is the lift being ridden) vehicles spread on the loop. */
-export function liftScenery(lift: Lift, height: (x: number, d: number) => number, opts: { active?: boolean; vehicles?: boolean } = {}) {
+export function liftScenery(lift: Lift, height: (x: number, d: number) => number, opts: { active?: boolean; vehicles?: boolean; detail?: 'high' | 'low' | ((x: number, d: number) => 'high' | 'low'); /** full vehicle models here (default: nowhere) */ vehicleDetail?: (x: number, d: number) => boolean } = {}) {
     const g = new T.Group(); g.name = `lift-${lift.id ?? lift.name}`;
     const profile = new LiftProfile(lift.points.map(p => [p[0], p[1]]), height, lift.type, lift.pylons);
     const spec = profile.spec, kind = profile.kind, half = spec.gauge / 2;
-    // towers
-    // Static parts are merged into one mesh per material (a lift has dozens of towers: one draw call each would be too many).
-    const bins = new Map<T.Material, T.BufferGeometry[]>();
-    const put = (geo: T.BufferGeometry, mat: T.Material, x: number, y: number, z: number, yaw = 0) => {
-        geo.rotateY(yaw); geo.translate(x, y, z);
-        (bins.get(mat) ?? bins.set(mat, []).get(mat)!).push(geo.index ? geo.toNonIndexed() : geo);
-    };
-    const towerR = kind === 'cablecar' ? [.9, 1.6] : kind === 'surface' ? [.14, .22] : [.32, .52];
+    // Towers and stations (lift-structures.ts), merged into one mesh per material: a lift has dozens of towers.
+    const b = new Builder(), detailAt = (x: number, d: number) => typeof opts.detail === 'function' ? opts.detail(x, d) : opts.detail ?? 'high', detail = detailAt(profile.heads[0].x, profile.heads[0].d) === 'high' || profile.heads.some(h => detailAt(h.x, h.d) === 'high') ? 'high' : 'low';
+    const frame = (x: number, y: number, d: number, yaw: number) => new T.Matrix4().compose(new T.Vector3(x, y, -d), new T.Quaternion().setFromAxisAngle(Y, yaw), ONE);
     for (const h of profile.heads) {
         if (h.station) continue;
-        const c = profile.at(h.s, 0), yaw = Math.atan2(-c.tx, c.td);
-        put(new T.CylinderGeometry(towerR[0], towerR[1], h.y - h.ground + .6, 8), MAT.steel, h.x, (h.y + h.ground) / 2 + .2, -h.d);
-        put(new T.BoxGeometry(spec.gauge + 1.4, .36, .5), MAT.steel, h.x, h.y + .5, -h.d, yaw);
-        if (kind !== 'surface') for (const s of [-1, 1]) {
-            const off = new T.Vector3(s * half, 0, 0).applyAxisAngle(Y, yaw);
-            put(new T.BoxGeometry(.32, .3, kind === 'cablecar' ? 3.2 : 1.6), MAT.darkSteel, h.x + off.x, h.y + .2, -h.d + off.z, yaw);
-        }
+        const c = profile.at(h.s, 0);
+        towerParts(b, kind, h.y - h.ground, spec.gauge, detailAt(h.x, h.d), frame(h.x, h.y, h.d, Math.atan2(-c.tx, c.td)));
     }
-    // ropes (both tracks, with sag between towers)
-    const rope: T.Vector3[] = [];
-    for (const track of [1, -1] as const) for (let s = 0; s < profile.length; s += 6) {
-        const a = profile.at(s, track), b = profile.at(Math.min(profile.length, s + 6), track);
-        rope.push(new T.Vector3(a.x, a.y, -a.d), new T.Vector3(b.x, b.y, -b.d));
-    }
-    g.add(new T.LineSegments(new T.BufferGeometry().setFromPoints(rope), new T.LineBasicMaterial({ color: 0x20262b })));
-    // stations: open canopy over the bullwheel (riders load and unload underneath), machine house beside it;
-    // aerial tramways: a tall open hall the cabin docks in.
     for (const end of [0, profile.length]) {
-        const c = profile.at(end, 0), yaw = Math.atan2(-c.tx, c.td), dirOut = end === 0 ? -1 : 1;
-        const place = (geo: T.BufferGeometry, mat: T.Material, along: number, across: number, y: number) => {
-            const off = new T.Vector3(across, 0, -along).applyAxisAngle(Y, yaw);
-            put(geo, mat, c.x + off.x, y, -c.d + off.z, yaw);
-        };
-        if (kind === 'surface') {
-            place(new T.CylinderGeometry(.2, .3, spec.station + 1, 8), MAT.steel, dirOut * 2, 0, c.ground + (spec.station + 1) / 2);
-            place(new T.BoxGeometry(2.6, 2.4, 2.6), MAT.cabin, 0, -4.5, c.ground + 1.2);
-            continue;
-        }
-        const len = kind === 'cablecar' ? 16 : 18, wid = spec.gauge + (kind === 'cablecar' ? 7 : 3.4), roofY = c.y + (kind === 'cablecar' ? 2.2 : 1.8);
-        place(new T.BoxGeometry(wid, .45, len), MAT.darkSteel, dirOut * (len / 2 - 6), 0, roofY);
-        for (const a of [-1, 1]) for (const b of [-1, 1])
-            place(new T.CylinderGeometry(.18, .22, roofY - c.ground, 8), MAT.steel, dirOut * (len / 2 - 6) + a * (len / 2 - .6), b * (wid / 2 - .4), (roofY + c.ground) / 2);
-        if (kind === 'cablecar') for (const b of [-1, 1]) place(new T.BoxGeometry(.4, roofY - c.ground, len), MAT.cabin, dirOut * (len / 2 - 6), b * wid / 2, (roofY + c.ground) / 2);
-        place(new T.CylinderGeometry(half, half, .35, 32), MAT.darkSteel, dirOut * 1, 0, c.y + .5);
-        place(new T.BoxGeometry(7, 5, 9), MAT.cabin, dirOut * (len / 2 - 4), -(wid / 2 + 4.2), c.ground + 2.5);
-        place(new T.BoxGeometry(spec.gauge + 3, .3, 22), MAT.cabin, -dirOut * 4, 0, c.ground + .05);   // loading platform
+        const c = profile.at(end, 0), yaw = Math.atan2(-c.tx, c.td) + (end === 0 ? Math.PI : 0);   // the line leaves along local +z
+        stationParts(b, kind, spec.gauge, c.ground - c.y, frame(c.x, c.y, c.d, yaw));
     }
-    for (const [mat, geos] of bins) {
-        const m = new T.Mesh(mergeGeometries(geos, false)!, mat); m.castShadow = true; m.receiveShadow = true; g.add(m);
-        geos.forEach(x => x.dispose());
+    const built = b.group(); g.add(...built.children);
+    // ropes: steel tubes (near) plus a thin line so they stay visible from far away
+    const rope: T.Vector3[] = [], tubes: T.BufferGeometry[] = [];
+    for (const track of (kind === 'cablecar' ? [1, -1] : [1, -1]) as (1 | -1)[]) {
+        const pts: T.Vector3[] = [];
+        for (let s = 0; s <= profile.length + 1e-6; s += 6) { const a = profile.at(Math.min(s, profile.length), track); pts.push(new T.Vector3(a.x, a.y, -a.d)); }
+        const last = profile.at(profile.length, track); if (pts[pts.length - 1].distanceTo(new T.Vector3(last.x, last.y, -last.d)) > .5) pts.push(new T.Vector3(last.x, last.y, -last.d));
+        for (let i = 0; i < pts.length - 1; i++) rope.push(pts[i], pts[i + 1]);
+        if (detail === 'high') tubes.push(new T.TubeGeometry(new T.CatmullRomCurve3(pts), pts.length * 2, kind === 'cablecar' ? .03 : .026, 6, false));
     }
+    if (tubes.length) { const m = new T.Mesh(mergeGeometries(tubes, false)!, M.rope); m.castShadow = true; g.add(m); tubes.forEach(t => t.dispose()); }
+    g.add(new T.LineSegments(new T.BufferGeometry().setFromPoints(rope), ROPE_LINE));
     if (opts.active || opts.vehicles === false) return { group: g, profile };
-    // vehicles parked on the loop (moving ones belong to the ride): simple low-poly shapes, no shadows
+    // vehicles on the loop (moving ones belong to the ride): full models near the player, silhouettes further away
     const dyn = liftDynamics(lift, profile), loop = loopLength(profile);
-    if (kind === 'cablecar') {
-        const part = lowModel(kind, 0)[0], inst = new T.InstancedMesh(part.geometry, part.material, 2);
-        [[profile.length * .35, 1], [profile.length * .65, -1]].forEach(([s, track], i) => { const c = profile.at(s, track as 1 | -1); inst.setMatrixAt(i, vehicleMatrix(tmpM, c.x, c.y, c.d, c.tx * track, c.td * track, 0)); });
-        g.add(inst);
-        return { group: g, profile };
-    }
-    const n = Math.max(2, Math.floor(loop / dyn.gap));
-    for (const part of lowModel(kind, dyn.seats)) {
-        const inst = new T.InstancedMesh(part.geometry, part.material, n);
-        for (let k = 0; k < n; k++) { const q = loopPoint(profile, k * loop / n); inst.setMatrixAt(k, vehicleMatrix(tmpM, q.x, q.y, q.d, q.dx, q.dd, 0)); }
-        g.add(inst);
+    type Spot = { x: number; y: number; d: number; dx: number; dd: number; model: number };
+    const spots: Spot[] = [];
+    if (kind === 'cablecar') for (const [sv, track] of [[profile.length * .35, 1], [profile.length * .65, -1]] as const) { const c = profile.at(sv, track); spots.push({ x: c.x, y: c.y, d: c.d, dx: c.tx * track, dd: c.td * track, model: 0 }); }
+    else { const n = Math.max(2, Math.floor(loop / dyn.gap)); for (let k = 0; k < n; k++) { const q = loopPoint(profile, k * loop / n); spots.push({ x: q.x, y: q.y, d: q.d, dx: q.dx, dd: q.dd, model: modelIndex(kind, k) }); } }
+    const place = (parts: { geometry: T.BufferGeometry; material: T.Material }[], at: Spot[], shadows: boolean) => {
+        if (!at.length) return;
+        for (const part of parts) {
+            const inst = new T.InstancedMesh(part.geometry, part.material, at.length);
+            at.forEach((p, i) => inst.setMatrixAt(i, vehicleMatrix(tmpM, p.x, p.y, p.d, p.dx, p.dd, 0)));
+            inst.castShadow = shadows && !(part.material as T.MeshStandardMaterial).transparent; g.add(inst);
+        }
+    };
+    const isNear = (p: Spot) => !!opts.vehicleDetail?.(p.x, p.d);
+    const models = spots.some(isNear) ? modelsFor(kind, dyn.seats, lift.type, !!lift.bubble) : [];
+    for (let m = 0; m < Math.max(1, models.length); m++) {
+        const mine = spots.filter(p => p.model === m || models.length === 0);
+        const lowKind = kind === 'mixed' && m === 1 ? 'gondola' : kind;
+        place(lowModel(lowKind, dyn.seats), mine.filter(p => !isNear(p)), false);
+        const full = models[m];
+        if (full) place([...full.parts, ...(full.bar ? full.bar.parts.map(bp => ({ geometry: bp.geometry.translate(full.bar!.pivot.x, full.bar!.pivot.y, full.bar!.pivot.z), material: bp.material })) : [])], mine.filter(isNear), true);
     }
     return { group: g, profile };
 }
@@ -150,7 +135,7 @@ export class LiftRide {
         this.height = height;
         this.profile = new LiftProfile(lift.points.map(p => [p[0], p[1]]), height, lift.type, lift.pylons);
         this.kind = this.profile.kind; this.dyn = liftDynamics(lift, this.profile);
-        this.models = modelsFor(this.kind, this.dyn.seats, lift.type);
+        this.models = modelsFor(this.kind, this.dyn.seats, lift.type, !!lift.bubble);
         this.loop = loopLength(this.profile);
         this.n = this.kind === 'cablecar' ? 1 : Math.max(2, Math.floor(this.loop / this.dyn.gap));
         const model = this.models[0];
