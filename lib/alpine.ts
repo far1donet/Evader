@@ -21,6 +21,13 @@ export function groundAcceleration(slope: number, speed: number, tuck: boolean, 
  const plowing = powder * speed * (.035 + Math.abs(edge) * .024);
  return -GRAVITY * slope / (1 + slope * slope) - friction - drag - plowing - Math.abs(edge) * .28 - normal * brakeGrip;
 }
+/** Value noise for the snow surface (no visible repetition, unlike sums of sines). */
+const SNOW_NOISE = `
+float snowHash(vec2 p) { vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+float snowNoise(vec2 p) { vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(snowHash(i), snowHash(i + vec2(1, 0)), u.x), mix(snowHash(i + vec2(0, 1)), snowHash(i + vec2(1, 1)), u.x), u.y) * 2.0 - 1.0; }
+float snowFbm(vec2 p) { float a = .55, s = 0.0; for (int k = 0; k < 4; k++) { s += a * snowNoise(p); p = mat2(1.62, 1.18, -1.18, 1.62) * p; a *= .48; } return s; }
+`;
 export function snowMaterial(length: number, spacing: number, park: boolean, detail: boolean) {
  const material = new T.MeshStandardMaterial({ vertexColors: true, roughness: .79, metalness: 0, envMapIntensity: .55 });
  material.onBeforeCompile = shader => {
@@ -29,21 +36,23 @@ export function snowMaterial(length: number, spacing: number, park: boolean, det
   shader.uniforms.parkDye = { value: park ? .62 : .34 };
   shader.vertexShader = 'attribute vec2 pisteCenters; attribute vec3 kickerPaint; attribute float snowDepth; varying vec2 alpineCenters; varying vec3 alpinePosition, jumpPaint; varying float alpineDepth;\n' + shader.vertexShader;
   shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nalpinePosition = position; alpineCenters = pisteCenters; jumpPaint = kickerPaint; alpineDepth = snowDepth;');
-  shader.fragmentShader = 'varying vec2 alpineCenters; varying vec3 alpinePosition, jumpPaint; varying float alpineDepth; uniform float courseLength, jumpSpacing, parkDye;\n' + shader.fragmentShader;
+  shader.fragmentShader = 'varying vec2 alpineCenters; varying vec3 alpinePosition, jumpPaint; varying float alpineDepth; uniform float courseLength, jumpSpacing, parkDye;\n' + SNOW_NOISE + shader.fragmentShader;
   shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
    vec2 snowXY = vec2(alpinePosition.x, -alpinePosition.z);
    float offset = abs(snowXY.x - alpineCenters.x);
    float powder = smoothstep(.065, .43, alpineDepth);
    float piste = (1.0 - smoothstep(17.0, 23.0, offset)) * (1.0 - powder);
    float footprint = length(fwidth(snowXY));
-   float nearDetail = 1.0 - smoothstep(.025, .13, footprint);
-   float windPhase = snowXY.x * 1.16 - snowXY.y * .29 + 1.45 * sin(snowXY.y * .20 + snowXY.x * .09);
-   float drift = sin(windPhase) * (.58 + .42 * sin(snowXY.y * .41 + snowXY.x * .31));
-   float smallerDrift = sin(windPhase * 2.31 + sin(snowXY.x * .58)) * sin(snowXY.y * 1.27);
+   float nearDetail = 1.0 - smoothstep(.008, .035, footprint);   // fine grain only while a pixel is smaller than it
+   // Wind-shaped snow: irregular drifts stretched along the prevailing wind (from the north-west), and smaller
+   // sastrugi on top; value noise, so nothing repeats in rows.
+   vec2 windUV = mat2(.8, -.6, .6, .8) * snowXY;
+   float drift = snowFbm(windUV * vec2(.055, .16)) * 1.25;
+   float smallerDrift = snowFbm(windUV * vec2(.42, 1.35) + 17.0) * (1.0 - smoothstep(.04, .2, length(fwidth(snowXY))));
    float grain = sin(snowXY.x * 88.0 + snowXY.y * 35.0) * sin(snowXY.y * 97.0 - snowXY.x * 53.0);
    // Groomed corduroy: ~4.5 cm tiller ridges along the fall line, in ~4.2 m groomer passes with a slight seam ridge.
    // Fades out before it can alias (it is far finer than a pixel beyond a few metres).
-   float cordDetail = 1.0 - smoothstep(.006, .03, footprint);
+   float cordDetail = 1.0 - smoothstep(.0022, .009, footprint);   // 4.5 cm ridges: gone before they can alias (moire)
    float passX = snowXY.x + sin(snowXY.y * .045) * 1.6;
    float groom = cos(passX * 139.6 + sin(snowXY.y * .5) * .18);
    float seam = 1.0 - smoothstep(.0, .22, abs(fract(passX / 4.2) - .5) * 4.2 - 1.88);
@@ -84,7 +93,7 @@ export function snowMaterial(length: number, spacing: number, park: boolean, det
    normal = normalize(max(abs(det), 1e-9) * normal - gradient);
   `);
  };
- material.customProgramCacheKey = () => detail ? 'alpine-snow-relief-2' : 'alpine-snow-color-2';
+ material.customProgramCacheKey = () => detail ? 'alpine-snow-relief-3' : 'alpine-snow-color-3';
  return material;
 }
 export function makeAlpineSky() {
@@ -110,8 +119,8 @@ export function makeAlpineSky() {
    varying vec3 skyRay;
    uniform vec3 zenith, horizon, sunDirection;
    uniform float clouds, sunStrength;
-   float skyHash(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+   float skyHash(vec2 p) {                       // arithmetic hash: stable at large coordinates (sin() is not, on GPUs)
+    vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z);
    }
    float skyNoise(vec2 p) {
     vec2 i = floor(p), f = fract(p);
@@ -119,17 +128,29 @@ export function makeAlpineSky() {
     return mix(mix(skyHash(i), skyHash(i + vec2(1,0)), f.x),
       mix(skyHash(i + vec2(0,1)), skyHash(i + vec2(1,1)), f.x), f.y);
    }
+   float skyFbm(vec2 p) {
+    float s = 0.0, a = .52;
+    for (int k = 0; k < 6; k++) { s += a * skyNoise(p); p = mat2(1.7, 1.1, -1.1, 1.7) * p + 3.7; a *= .5; }
+    return s;
+   }
    void main() {
     vec3 ray = normalize(skyRay);
     vec3 light = normalize(sunDirection);
     float angle = max(0.0, dot(ray, light));
     vec3 air = mix(horizon, zenith, pow(smoothstep(-.09, .85, ray.y), .62));
-    vec2 cloudUV = ray.xz / (max(ray.y, 0.0) + .23) * vec2(2.5, 3.4);
-    float vapor = skyNoise(cloudUV) * .58 + skyNoise(cloudUV * 2.13 + 8.2) * .26
-      + skyNoise(cloudUV * 4.71) * .11 + skyNoise(cloudUV * 9.67 - 4.0) * .05;
-    float cover = smoothstep(clouds - .16, clouds + .14, vapor) * smoothstep(.01, .16, ray.y);
-    vec3 litCloud = mix(vec3(.67,.77,.91), vec3(1.14,1.19,1.24), smoothstep(.43,.72,vapor));
-    air = mix(air, litCloud, cover * .85);
+    // cumulus on a flat layer: domain-warped fbm (billows), crisp edges, self-shadow toward the sun, silver lining
+    vec2 cloudUV = ray.xz / (max(ray.y, 0.0) + .14) * 2.1;
+    vec2 warp = vec2(skyFbm(cloudUV * .7 + 3.1), skyFbm(cloudUV * .7 - 5.7));
+    float vapor = skyFbm(cloudUV + warp * .9);
+    vec2 toSun = normalize(light.xz + 1e-4) * .18;
+    float shade = clamp((vapor - skyFbm(cloudUV + toSun + warp * .9)) * 3.2, 0.0, 1.0);   // denser toward the sun = shadowed
+    float thr = clouds - .16;                                  // clouds .74 (clear day) = scattered cumulus
+    float cover = smoothstep(thr - .045, thr + .05, vapor) * smoothstep(.015, .14, ray.y);
+    float core = smoothstep(thr + .05, thr + .26, vapor);
+    vec3 litCloud = mix(vec3(1.18, 1.2, 1.24), vec3(.72, .8, .93), shade * .85 + core * .25);
+    litCloud += sunStrength * pow(angle, 6.0) * (1.0 - core) * vec3(.5, .42, .3);               // silver lining near the sun
+    air = mix(air, litCloud, cover * .92);
+    air = mix(air, horizon * 1.08, (1.0 - smoothstep(-.02, .1, ray.y)) * .55);                // bright haze band at the horizon
     air += sunStrength * (pow(angle, 4.0) * .07 + pow(angle, 16.0) * .2 + pow(angle, 180.0) * .75
       + smoothstep(.99975,.99994,angle) * (1.0-cover) * 5.0) * vec3(1.0,.88,.70);
     gl_FragColor = vec4(air, 1.0);

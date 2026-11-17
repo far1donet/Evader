@@ -5,7 +5,9 @@ import http from 'node:http'; import fs from 'node:fs'; import path from 'node:p
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../..'), PORT = +(process.argv[2] ?? 4321);
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.ts': 'text/javascript', '.json': 'application/json', '.bin': 'application/octet-stream', '.png': 'image/png' };
 http.createServer((q, r) => {
-    const p = path.join(ROOT, decodeURIComponent(q.url.split('?')[0]));
+    let url = decodeURIComponent(q.url.split('?')[0]);
+    if (url.includes('/resort/')) url = '/public/resort/' + url.split('/resort/')[1];   // the game fetches resort/... relative to the page
+    const p = path.join(ROOT, url);
     if (!p.startsWith(ROOT)) { r.writeHead(403); return r.end(); }
     fs.readFile(p, (e, d) => {
         if (e) { r.writeHead(404); return r.end(); }

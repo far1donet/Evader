@@ -1583,6 +1583,20 @@ export default function Home() {
                                                             aria-label="Automatic resolution"
                                                         />
                                                     </div>
+                                                    <div className="toggle-setting">
+                                                        <div>
+                                                            <strong>Cinematic image</strong>
+                                                            <p>
+                                                                High and above: height haze with sun glow, bloom, filmic grade and 4x anti-aliasing; Ultra and
+                                                                above add ambient occlusion. Needs a strong graphics card.
+                                                            </p>
+                                                        </div>
+                                                        <Switch
+                                                            checked={settings.postfx !== false}
+                                                            onCheckedChange={v => setSettings({ ...settings, postfx: v })}
+                                                            aria-label="Cinematic image"
+                                                        />
+                                                    </div>
                                                     <div className="setting">
                                                         <label>Offline</label>
                                                         <button

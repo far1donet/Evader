@@ -10,6 +10,20 @@ v0.4 model is still available as **Classic**.
 > browser runs were in a cloud container with a software renderer (about 13–22 FPS), so frame rate and visual quality on
 > your PC are still unmeasured.
 
+## What's new in 1.4
+
+- **Cinematic image for strong PCs:** on by default for High and above. It adds:
+  - height haze with aerial perspective and sun glow;
+  - ground-truth ambient occlusion;
+  - highlight bloom;
+  - a high-key filmic tone and grade;
+  - 4× MSAA.
+- **A new sky:** crisp cumulus.
+- **Snow without moiré:** wind drifts made of noise rather than rows of sine waves.
+- **Fuller trees:** snow-loaded spruces.
+
+Details and limits: [docs/WHATS-NEW-1.4.md](docs/WHATS-NEW-1.4.md).
+
 ## What's new in 1.3
 
 - **Free ride holds together:**

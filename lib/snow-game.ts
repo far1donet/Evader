@@ -26,6 +26,7 @@ import { buildingMesh, insideSolid, type Solid } from './verbier/buildings.ts';
 import { FreeView, SurfaceMap, clearSpot, type FreeInfo } from './verbier/free-world.ts';
 import { Tutorial } from './tutorial.ts';
 import { Soundscape } from './soundscape.ts';
+import { PostFX, postLevel } from './postfx.ts';
 import { FreeTerrain, setFreeTerrain, resortLoaded, buildingsLoaded, buildingsAround, type Building } from './verbier/terrain.ts';
 
 /** Snow depth on a real-terrain run: groomed inside the piste width, deeper and varied off-piste, deepest on cold,
@@ -63,6 +64,7 @@ export type BenchResult = {
     quality: string;
     resolution: string;
     autoScale: number;
+    postfx: string;
     gpu: string;
     userAgent: string;
 };
@@ -89,6 +91,8 @@ export type Settings = {
     renderScale?: number;
     /** Lower the render resolution automatically when frames get slow (default on). */
     autoResolution?: boolean;
+    /** High-end image pipeline on High and above (ambient occlusion, height haze, bloom, grading). Default on. */
+    postfx?: boolean;
     volume: number;
     assist: boolean;
     motion: boolean;
@@ -670,6 +674,12 @@ export class SnowGame {
         this.snow = new T.Points(sg, new T.PointsMaterial({ color: 0xffffff, size: 0.12, transparent: true, opacity: 0.7 }));
         this.scene.add(this.snow);
         this.buildWorld();
+        try {
+            this.syncPostFX();
+        } catch (e) {
+            console.warn('post-processing unavailable', e);
+            this.postfx = undefined;
+        }
         this.resizeObserver = new ResizeObserver(() => this.resizeCanvas());
         this.resizeObserver.observe(host);
         window.addEventListener('keydown', this.keydown);
@@ -699,6 +709,23 @@ export class SnowGame {
         this.renderer.setSize(width, height, false);
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
+        if (!this.garageHost) this.resizePostFX();
+    }
+    /** High-end image pipeline (postfx.ts): on for High and above unless switched off in Settings. */
+    postfx?: PostFX;
+    private syncPostFX() {
+        const level = this.settings.postfx === false ? null : postLevel(this.settings.quality);
+        if (level !== (this.postfx?.level ?? null)) {
+            this.postfx?.dispose();
+            this.postfx = level ? new PostFX(this.renderer, this.scene, this.camera, level) : undefined;
+            this.setAtmosphere();
+        }
+        this.renderer.toneMappingExposure = this.postfx ? 1.3 : 1.15; // high-key snow with the haze and grade on
+        this.resizePostFX();
+    }
+    private resizePostFX() {
+        if (this.postfx && this.host.clientWidth && this.host.clientHeight)
+            this.postfx.setSize(this.host.clientWidth, this.host.clientHeight, this.renderer.getPixelRatio());
     }
     setGarageHost(host?: HTMLElement) {
         if (host === this.garageHost) return;
@@ -1063,6 +1090,19 @@ export class SnowGame {
         uniforms.sunDirection.value.copy(dusk ? DUSK_LIGHT : DAYLIGHT);
         uniforms.clouds.value = snowing ? 0.35 : dusk ? 0.58 : 0.74; // clear: scattered cloud, deep blue sky
         uniforms.sunStrength.value = snowing ? 0.03 : 1;
+        if (this.postfx) {
+            // the pipeline's height haze replaces the flat fog: thick in the valleys, thin on the summits, glowing toward the sun
+            this.scene.fog = null;
+            this.postfx.setAtmosphere({
+                color: new T.Color(horizon),
+                sun: dusk ? DUSK_LIGHT : DAYLIGHT,
+                sunColor: new T.Color(dusk ? 0xffae83 : 0xfff0da).multiplyScalar(snowing ? 0.15 : dusk ? 0.8 : 0.75),
+                density: snowing ? 0.0035 : dusk ? 0.0006 : 0.00042,
+                base: this.course?.dem ? 1500 : -400,
+                falloff: snowing ? 1 / 4000 : 1 / 650,
+                max: snowing ? 0.97 : 0.92,
+            });
+        }
     }
     setCourse(c: Course) {
         this.powder.clear();
@@ -1084,6 +1124,7 @@ export class SnowGame {
         if (changed) this.powder.setQuality(s.quality);
         const detail = preset(s.quality);
         this.renderer.setPixelRatio(Math.min(devicePixelRatio, detail.pixel) * (s.renderScale ?? 1) * this.autoScale);
+        this.syncPostFX();
         this.renderer.shadowMap.enabled = s.quality !== 'low';
         const sun = this.scene.getObjectByName('sun') as T.DirectionalLight;
         if (sun.shadow.mapSize.x !== detail.shadow) {
@@ -1671,6 +1712,7 @@ export class SnowGame {
             dt,
         );
         if (inspectingGear) this.renderer.render(this.gearPreview.scene, this.gearPreview.camera);
+        else if (this.postfx) this.postfx.render(dt);
         else this.renderer.render(this.scene, this.camera);
         if (this.diagnostics?.visible) {
             const r = this.reality,
@@ -2560,7 +2602,10 @@ export class SnowGame {
             if (this.frameEma > 26)
                 this.autoScale = Math.max(0.55, this.autoScale - 0.1); // under ~38 fps: lower
             else if (this.frameEma < 15 && this.autoScale < 1) this.autoScale = Math.min(1, this.autoScale + 0.05); // over ~66 fps: raise
-            if (this.autoScale !== before) this.renderer.setPixelRatio(this.basePixelRatio() * this.autoScale);
+            if (this.autoScale !== before) {
+                this.renderer.setPixelRatio(this.basePixelRatio() * this.autoScale);
+                this.resizePostFX();
+            }
         }
         if (this.bench) {
             const b = this.bench;
@@ -2604,6 +2649,7 @@ export class SnowGame {
             quality: this.settings.quality,
             resolution: `${this.renderer.domElement.width}x${this.renderer.domElement.height}`,
             autoScale: +this.autoScale.toFixed(2),
+            postfx: this.postfx?.level ?? 'off',
             gpu: ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : String(gl.getParameter(gl.RENDERER)),
             userAgent: navigator.userAgent,
         });
@@ -2869,6 +2915,7 @@ export class SnowGame {
         this.touch.clear();
     }
     dispose() {
+        this.postfx?.dispose();
         cancelAnimationFrame(this.frameId);
         window.removeEventListener('keydown', this.keydown);
         window.removeEventListener('keyup', this.keyup);

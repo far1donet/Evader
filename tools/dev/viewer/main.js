@@ -5,6 +5,7 @@ import { makeAlpineSky } from '/lib/alpine.ts';
 import { chairModel, gondolaModel, cableCarModel, hangerModel, lowModel, passengerGeometry } from '/lib/verbier/lift-vehicles.ts';
 import { liftScenery } from '/lib/verbier/lift-ride.ts';
 import { buildingMesh } from '/lib/verbier/buildings.ts';
+import { makeAlpineForest } from '/lib/alpine-forest.ts';
 
 const renderer = new T.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(1); renderer.setSize(innerWidth, innerHeight);
@@ -66,6 +67,11 @@ if (shot === 'window') {
     const list = [{ e: 0, n: 0, length: 14, width: 10, angle: 0, floors: 3, kind: 0, registered: true }];
     const m = buildingMesh(list, (e, n) => [e, n], (x, d) => 0, { shadows: true, lod: () => 2 }); scene.add(m.mesh);
     look(2, 4.5, -13, 2, 4.5, 0);
+}
+if (shot === 'trees') {
+    const trees = []; let k = 0;
+    for (let i = 0; i < 14; i++) for (let j = 0; j < 10; j++) { const x = i * 7 + Math.sin(k * 3.1) * 3, d = j * 8 + Math.cos(k * 1.7) * 3; trees.push({ x, d, y: ground(x, d), height: 9 + (k * 37 % 11), index: k++ }); }
+    scene.add(makeAlpineForest(trees)); look(-14, 8, 6, 40, 4, -40);
 }
 renderer.render(scene, camera);
 renderer.render(scene, camera);
